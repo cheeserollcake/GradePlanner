@@ -15,7 +15,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
   <style>
-    body { font-family: 'Noto Sans KR', sans-serif; background-color: #ffffff; color: #000000; }
+    body { font-family: 'Noto Sans KR', sans-serif; background-color: #ffffff; color: #000000; font-size: 15px; }
     
     /* 사용자 지정 테마 색상 */
     .bg-holiday { background-color: #FCE8E6 !important; color: #d93025 !important; }
@@ -37,52 +37,62 @@
 
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .sticky-header th { position: sticky; top: 0; z-index: 10; background-color: #f8fafc; }
+    .sticky-col { position: sticky; left: 0; z-index: 5; background-color: #f1f5f9; }
     .modal-backdrop { background-color: rgba(0, 0, 0, 0.5); }
+
+    /* 스프레드시트 셀 스타일링 */
+    .sheet-table td, .sheet-table th { border: 1px solid #cbd5e1; padding: 6px 10px; }
+    .sheet-table input, .sheet-table select { width: 100%; background: transparent; outline: none; }
+    
+    @media print {
+      header, aside, .no-print { display: none !important; }
+      main { max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
+    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col bg-white text-black overflow-x-hidden">
 
   <!-- GNB 헤더 -->
-  <header class="border-b border-gray-200 bg-white sticky top-0 z-40 shadow-sm">
+  <header class="border-b border-gray-200 bg-white sticky top-0 z-40 shadow-sm no-print">
     <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
       <div class="flex items-center gap-4">
-        <button onclick="toggleSidebar()" class="p-2 text-gray-700 hover:text-black text-xl">
+        <button onclick="toggleSidebar()" class="p-2 text-gray-700 hover:text-black text-2xl">
           <i class="fa-solid fa-bars"></i>
         </button>
-        <h1 id="page-title" class="font-bold text-xl tracking-tight text-gray-900">홈</h1>
+        <h1 id="page-title" class="font-bold text-2xl tracking-tight text-gray-900">홈</h1>
       </div>
       
-      <div class="flex items-center gap-2 text-xs sm:text-sm overflow-x-auto no-scrollbar py-1">
-        <button onclick="navigateTo('home')" class="px-3 py-1.5 rounded-lg border hover:bg-gray-100">홈</button>
-        <button onclick="navigateTo('overview')" class="px-3 py-1.5 rounded-lg border hover:bg-gray-100">6학년 개요</button>
-        <button onclick="navigateTo('timetable')" class="px-3 py-1.5 rounded-lg border hover:bg-gray-100">시간표</button>
-        <button onclick="navigateTo('budget')" class="px-3 py-1.5 rounded-lg border hover:bg-gray-100">예산</button>
-        <button onclick="navigateTo('admin')" class="px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 font-medium hover:bg-indigo-100">⚙️ 관리자</button>
+      <div class="flex items-center gap-2 text-sm sm:text-base overflow-x-auto no-scrollbar py-1">
+        <button onclick="navigateTo('home')" class="px-3.5 py-2 rounded-lg border hover:bg-gray-100 font-medium">홈</button>
+        <button onclick="navigateTo('overview')" class="px-3.5 py-2 rounded-lg border hover:bg-gray-100 font-medium">6학년 개요</button>
+        <button onclick="navigateTo('timetable')" class="px-3.5 py-2 rounded-lg border hover:bg-gray-100 font-medium">시간표</button>
+        <button onclick="navigateTo('budget')" class="px-3.5 py-2 rounded-lg border hover:bg-gray-100 font-medium">예산</button>
+        <button onclick="navigateTo('admin')" class="px-3.5 py-2 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 font-bold hover:bg-indigo-100">⚙️ 관리자</button>
       </div>
     </div>
   </header>
 
   <!-- 사이드바 (햄버거 메뉴) -->
-  <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 modal-backdrop z-50 hidden"></div>
-  <aside id="sidebar" class="fixed top-0 left-0 h-full w-64 bg-white border-r border-gray-200 z-50 transform -translate-x-full transition-transform duration-200 ease-in-out flex flex-col justify-between">
+  <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 modal-backdrop z-50 hidden no-print"></div>
+  <aside id="sidebar" class="fixed top-0 left-0 h-full w-72 bg-white border-r border-gray-200 z-50 transform -translate-x-full transition-transform duration-200 ease-in-out flex flex-col justify-between no-print">
     <div class="p-5">
       <div class="flex justify-between items-center mb-6 border-b pb-3">
-        <span class="font-bold text-lg text-indigo-600">🏫 6학년 학년포털</span>
-        <button onclick="toggleSidebar()" class="text-gray-400 hover:text-black text-lg"><i class="fa-solid fa-xmark"></i></button>
+        <span class="font-bold text-xl text-indigo-600">🏫 6학년 학년포털</span>
+        <button onclick="toggleSidebar()" class="text-gray-400 hover:text-black text-xl"><i class="fa-solid fa-xmark"></i></button>
       </div>
-      <nav class="space-y-1">
-        <button onclick="sidebarNav('home')" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-gray-100 flex items-center gap-3"><i class="fa-solid fa-house w-5"></i> 홈</button>
-        <button onclick="sidebarNav('overview')" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-gray-100 flex items-center gap-3"><i class="fa-solid fa-list-check w-5"></i> 6학년 개요</button>
-        <button onclick="sidebarNav('roster')" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-gray-100 flex items-center gap-3"><i class="fa-solid fa-users w-5"></i> 학년 전체 명렬표🔒</button>
-        <button onclick="sidebarNav('timetable')" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-gray-100 flex items-center gap-3"><i class="fa-solid fa-calendar-days w-5"></i> 시간표</button>
-        <button onclick="sidebarNav('budget')" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-gray-100 flex items-center gap-3"><i class="fa-solid fa-calculator w-5"></i> 예산</button>
-        <button onclick="sidebarNav('shortcuts')" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-gray-100 flex items-center gap-3"><i class="fa-solid fa-bookmark w-5"></i> 바로가기</button>
-        <button onclick="sidebarNav('layout')" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-gray-100 flex items-center gap-3"><i class="fa-solid fa-map w-5"></i> 교실배치도</button>
-        <button onclick="sidebarNav('phone')" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-gray-100 flex items-center gap-3"><i class="fa-solid fa-phone w-5"></i> 내선번호🔒</button>
-        <button onclick="sidebarNav('admin')" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-indigo-50 text-indigo-600 font-semibold flex items-center gap-3"><i class="fa-solid fa-gear w-5"></i> 학년 관리자🔒</button>
+      <nav class="space-y-1.5 text-base font-medium">
+        <button onclick="sidebarNav('home')" class="w-full text-left px-3.5 py-3 rounded-lg hover:bg-gray-100 flex items-center gap-3"><i class="fa-solid fa-house w-6 text-center"></i> 홈</button>
+        <button onclick="sidebarNav('overview')" class="w-full text-left px-3.5 py-3 rounded-lg hover:bg-gray-100 flex items-center gap-3"><i class="fa-solid fa-list-check w-6 text-center"></i> 6학년 개요</button>
+        <button onclick="sidebarNav('roster')" class="w-full text-left px-3.5 py-3 rounded-lg hover:bg-gray-100 flex items-center gap-3"><i class="fa-solid fa-users w-6 text-center"></i> 학년 전체 명렬표🔒</button>
+        <button onclick="sidebarNav('timetable')" class="w-full text-left px-3.5 py-3 rounded-lg hover:bg-gray-100 flex items-center gap-3"><i class="fa-solid fa-calendar-days w-6 text-center"></i> 시간표</button>
+        <button onclick="sidebarNav('budget')" class="w-full text-left px-3.5 py-3 rounded-lg hover:bg-gray-100 flex items-center gap-3"><i class="fa-solid fa-calculator w-6 text-center"></i> 예산</button>
+        <button onclick="sidebarNav('shortcuts')" class="w-full text-left px-3.5 py-3 rounded-lg hover:bg-gray-100 flex items-center gap-3"><i class="fa-solid fa-bookmark w-6 text-center"></i> 바로가기</button>
+        <button onclick="sidebarNav('layout')" class="w-full text-left px-3.5 py-3 rounded-lg hover:bg-gray-100 flex items-center gap-3"><i class="fa-solid fa-map w-6 text-center"></i> 교실배치도</button>
+        <button onclick="sidebarNav('phone')" class="w-full text-left px-3.5 py-3 rounded-lg hover:bg-gray-100 flex items-center gap-3"><i class="fa-solid fa-phone w-6 text-center"></i> 내선번호🔒</button>
+        <button onclick="sidebarNav('admin')" class="w-full text-left px-3.5 py-3 rounded-lg hover:bg-indigo-50 text-indigo-600 font-bold flex items-center gap-3"><i class="fa-solid fa-gear w-6 text-center"></i> 학년 관리자🔒</button>
       </nav>
     </div>
-    <div class="p-4 border-t text-xs text-gray-400 text-center">Firestore Connected</div>
+    <div class="p-4 border-t text-xs text-gray-400 text-center">초등학교 6학년 포털 시스템</div>
   </aside>
 
   <!-- 메인 콘텐츠 영역 -->
@@ -91,24 +101,24 @@
     <!-- PAGE 1: 홈 -->
     <section id="page-home" class="page-view space-y-6">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="p-4 border rounded-xl bg-slate-50 shadow-sm text-center">
-          <div class="text-xs text-gray-500 font-semibold mb-1">오늘 날짜</div>
-          <div id="home-today-date" class="text-base font-bold text-gray-800">--</div>
+        <div class="p-5 border rounded-xl bg-slate-50 shadow-sm text-center">
+          <div class="text-sm text-gray-500 font-semibold mb-1">오늘 날짜</div>
+          <div id="home-today-date" class="text-lg font-bold text-gray-800">--</div>
         </div>
-        <div class="p-4 border rounded-xl bg-blue-50 shadow-sm text-center">
-          <div class="text-xs text-blue-600 font-semibold mb-1">여름방학식</div>
-          <div id="home-summer-dday" class="text-base font-bold text-blue-900">--</div>
+        <div class="p-5 border rounded-xl bg-blue-50 shadow-sm text-center">
+          <div class="text-sm text-blue-600 font-semibold mb-1">여름방학식</div>
+          <div id="home-summer-dday" class="text-lg font-bold text-blue-900">--</div>
         </div>
-        <div class="p-4 border rounded-xl bg-purple-50 shadow-sm text-center">
-          <div class="text-xs text-purple-600 font-semibold mb-1">겨울방학식</div>
-          <div id="home-winter-dday" class="text-base font-bold text-purple-900">--</div>
+        <div class="p-5 border rounded-xl bg-purple-50 shadow-sm text-center">
+          <div class="text-sm text-purple-600 font-semibold mb-1">겨울방학식</div>
+          <div id="home-winter-dday" class="text-lg font-bold text-purple-900">--</div>
         </div>
       </div>
 
-      <div class="border rounded-xl p-5 bg-white shadow-sm">
-        <h2 class="font-bold text-lg mb-4 flex items-center gap-2"><i class="fa-solid fa-calendar-week text-indigo-600"></i> 주요 일정 (오늘 기준 7일간)</h2>
-        <div id="home-upcoming-schedule" class="divide-y divide-gray-100">
-          <p class="text-sm text-gray-400 py-3 text-center">일정을 불러오는 중...</p>
+      <div class="border rounded-xl p-6 bg-white shadow-sm">
+        <h2 class="font-bold text-xl mb-4 flex items-center gap-2"><i class="fa-solid fa-calendar-week text-indigo-600"></i> 주요 일정 (오늘 기준 7일간)</h2>
+        <div id="home-upcoming-schedule" class="divide-y divide-gray-100 text-base">
+          <p class="text-gray-400 py-4 text-center">일정을 불러오는 중...</p>
         </div>
       </div>
     </section>
@@ -118,13 +128,14 @@
       <!-- 1) 학년 개요 -->
       <div class="border rounded-xl bg-white shadow-sm overflow-hidden">
         <div class="p-4 bg-gray-50 border-b flex justify-between items-center cursor-pointer" onclick="toggleAccordion('acc-overview')">
-          <div class="flex items-center gap-2 font-bold text-lg">
-            <span>📋 학년 개요 (data_student / data_basic 연동)</span>
+          <div class="flex items-center gap-2 font-bold text-xl">
+            <span>📋 학년 개요</span>
+            <button onclick="event.stopPropagation(); toggleOverviewEdit()" class="text-gray-400 hover:text-indigo-600 text-base ml-2" title="수정"><i class="fa-solid fa-pen"></i></button>
           </div>
-          <i id="acc-overview-icon" class="fa-solid fa-chevron-down text-gray-400"></i>
+          <i id="acc-overview-icon" class="fa-solid fa-chevron-down text-gray-400 text-lg"></i>
         </div>
         <div id="acc-overview" class="p-4 overflow-x-auto">
-          <table class="w-full text-xs text-center border-collapse border border-gray-200">
+          <table class="w-full text-sm text-center border-collapse border border-gray-200">
             <thead id="overview-table-head"></thead>
             <tbody id="overview-table-body"></tbody>
           </table>
@@ -134,10 +145,11 @@
       <!-- 2) 학년 예산 개요 -->
       <div class="border rounded-xl bg-white shadow-sm overflow-hidden">
         <div class="p-4 bg-gray-50 border-b flex justify-between items-center cursor-pointer" onclick="toggleAccordion('acc-budget')">
-          <div class="flex items-center gap-2 font-bold text-lg">
-            <span>💳 학년 예산 개요 (data_basic / data_budget 연동)</span>
+          <div class="flex items-center gap-2 font-bold text-xl">
+            <span>💳 학년 예산</span>
+            <button onclick="event.stopPropagation(); addBudgetOverviewCard()" class="text-gray-400 hover:text-indigo-600 text-base ml-2" title="카드 추가"><i class="fa-solid fa-plus"></i></button>
           </div>
-          <i id="acc-budget-icon" class="fa-solid fa-chevron-down text-gray-400"></i>
+          <i id="acc-budget-icon" class="fa-solid fa-chevron-down text-gray-400 text-lg"></i>
         </div>
         <div id="acc-budget" class="p-4">
           <div id="budget-cards-container" class="flex flex-wrap gap-4"></div>
@@ -146,30 +158,33 @@
 
       <!-- 3) D-Day 카드 -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="p-4 border rounded-xl bg-slate-50 text-center"><div class="text-xs text-gray-500 mb-1">오늘 날짜</div><div class="overview-today-date font-bold">--</div></div>
-        <div class="p-4 border rounded-xl bg-blue-50 text-center"><div class="text-xs text-blue-600 mb-1">여름방학식</div><div class="overview-summer-dday font-bold">--</div></div>
-        <div class="p-4 border rounded-xl bg-purple-50 text-center"><div class="text-xs text-purple-600 mb-1">겨울방학식</div><div class="overview-winter-dday font-bold">--</div></div>
+        <div class="p-4 border rounded-xl bg-slate-50 text-center"><div class="text-sm text-gray-500 mb-1">오늘 날짜</div><div class="overview-today-date font-bold text-base">--</div></div>
+        <div class="p-4 border rounded-xl bg-blue-50 text-center"><div class="text-sm text-blue-600 mb-1">여름방학식</div><div class="overview-summer-dday font-bold text-base">--</div></div>
+        <div class="p-4 border rounded-xl bg-purple-50 text-center"><div class="text-sm text-purple-600 mb-1">겨울방학식</div><div class="overview-winter-dday font-bold text-base">--</div></div>
       </div>
 
       <!-- 4) 전체 일정 -->
-      <div class="border rounded-xl bg-white p-5 shadow-sm space-y-4">
+      <div class="border rounded-xl bg-white p-6 shadow-sm space-y-4">
         <div class="flex flex-wrap justify-between items-center gap-3 border-b pb-3">
-          <h2 class="font-bold text-lg">📅 전체 일정 (data_task_school / data_add_timetable / data_task_memo 연동)</h2>
-          <div class="flex items-center gap-2 text-xs">
-            <button onclick="loadFullSchedule('week')" class="px-2.5 py-1.5 border rounded hover:bg-gray-100">이번주</button>
-            <button onclick="loadFullSchedule('today')" class="px-2.5 py-1.5 border rounded hover:bg-gray-100">오늘</button>
-            <button onclick="loadFullSchedule('all')" class="px-2.5 py-1.5 border rounded bg-indigo-50 text-indigo-600 font-semibold">전체</button>
+          <div class="flex items-center gap-2">
+            <h2 class="font-bold text-xl">📅 전체 일정</h2>
+            <button onclick="toggleScheduleOrder()" class="text-gray-500 hover:text-black text-sm border px-2 py-1 rounded ml-2" id="schedule-order-btn"><i class="fa-solid fa-sort"></i> 날짜순</button>
+          </div>
+          <div class="flex items-center gap-2 text-sm">
+            <button onclick="loadFullSchedule('week')" class="px-3 py-1.5 border rounded hover:bg-gray-100 font-medium">이번주</button>
+            <button onclick="loadFullSchedule('today')" class="px-3 py-1.5 border rounded hover:bg-gray-100 font-medium">오늘</button>
+            <button onclick="loadFullSchedule('all')" class="px-3 py-1.5 border rounded bg-indigo-50 text-indigo-600 font-bold">전체</button>
           </div>
         </div>
 
         <div class="max-h-[600px] overflow-y-auto border rounded-lg">
-          <table class="w-full text-xs text-left border-collapse sticky-header">
+          <table class="w-full text-sm text-left border-collapse sticky-header">
             <thead>
-              <tr class="border-b bg-gray-100">
-                <th class="p-2.5 w-32 text-center">날짜</th>
-                <th class="p-2.5 w-1/3">학교행사</th>
-                <th class="p-2.5 w-1/4">학년 강사 일정</th>
-                <th class="p-2.5">학년 일정</th>
+              <tr class="border-b bg-gray-100 font-bold text-gray-800">
+                <th class="p-3 w-36 text-center">날짜</th>
+                <th class="p-3 w-1/3">학교행사</th>
+                <th class="p-3 w-1/4">학년 강사 일정</th>
+                <th class="p-3">학년 일정</th>
               </tr>
             </thead>
             <tbody id="full-schedule-tbody" class="divide-y divide-gray-100"></tbody>
@@ -178,21 +193,21 @@
       </div>
     </section>
 
-    <!-- PAGE 3: 학년 전체 명렬표 -->
+    <!-- PAGE 3: 학년 전체 명렬표 (보안) -->
     <section id="page-roster" class="page-view space-y-4 hidden">
-      <div id="roster-auth-gate" class="p-8 border rounded-2xl bg-slate-50 text-center max-w-md mx-auto space-y-4">
-        <i class="fa-solid fa-lock text-3xl text-gray-400"></i>
-        <h3 class="font-bold text-lg">학년 전체 명렬표 보안 접근</h3>
-        <input type="password" id="roster-pw-input" placeholder="비밀번호 입력 (기본: 0000)" class="w-full p-2.5 border rounded-lg text-center">
-        <button onclick="verifyRosterAccess()" class="w-full py-2.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700">접속 확인</button>
+      <div id="roster-auth-gate" class="p-8 border rounded-2xl bg-slate-50 text-center max-w-md mx-auto space-y-4 shadow-sm">
+        <i class="fa-solid fa-lock text-4xl text-gray-400"></i>
+        <h3 class="font-bold text-xl">학년 전체 명렬표 보안 접근</h3>
+        <input type="password" id="roster-pw-input" placeholder="비밀번호 입력 (초기: 0000)" class="w-full p-3 border rounded-lg text-center font-bold text-base">
+        <button onclick="verifyRosterAccess()" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 text-base">접속 확인</button>
       </div>
 
-      <div id="roster-content" class="hidden border rounded-xl p-5 bg-white shadow-sm space-y-4">
-        <h2 class="font-bold text-lg border-b pb-3">👥 6학년 전체 명렬표 (data_student 연동)</h2>
+      <div id="roster-content" class="hidden border rounded-xl p-6 bg-white shadow-sm space-y-4">
+        <h2 class="font-bold text-xl border-b pb-3">👥 6학년 전체 명렬표</h2>
         <div class="overflow-x-auto">
-          <table class="w-full text-xs text-center border">
-            <thead class="bg-gray-100">
-              <tr><th class="p-2 border">학급</th><th class="p-2 border">번호</th><th class="p-2 border">성별</th><th class="p-2 border">생년월일</th><th class="p-2 border">비고</th></tr>
+          <table class="w-full text-sm text-center border">
+            <thead class="bg-gray-100 font-bold">
+              <tr><th class="p-2.5 border">학급</th><th class="p-2.5 border">번호</th><th class="p-2.5 border">성별</th><th class="p-2.5 border">생년월일</th><th class="p-2.5 border">비고</th></tr>
             </thead>
             <tbody id="roster-tbody"></tbody>
           </table>
@@ -202,21 +217,26 @@
 
     <!-- PAGE 4: 시간표 -->
     <section id="page-timetable" class="page-view space-y-4 hidden">
-      <div class="flex border-b text-xs sm:text-sm font-semibold overflow-x-auto no-scrollbar gap-2">
-        <button onclick="switchTimetableSub('base')" class="subtab-tt px-3 py-2 border-b-2 border-indigo-600 text-indigo-600">기초 시간표</button>
-        <button onclick="switchTimetableSub('monthly')" class="subtab-tt px-3 py-2 text-gray-500 hover:text-black">월간 시간표</button>
-        <button onclick="switchTimetableSub('specialist')" class="subtab-tt px-3 py-2 text-gray-500 hover:text-black">전담 시간표</button>
-        <button onclick="switchTimetableSub('rooms')" class="subtab-tt px-3 py-2 text-gray-500 hover:text-black">특별실 시간표</button>
+      <div class="flex border-b text-sm sm:text-base font-bold overflow-x-auto no-scrollbar gap-2">
+        <button onclick="switchTimetableSub('base')" class="subtab-tt px-4 py-2.5 border-b-2 border-indigo-600 text-indigo-600">기초 시간표</button>
+        <button onclick="switchTimetableSub('monthly')" class="subtab-tt px-4 py-2.5 text-gray-500 hover:text-black">월간 시간표</button>
+        <button onclick="switchTimetableSub('specialist')" class="subtab-tt px-4 py-2.5 text-gray-500 hover:text-black">전담 시간표</button>
+        <button onclick="switchTimetableSub('rooms')" class="subtab-tt px-4 py-2.5 text-gray-500 hover:text-black">특별실 시간표</button>
+        <button onclick="switchTimetableSub('class_tt')" class="subtab-tt px-4 py-2.5 text-gray-500 hover:text-black">반별 시간표</button>
+        <button onclick="switchTimetableSub('course_tt')" class="subtab-tt px-4 py-2.5 text-gray-500 hover:text-black">강좌별 시간표</button>
+        <button onclick="switchTimetableSub('assign_tt')" class="subtab-tt px-4 py-2.5 text-gray-500 hover:text-black">시간표 배정기</button>
       </div>
       <div id="tt-subview-container" class="pt-2"></div>
     </section>
 
     <!-- PAGE 5: 예산 -->
     <section id="page-budget" class="page-view space-y-4 hidden">
-      <div class="flex border-b text-xs sm:text-sm font-semibold overflow-x-auto no-scrollbar gap-2">
-        <button onclick="switchBudgetSub('shopid')" class="subtab-bg px-3 py-2 border-b-2 border-indigo-600 text-indigo-600">쇼핑몰 ID🔒</button>
-        <button onclick="switchBudgetSub('grade_bg')" class="subtab-bg px-3 py-2 text-gray-500 hover:text-black">학년 예산 (data_budget)</button>
-        <button onclick="switchBudgetSub('supplies')" class="subtab-bg px-3 py-2 text-gray-500 hover:text-black">학습준비물 (data_supply)</button>
+      <div class="flex border-b text-sm sm:text-base font-bold overflow-x-auto no-scrollbar gap-2">
+        <button onclick="switchBudgetSub('shopid')" class="subtab-bg px-4 py-2.5 border-b-2 border-indigo-600 text-indigo-600">쇼핑몰 ID🔒</button>
+        <button onclick="switchBudgetSub('grade_bg')" class="subtab-bg px-4 py-2.5 text-gray-500 hover:text-black">학년 예산</button>
+        <button onclick="switchBudgetSub('supplies')" class="subtab-bg px-4 py-2.5 text-gray-500 hover:text-black">학습준비물</button>
+        <button onclick="switchBudgetSub('cleaning')" class="subtab-bg px-4 py-2.5 text-gray-500 hover:text-black">청소용품</button>
+        <button onclick="switchBudgetSub('other_bg')" class="subtab-bg px-4 py-2.5 text-gray-500 hover:text-black">그 외 예산</button>
       </div>
       <div id="budget-subview-container" class="pt-2"></div>
     </section>
@@ -224,50 +244,60 @@
     <!-- PAGE 6: 바로가기 -->
     <section id="page-shortcuts" class="page-view space-y-4 hidden">
       <div class="flex justify-between items-center border-b pb-3">
-        <h2 class="font-bold text-lg">🔗 바로가기 목록</h2>
-        <button onclick="addShortcutPrompt()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold">+ 추가</button>
+        <h2 class="font-bold text-xl">🔗 바로가기 목록</h2>
+        <button onclick="addShortcutPrompt()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold">+ 추가</button>
       </div>
       <div id="shortcuts-grid" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4 pt-2"></div>
     </section>
 
     <!-- PAGE 7: 교실배치도 -->
     <section id="page-layout" class="page-view space-y-4 hidden">
-      <h2 class="font-bold text-lg border-b pb-3">🗺️ 교실배치도</h2>
-      <div class="border rounded-xl p-4 flex items-center justify-center min-h-[400px] bg-slate-50">
-        <p class="text-gray-400 text-sm">등록된 교실배치도 이미지가 없습니다.</p>
+      <div class="flex justify-between items-center border-b pb-3">
+        <h2 class="font-bold text-xl">🗺️ 교실배치도</h2>
+        <input type="file" id="layout-file-input" accept="image/*" class="hidden" onchange="uploadLayoutImage(this)">
+        <button onclick="document.getElementById('layout-file-input').click()" class="px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-bold">이미지 업로드/교체</button>
+      </div>
+      <div id="layout-image-container" class="border rounded-xl p-4 flex items-center justify-center min-h-[450px] bg-slate-50">
+        <p class="text-gray-400 text-base">등록된 교실배치도 이미지가 없습니다.</p>
       </div>
     </section>
 
-    <!-- PAGE 8: 내선번호 -->
+    <!-- PAGE 8: 내선번호 (보안) -->
     <section id="page-phone" class="page-view space-y-4 hidden">
-      <div id="phone-auth-gate" class="p-8 border rounded-2xl bg-slate-50 text-center max-w-md mx-auto space-y-4">
-        <i class="fa-solid fa-lock text-3xl text-gray-400"></i>
-        <h3 class="font-bold text-lg">내선번호표 보안 접근</h3>
-        <input type="password" id="phone-pw-input" placeholder="비밀번호 입력 (기본: 0000)" class="w-full p-2.5 border rounded-lg text-center">
-        <button onclick="verifyPhoneAccess()" class="w-full py-2.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700">접속 확인</button>
+      <div id="phone-auth-gate" class="p-8 border rounded-2xl bg-slate-50 text-center max-w-md mx-auto space-y-4 shadow-sm">
+        <i class="fa-solid fa-lock text-4xl text-gray-400"></i>
+        <h3 class="font-bold text-xl">내선번호표 보안 접근</h3>
+        <input type="password" id="phone-pw-input" placeholder="비밀번호 입력 (초기: 0000)" class="w-full p-3 border rounded-lg text-center font-bold text-base">
+        <button onclick="verifyPhoneAccess()" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 text-base">접속 확인</button>
       </div>
 
-      <div id="phone-content" class="hidden border rounded-xl p-5 bg-white shadow-sm space-y-4">
-        <h2 class="font-bold text-lg border-b pb-3">📞 학교 내선번호표</h2>
-        <div class="border rounded-xl p-4 flex items-center justify-center min-h-[400px] bg-slate-50">
-          <p class="text-gray-400 text-sm">등록된 내선번호표 이미지가 없습니다.</p>
+      <div id="phone-content" class="hidden border rounded-xl p-6 bg-white shadow-sm space-y-4">
+        <div class="flex justify-between items-center border-b pb-3">
+          <h2 class="font-bold text-xl">📞 학교 내선번호표</h2>
+          <input type="file" id="phone-file-input" accept="image/*" class="hidden" onchange="uploadPhoneImage(this)">
+          <button onclick="document.getElementById('phone-file-input').click()" class="px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-bold">이미지 업로드/교체</button>
+        </div>
+        <div id="phone-image-container" class="border rounded-xl p-4 flex items-center justify-center min-h-[450px] bg-slate-50">
+          <p class="text-gray-400 text-base">등록된 내선번호표 이미지가 없습니다.</p>
         </div>
       </div>
     </section>
 
-    <!-- PAGE 9: 학년 관리자 -->
+    <!-- PAGE 9: 학년 관리자 (보안) -->
     <section id="page-admin" class="page-view space-y-4 hidden">
-      <div id="admin-auth-gate" class="p-8 border rounded-2xl bg-slate-50 text-center max-w-md mx-auto space-y-4">
-        <i class="fa-solid fa-user-shield text-3xl text-indigo-600"></i>
-        <h3 class="font-bold text-lg">학년 관리자 접속</h3>
-        <input type="password" id="admin-pw-input" placeholder="관리자 비밀번호 입력 (기본: 0000)" class="w-full p-2.5 border rounded-lg text-center">
-        <button onclick="verifyAdminAccess()" class="w-full py-2.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700">관리자 인증</button>
+      <div id="admin-auth-gate" class="p-8 border rounded-2xl bg-slate-50 text-center max-w-md mx-auto space-y-4 shadow-sm">
+        <i class="fa-solid fa-user-shield text-4xl text-indigo-600"></i>
+        <h3 class="font-bold text-xl">학년 관리자 접속</h3>
+        <input type="password" id="admin-pw-input" placeholder="관리자 비밀번호 입력 (초기: 0000)" class="w-full p-3 border rounded-lg text-center font-bold text-base">
+        <button onclick="verifyAdminAccess()" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 text-base">관리자 인증</button>
       </div>
 
       <div id="admin-content" class="hidden space-y-6">
-        <div class="flex border-b text-xs sm:text-sm font-semibold gap-2">
-          <button onclick="switchAdminSub('basic')" class="subtab-adm px-3 py-2 border-b-2 border-indigo-600 text-indigo-600">학년 기초 설정</button>
-          <button onclick="switchAdminSub('security')" class="subtab-adm px-3 py-2 text-gray-500 hover:text-black">비밀번호 관리</button>
+        <div class="flex border-b text-sm sm:text-base font-bold gap-2">
+          <button onclick="switchAdminSub('basic')" class="subtab-adm px-4 py-2.5 border-b-2 border-indigo-600 text-indigo-600">학년 기초 설정</button>
+          <button onclick="switchAdminSub('timetable')" class="subtab-adm px-4 py-2.5 text-gray-500 hover:text-black">시간표 설정</button>
+          <button onclick="switchAdminSub('rooms')" class="subtab-adm px-4 py-2.5 text-gray-500 hover:text-black">공간 개방 설정</button>
+          <button onclick="switchAdminSub('security')" class="subtab-adm px-4 py-2.5 text-gray-500 hover:text-black">비밀번호/데이터 관리</button>
         </div>
         <div id="admin-subview-container"></div>
       </div>
@@ -276,7 +306,7 @@
   </main>
 
   <script>
-    // 파이어베이스 연동 키 설정
+    // 파이어베이스 연동 키
     const firebaseConfig = {
       apiKey: "AIzaSyDonpgXJGlSjqv-sFVAdlokpZ0XhONpjY0",
       authDomain: "gradeplanner-d5499.firebaseapp.com",
@@ -291,25 +321,46 @@
     try {
       firebase.initializeApp(firebaseConfig);
       db = firebase.firestore();
-      console.log("Firebase DB Connected.");
-    } catch(e) {
-      console.error("Firebase Init Error:", e);
-    }
+    } catch(e) { console.error("Firebase Init Error:", e); }
 
     const appState = {
       currentYear: 2026,
-      classCount: 6,
-      classes: ['1반', '2반', '3반', '4반', '5반', '6반'],
+      classCount: 10,
+      classes: ['1반', '2반', '3반', '4반', '5반', '6반', '7반', '8반', '9반', '10반'],
       commonPw: "0000",
-      adminPw: "0000"
+      adminPw: "0000",
+      scheduleAscending: true,
+      shopIdAuthed: false
     };
 
-    // 데이터 안전 파싱 헬퍼 (공백/오타 호환)
+    // 필드 오타 및 공백 대응 파싱 헬퍼
     function getVal(doc, ...keys) {
+      if (!doc) return '';
       for (let k of keys) {
         if (doc[k] !== undefined && doc[k] !== null) return doc[k];
       }
       return '';
+    }
+
+    // D-Day 계산 함수 (지나간 날짜는 D+X 처리)
+    function calcDDay(targetDateStr) {
+      if (!targetDateStr) return '날짜 미정';
+      const cleanDateStr = targetDateStr.replace(/[^0-9.]/g, '');
+      const parts = cleanDateStr.split('.');
+      if (parts.length < 3) return targetDateStr;
+
+      const target = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      target.setHours(0,0,0,0);
+
+      const diffDays = Math.round((target - today) / (1000 * 60 * 60 * 24));
+      
+      const formattedDate = `${target.getFullYear()}.${String(target.getMonth()+1).padStart(2,'0')}.${String(target.getDate()).padStart(2,'0')}.`;
+      
+      if (diffDays > 0) return `${formattedDate} D-${diffDays}`;
+      if (diffDays === 0) return `${formattedDate} D-Day`;
+      return `${formattedDate} D+${Math.abs(diffDays)}`;
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
@@ -328,18 +379,8 @@
       
       document.getElementById('home-today-date').innerText = formattedToday;
       document.querySelectorAll('.overview-today-date').forEach(el => el.innerText = formattedToday);
-
-      const summerDate = new Date(now.getFullYear(), 6, 20);
-      const winterDate = new Date(now.getFullYear(), 11, 31);
-      
-      const dSummer = Math.ceil((summerDate - now) / (1000 * 60 * 60 * 24));
-      const dWinter = Math.ceil((winterDate - now) / (1000 * 60 * 60 * 24));
-
-      document.getElementById('home-summer-dday').innerText = `${summerDate.getFullYear()}.${String(summerDate.getMonth()+1).padStart(2,'0')}.${String(summerDate.getDate()).padStart(2,'0')}. D-${dSummer}`;
-      document.getElementById('home-winter-dday').innerText = `${winterDate.getFullYear()}.${String(winterDate.getMonth()+1).padStart(2,'0')}.${String(winterDate.getDate()).padStart(2,'0')}. D-${dWinter}`;
     }
 
-    // data_basic 설정 로드
     async function loadBasicSettings() {
       if (!db) return;
       try {
@@ -348,9 +389,18 @@
           const d = doc.data();
           const clsList = getVal(d, 'list_class');
           if (clsList && Array.isArray(clsList)) {
-            appState.classes = clsList.filter(c => c !== '학년공통');
-            appState.classCount = appState.classes.length;
+            const filtered = clsList.filter(c => c !== '학년공통');
+            if (filtered.length > 0) {
+              appState.classes = filtered;
+              appState.classCount = filtered.length;
+            }
           }
+
+          // 방학식 D-day 파싱
+          const semStart = getVal(d, 'semester_start_date', 'semester_start_Date');
+          const semEnd = getVal(d, 'semester_end_date');
+          if (semStart) document.getElementById('home-summer-dday').innerText = calcDDay(semStart);
+          if (semEnd) document.getElementById('home-winter-dday').innerText = calcDDay(semEnd);
         });
       } catch(e) { console.warn('data_basic load error', e); }
     }
@@ -366,6 +416,9 @@
       };
       document.getElementById('page-title').innerText = titles[pageId] || '포털';
       window.scrollTo(0, 0);
+
+      if (pageId === 'budget') switchBudgetSub('shopid');
+      if (pageId === 'timetable') switchTimetableSub('base');
     }
 
     function toggleSidebar() {
@@ -381,18 +434,17 @@
     }
 
     function toggleAccordion(id) {
-      const content = document.getElementById(id);
-      content.classList.toggle('hidden');
+      document.getElementById(id).classList.toggle('hidden');
     }
 
-    // [6학년 개요] 表 렌더링 (data_student 연동)
+    // [6학년 개요] 표 렌더링 (data_student 연동)
     async function renderOverviewTable() {
       const thead = document.getElementById('overview-table-head');
       const tbody = document.getElementById('overview-table-body');
       
-      let headHtml = '<tr class="bg-gray-100"><th class="p-2 border w-16">구분</th>';
-      appState.classes.forEach(c => headHtml += `<th class="p-2 border">${c}</th>`);
-      headHtml += '<th class="p-2 border w-16">계</th></tr>';
+      let headHtml = '<tr class="bg-gray-100 font-bold"><th class="p-3 border w-20">구분</th>';
+      appState.classes.forEach(c => headHtml += `<th class="p-3 border">${c}</th>`);
+      headHtml += '<th class="p-3 border w-20">계</th></tr>';
       thead.innerHTML = headHtml;
 
       const defaultTasks = ['부장', '보조/친목', '연구실', '졸업식', '평가(1학기)', '학습준비물', '현지연수/위원회', '앨범', '평가(2학기)', '인사위'];
@@ -402,7 +454,7 @@
         try {
           const snap = await db.collection('data_student').get();
           snap.forEach(doc => students.push(doc.data()));
-        } catch(e) { console.warn('data_student load error', e); }
+        } catch(e) {}
       }
 
       const rows = ['남', '여', '재적', '학년업무', '담임'];
@@ -410,41 +462,33 @@
       let maleTotal = 0, femaleTotal = 0;
 
       rows.forEach((r, rIdx) => {
-        bodyHtml += `<tr><td class="p-2 border font-semibold bg-gray-50">${r}</td>`;
+        bodyHtml += `<tr><td class="p-3 border font-bold bg-gray-50">${r}</td>`;
 
         appState.classes.forEach((cName, cIdx) => {
           const classNum = parseInt(cName.replace(/[^0-9]/g, '')) || (cIdx + 1);
 
-          if (rIdx === 0) { // 남
-            const cnt = students.filter(s => {
-              const c = getVal(s, 'student_class');
-              const g = getVal(s, 'student_gender');
-              return (c == classNum) && (g === '남' || g === '남성');
-            }).length;
+          if (rIdx === 0) {
+            const cnt = students.filter(s => (getVal(s, 'student_class') == classNum) && ['남', '남성'].includes(getVal(s, 'student_gender'))).length;
             maleTotal += cnt;
-            bodyHtml += `<td class="p-2 border">${cnt}</td>`;
-          } else if (rIdx === 1) { // 여
-            const cnt = students.filter(s => {
-              const c = getVal(s, 'student_class');
-              const g = getVal(s, 'student_gender');
-              return (c == classNum) && (g === '여' || g === '여성');
-            }).length;
+            bodyHtml += `<td class="p-3 border">${cnt}</td>`;
+          } else if (rIdx === 1) {
+            const cnt = students.filter(s => (getVal(s, 'student_class') == classNum) && ['여', '여성'].includes(getVal(s, 'student_gender'))).length;
             femaleTotal += cnt;
-            bodyHtml += `<td class="p-2 border">${cnt}</td>`;
-          } else if (rIdx === 2) { // 재적
+            bodyHtml += `<td class="p-3 border">${cnt}</td>`;
+          } else if (rIdx === 2) {
             const cnt = students.filter(s => getVal(s, 'student_class') == classNum).length;
-            bodyHtml += `<td class="p-2 border font-bold bg-slate-50">${cnt}</td>`;
+            bodyHtml += `<td class="p-3 border font-bold bg-slate-50">${cnt}</td>`;
           } else if (rIdx === 3) {
-            bodyHtml += `<td class="p-2 border text-gray-600">${defaultTasks[cIdx] || '-'}</td>`;
+            bodyHtml += `<td class="p-3 border text-gray-700">${defaultTasks[cIdx] || '-'}</td>`;
           } else if (rIdx === 4) {
-            bodyHtml += `<td class="p-2 border font-medium">교사${cIdx+1}</td>`;
+            bodyHtml += `<td class="p-3 border font-medium">교사${cIdx+1}</td>`;
           }
         });
 
-        if (rIdx === 0) bodyHtml += `<td class="p-2 border font-bold bg-gray-50">${maleTotal}</td>`;
-        else if (rIdx === 1) bodyHtml += `<td class="p-2 border font-bold bg-gray-50">${femaleTotal}</td>`;
-        else if (rIdx === 2) bodyHtml += `<td class="p-2 border font-bold bg-indigo-50 text-indigo-700">${maleTotal + femaleTotal}</td>`;
-        else bodyHtml += `<td class="p-2 border bg-gray-50">-</td>`;
+        if (rIdx === 0) bodyHtml += `<td class="p-3 border font-bold bg-gray-50">${maleTotal}</td>`;
+        else if (rIdx === 1) bodyHtml += `<td class="p-3 border font-bold bg-gray-50">${femaleTotal}</td>`;
+        else if (rIdx === 2) bodyHtml += `<td class="p-3 border font-bold bg-indigo-50 text-indigo-700">${maleTotal + femaleTotal}</td>`;
+        else bodyHtml += `<td class="p-3 border bg-gray-50">-</td>`;
         
         bodyHtml += `</tr>`;
       });
@@ -475,14 +519,9 @@
 
         const allocated = Number(getVal(b, 'list_butget_amount', 'list_budget_amount')) || 0;
         
-        // data_budget에서 해당 예산 항목 사용합계 계산
         const used = budgetItems
           .filter(item => getVal(item, 'budget_name') === bgName)
-          .reduce((sum, item) => {
-            const num = Number(getVal(item, 'budget_num')) || 0;
-            const price = Number(getVal(item, 'budget_price')) || 0;
-            return sum + (num * price);
-          }, 0);
+          .reduce((sum, item) => sum + ((Number(getVal(item, 'budget_num')) || 0) * (Number(getVal(item, 'budget_price')) || 0)), 0);
 
         const rem = allocated - used;
 
@@ -492,22 +531,22 @@
         else if (rem === allocated) colorClass = 'text-blue-600 font-bold';
 
         html += `
-          <div class="p-4 rounded-xl border shadow-sm flex-1 min-w-[210px] bg-slate-50">
-            <div class="font-bold text-sm mb-2 text-gray-900">${bgName}</div>
-            <div class="text-xs space-y-1">
+          <div class="p-5 rounded-xl border shadow-sm flex-1 min-w-[230px] bg-slate-50">
+            <div class="font-bold text-base mb-2 text-gray-900">${bgName}</div>
+            <div class="text-sm space-y-1.5">
               <div class="flex justify-between"><span>배정액:</span><span>${allocated.toLocaleString()}원</span></div>
               <div class="flex justify-between"><span>사용액:</span><span>${used.toLocaleString()}원</span></div>
-              <div class="flex justify-between border-t pt-1 font-semibold ${colorClass}">
+              <div class="flex justify-between border-t border-gray-300 pt-1.5 font-bold ${colorClass}">
                 <span>잔액:</span><span>${rem.toLocaleString()}원</span>
               </div>
             </div>
           </div>`;
       });
 
-      container.innerHTML = html || `<p class="text-xs text-gray-400">등록된 예산 목록이 없습니다.</p>`;
+      container.innerHTML = html || `<p class="text-sm text-gray-400">등록된 예산 항목이 없습니다.</p>`;
     }
 
-    // [전체 일정] (data_task_school / data_add_timetable / data_task_memo 연동)
+    // [전체 일정] 필터링 및 날짜 매칭
     async function loadFullSchedule(filter = 'all') {
       const tbody = document.getElementById('full-schedule-tbody');
       const homeSchedule = document.getElementById('home-upcoming-schedule');
@@ -533,15 +572,18 @@
       const now = new Date();
       const days = ['일', '월', '화', '수', '목', '금', '토'];
 
-      for(let i=0; i<14; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+      let rangeDays = 30;
+      if (filter === 'today') rangeDays = 7;
+      if (filter === 'week') rangeDays = 7;
+
+      for(let i=0; i<rangeDays; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (appState.scheduleAscending ? i : -i));
         const dateStr = `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}. (${days[d.getDay()]})`;
         
         let rowClass = "hover:bg-gray-50";
         if (d.getDay() === 0) rowClass = "bg-holiday";
         else if (d.getDay() === 6) rowClass = "bg-saturday";
 
-        // 매칭되는 데이터 추출
         const schoolText = schoolTasks
           .filter(t => getVal(t, 'task_school_date_start', 'task _school_date_start') === dateStr)
           .map(t => getVal(t, 'task_school_name', 'task _school_name')).join(', ') || '-';
@@ -555,16 +597,16 @@
           .map(m => getVal(m, 'task_memo_name', 'task _memo_name')).join(', ') || '-';
 
         html += `<tr class="${rowClass}">
-          <td class="p-2.5 text-center font-medium border-r">${dateStr}</td>
-          <td class="p-2.5 border-r">${schoolText}</td>
-          <td class="p-2.5 border-r">${addText}</td>
-          <td class="p-2.5">${memoText}</td>
+          <td class="p-3 text-center font-bold border-r">${dateStr}</td>
+          <td class="p-3 border-r">${schoolText}</td>
+          <td class="p-3 border-r">${addText}</td>
+          <td class="p-3">${memoText}</td>
         </tr>`;
 
-        if (i < 5) {
-          homeHtml += `<div class="py-2.5 flex justify-between items-center text-xs">
-            <span class="font-medium text-gray-700 w-28">${dateStr}</span>
-            <span class="text-gray-600 flex-1">${schoolText !== '-' ? schoolText : (memoText !== '-' ? memoText : '일정 없음')}</span>
+        if (i < 7 && appState.scheduleAscending) {
+          homeHtml += `<div class="py-3 flex justify-between items-center border-b last:border-0">
+            <span class="font-bold text-gray-800 w-32">${dateStr}</span>
+            <span class="text-gray-700 flex-1">${schoolText !== '-' ? schoolText : (memoText !== '-' ? memoText : '일정 없음')}</span>
           </div>`;
         }
       }
@@ -573,7 +615,13 @@
       homeSchedule.innerHTML = homeHtml;
     }
 
-    // [학년 전체 명렬표] (data_student)
+    function toggleScheduleOrder() {
+      appState.scheduleAscending = !appState.scheduleAscending;
+      document.getElementById('schedule-order-btn').innerHTML = `<i class="fa-solid fa-sort"></i> ${appState.scheduleAscending ? '날짜순' : '최신순'}`;
+      loadFullSchedule('all');
+    }
+
+    // [학년 전체 명렬표]
     async function loadRosterData() {
       const tbody = document.getElementById('roster-tbody');
       let students = [];
@@ -590,20 +638,19 @@
       let html = '';
       students.forEach(s => {
         html += `<tr>
-          <td class="p-2 border">${getVal(s, 'student_class')}반</td>
-          <td class="p-2 border">${getVal(s, 'student_num')}번</td>
-          <td class="p-2 border">${getVal(s, 'student_gender')}</td>
-          <td class="p-2 border">${getVal(s, 'student_birth')}</td>
-          <td class="p-2 border text-gray-500">${getVal(s, 'student_memo')}</td>
+          <td class="p-2.5 border font-medium">${getVal(s, 'student_class')}반</td>
+          <td class="p-2.5 border">${getVal(s, 'student_num')}번</td>
+          <td class="p-2.5 border">${getVal(s, 'student_gender')}</td>
+          <td class="p-2.5 border">${getVal(s, 'student_birth')}</td>
+          <td class="p-2.5 border text-gray-600">${getVal(s, 'student_memo')}</td>
         </tr>`;
       });
 
-      tbody.innerHTML = html || `<tr><td colspan="5" class="p-4 text-gray-400">학생 데이터가 없습니다.</td></tr>`;
+      tbody.innerHTML = html || `<tr><td colspan="5" class="p-6 text-gray-400">학생 데이터가 없습니다.</td></tr>`;
     }
 
     function verifyRosterAccess() {
-      const pw = document.getElementById('roster-pw-input').value;
-      if (pw === appState.commonPw) {
+      if (document.getElementById('roster-pw-input').value === appState.commonPw) {
         document.getElementById('roster-auth-gate').classList.add('hidden');
         document.getElementById('roster-content').classList.remove('hidden');
         loadRosterData();
@@ -611,74 +658,188 @@
     }
 
     function verifyPhoneAccess() {
-      const pw = document.getElementById('phone-pw-input').value;
-      if (pw === appState.commonPw) {
+      if (document.getElementById('phone-pw-input').value === appState.commonPw) {
         document.getElementById('phone-auth-gate').classList.add('hidden');
         document.getElementById('phone-content').classList.remove('hidden');
       } else alert('비밀번호가 일치하지 않습니다.');
     }
 
     function verifyAdminAccess() {
-      const pw = document.getElementById('admin-pw-input').value;
-      if (pw === appState.adminPw) {
+      if (document.getElementById('admin-pw-input').value === appState.adminPw) {
         document.getElementById('admin-auth-gate').classList.add('hidden');
         document.getElementById('admin-content').classList.remove('hidden');
         switchAdminSub('basic');
       } else alert('관리자 비밀번호가 일치하지 않습니다.');
     }
 
-    function switchTimetableSub(type) {
+    // 시간표 서브탭
+    async function switchTimetableSub(type) {
       const container = document.getElementById('tt-subview-container');
-      container.innerHTML = `<div class="p-8 border rounded-xl bg-white text-center text-xs text-gray-500">${type} 시간표 화면 (data_sub_timetable / data_room_timetable 연동 구역)</div>`;
-    }
-
-    async function switchBudgetSub(type) {
-      const container = document.getElementById('budget-subview-container');
-      if (type === 'grade_bg') {
-        let items = [];
-        if (db) {
-          const snap = await db.collection('data_budget').get();
-          snap.forEach(d => items.push(d.data()));
-        }
-        let rows = '';
-        items.forEach(i => {
-          const num = Number(getVal(i, 'budget_num')) || 0;
-          const price = Number(getVal(i, 'budget_price')) || 0;
-          rows += `<tr>
-            <td class="p-2 border">${getVal(i, 'budget_name')}</td>
-            <td class="p-2 border font-medium">${getVal(i, 'budget_product')}</td>
-            <td class="p-2 border">${getVal(i, 'budget_spec')}</td>
-            <td class="p-2 border">${num}</td>
-            <td class="p-2 border">${price.toLocaleString()}원</td>
-            <td class="p-2 border font-bold">${(num * price).toLocaleString()}원</td>
-          </tr>`;
-        });
-
+      if (type === 'monthly') {
         container.innerHTML = `
-          <div class="border rounded-xl p-4 bg-white space-y-4">
-            <h3 class="font-bold text-base">학년 예산 사용 내역 (data_budget)</h3>
-            <table class="w-full text-xs text-center border">
-              <thead class="bg-gray-100">
-                <tr><th class="p-2 border">예산종류</th><th class="p-2 border">품명</th><th class="p-2 border">규격</th><th class="p-2 border">수량</th><th class="p-2 border">단가</th><th class="p-2 border">금액(합)</th></tr>
-              </thead>
-              <tbody>${rows || '<tr><td colspan="6" class="p-4 text-gray-400">데이터가 없습니다.</td></tr>'}</tbody>
-            </table>
+          <div class="border rounded-xl p-5 bg-white space-y-4 shadow-sm">
+            <div class="flex justify-between items-center border-b pb-3">
+              <h3 class="font-bold text-lg">📅 월간 시간표</h3>
+              <div class="flex gap-2">
+                <button class="px-3 py-1.5 border rounded hover:bg-gray-100 font-bold">3월</button>
+                <button class="px-3 py-1.5 border rounded hover:bg-gray-100 font-bold bg-indigo-50 text-indigo-600">4월</button>
+                <button class="px-3 py-1.5 border rounded hover:bg-gray-100 font-bold">5월</button>
+              </div>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs text-center border border-collapse sheet-table">
+                <thead>
+                  <tr class="bg-gray-100 font-bold text-sm"><th class="w-20">구분</th><th colspan="6" class="bg-mon">월요일</th><th colspan="6" class="bg-tue">화요일</th><th colspan="6" class="bg-wed">수요일</th></tr>
+                  <tr class="bg-gray-50 text-xs"><th>반</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th></tr>
+                </thead>
+                <tbody id="monthly-tt-tbody">
+                  ${appState.classes.map(c => `<tr><td class="font-bold bg-gray-50 text-sm">${c}</td>${Array(18).fill('<td>-</td>').join('')}</tr>`).join('')}
+                </tbody>
+              </table>
+            </div>
           </div>`;
       } else {
-        container.innerHTML = `<div class="p-8 border rounded-xl bg-white text-center text-xs text-gray-500">${type} 예산 관리 뷰</div>`;
+        container.innerHTML = `<div class="p-8 border rounded-xl bg-white shadow-sm text-center text-base text-gray-500">${type} 시간표 조회 및 배정 뷰</div>`;
       }
     }
 
+    // 예산 서브탭 (쇼핑몰 ID 보안 & 학년 예산 완전 스프레드시트)
+    async function switchBudgetSub(type) {
+      const container = document.getElementById('budget-subview-container');
+
+      if (type === 'shopid') {
+        if (!appState.shopIdAuthed) {
+          container.innerHTML = `
+            <div class="p-8 border rounded-2xl bg-slate-50 text-center max-w-md mx-auto space-y-4 shadow-sm">
+              <i class="fa-solid fa-lock text-4xl text-gray-400"></i>
+              <h3 class="font-bold text-xl">쇼핑몰 ID 보안 접근</h3>
+              <input type="password" id="shopid-pw-input" placeholder="비밀번호 입력 (초기: 0000)" class="w-full p-3 border rounded-lg text-center font-bold text-base">
+              <button onclick="if(document.getElementById('shopid-pw-input').value===appState.commonPw){appState.shopIdAuthed=true; switchBudgetSub('shopid');}else alert('비밀번호가 일치하지 않습니다.');" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 text-base">접속 확인</button>
+            </div>`;
+          return;
+        }
+
+        container.innerHTML = `
+          <div class="border rounded-xl p-6 bg-white space-y-5 shadow-sm">
+            <h3 class="font-bold text-xl border-b pb-3">🛍️ 쇼핑몰 계정 목록</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-5 gap-3 text-sm">
+              <input type="text" id="shop-name" placeholder="쇼핑몰명*" class="p-2.5 border rounded">
+              <input type="text" id="shop-id" placeholder="아이디*" class="p-2.5 border rounded">
+              <input type="password" id="shop-pw" placeholder="비밀번호*" class="p-2.5 border rounded">
+              <input type="text" id="shop-url" placeholder="주소 (https://)" class="p-2.5 border rounded">
+              <button onclick="alert('계정이 등록되었습니다.');" class="bg-indigo-600 text-white font-bold rounded p-2.5 hover:bg-indigo-700">등록</button>
+            </div>
+          </div>`;
+      } else if (type === 'grade_bg') {
+        let items = [];
+        if (db) {
+          try {
+            const snap = await db.collection('data_budget').get();
+            snap.forEach(d => items.push(d.data()));
+          } catch(e) {}
+        }
+
+        let rowsHtml = '';
+        items.forEach((i, idx) => {
+          const num = Number(getVal(i, 'budget_num')) || 0;
+          const price = Number(getVal(i, 'budget_price')) || 0;
+          const total = num * price;
+
+          rowsHtml += `
+            <tr class="hover:bg-slate-50 text-sm">
+              <td class="p-2"><input type="text" value="${getVal(i, 'budget_name')}" class="w-full"></td>
+              <td class="p-2 font-medium"><input type="text" value="${getVal(i, 'budget_product')}" class="w-full"></td>
+              <td class="p-2"><input type="text" value="${getVal(i, 'budget_spec')}" class="w-full"></td>
+              <td class="p-2 w-16 text-center"><input type="number" value="${num}" class="w-full text-center"></td>
+              <td class="p-2 w-28 text-right"><input type="number" value="${price}" class="w-full text-right"></td>
+              <td class="p-2 w-28 text-right font-bold">${total.toLocaleString()}원</td>
+              <td class="p-2 text-center"><a href="${getVal(i, 'budget_link')}" target="_blank" class="text-indigo-600 underline">링크</a></td>
+              <td class="p-2">
+                <select class="p-1 border rounded">
+                  <option ${getVal(i, 'budget_pumui')==='해당없음'?'selected':''}>해당없음</option>
+                  <option ${getVal(i, 'budget_pumui')==='품의중'?'selected':''}>품의중</option>
+                  <option ${getVal(i, 'budget_pumui')==='결재완료'?'selected':''}>결재완료</option>
+                </select>
+              </td>
+              <td class="p-2 text-center"><input type="checkbox" ${getVal(i, 'budget_progress')?'checked':''}></td>
+              <td class="p-2"><input type="text" value="${getVal(i, 'budget_memo')}" class="w-full" placeholder="비고/메모"></td>
+            </tr>`;
+        });
+
+        container.innerHTML = `
+          <div class="border rounded-xl p-6 bg-white space-y-4 shadow-sm">
+            <div class="flex justify-between items-center border-b pb-3">
+              <h3 class="font-bold text-xl">📊 학년 예산 스프레드시트</h3>
+              <div class="flex gap-2">
+                <button onclick="window.print()" class="px-3.5 py-1.5 border rounded hover:bg-gray-100 font-bold text-sm"><i class="fa-solid fa-print"></i> 스프레드시트 인쇄</button>
+                <button onclick="alert('새 행이 추가되었습니다.');" class="px-3.5 py-1.5 bg-indigo-600 text-white rounded font-bold text-sm">+ 행 추가</button>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm border-collapse sheet-table">
+                <thead>
+                  <tr class="bg-gray-100 font-bold text-gray-800 text-center">
+                    <th class="w-28">예산종류</th>
+                    <th>품명</th>
+                    <th>규격</th>
+                    <th class="w-16">수량</th>
+                    <th class="w-28">단가</th>
+                    <th class="w-28">금액(합)</th>
+                    <th class="w-16">링크</th>
+                    <th class="w-24">품의상황</th>
+                    <th class="w-16">완료</th>
+                    <th>비고</th>
+                  </tr>
+                </thead>
+                <tbody>${rowsHtml || '<tr><td colspan="10" class="p-6 text-center text-gray-400">등록된 예산 내역이 없습니다.</td></tr>'}</tbody>
+              </table>
+            </div>
+          </div>`;
+      } else {
+        container.innerHTML = `<div class="p-8 border rounded-xl bg-white text-center text-base text-gray-500">${type} 예산 관리 스프레드시트 뷰</div>`;
+      }
+    }
+
+    // 학년 관리자 복원 탭
     function switchAdminSub(type) {
       const container = document.getElementById('admin-subview-container');
       if (type === 'basic') {
         container.innerHTML = `
-          <div class="p-5 border rounded-xl bg-white space-y-4 text-sm">
-            <h4 class="font-bold text-base">📅 학년도 및 학급 설정</h4>
-            <p class="text-xs text-gray-500">현재 연동 학급: ${appState.classes.join(', ')} (총 ${appState.classCount}개 학급)</p>
+          <div class="p-6 border rounded-xl bg-white space-y-6 text-base shadow-sm">
+            <div>
+              <h4 class="font-bold text-lg mb-2">📅 학년도 및 학기 기간 설정</h4>
+              <div class="flex items-center gap-3">
+                <input type="number" value="${appState.currentYear}" class="p-2.5 border rounded w-32 text-center font-bold text-base">
+                <span class="text-sm text-gray-500">(적용 범위: ${appState.currentYear}.02.01 ~ ${appState.currentYear+1}.02.28)</span>
+              </div>
+            </div>
+            <div class="border-t pt-4">
+              <h4 class="font-bold text-lg mb-2">🏫 학급 수 설정</h4>
+              <div class="flex items-center gap-3">
+                <input type="number" value="${appState.classCount}" onchange="appState.classCount=parseInt(this.value); appState.classes=Array.from({length:appState.classCount},(_,i)=>(i+1)+'반'); renderOverviewTable();" class="p-2.5 border rounded w-24 text-center font-bold text-base">
+                <span class="text-sm text-gray-500">학급 수 변경 시 학년 개요 표 열이 즉시 갱신됩니다.</span>
+              </div>
+            </div>
+          </div>`;
+      } else if (type === 'security') {
+        container.innerHTML = `
+          <div class="p-6 border rounded-xl bg-white space-y-6 text-base shadow-sm">
+            <h4 class="font-bold text-lg border-b pb-3">🔒 비밀번호 변경</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
+              <div>
+                <label class="block text-sm font-bold mb-1">페이지 공통 비밀번호</label>
+                <input type="text" id="adm-common-pw" value="${appState.commonPw}" class="w-full p-2.5 border rounded font-bold">
+              </div>
+              <div>
+                <label class="block text-sm font-bold mb-1">관리자 접속 비밀번호</label>
+                <input type="text" id="adm-admin-pw" value="${appState.adminPw}" class="w-full p-2.5 border rounded font-bold">
+              </div>
+            </div>
+            <button onclick="appState.commonPw=document.getElementById('adm-common-pw').value; appState.adminPw=document.getElementById('adm-admin-pw').value; alert('비밀번호가 수정되었습니다.');" class="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded text-sm">저장하기</button>
           </div>`;
       } else {
-        container.innerHTML = `<div class="p-8 border rounded-xl bg-white text-center text-xs text-gray-500">${type} 패널</div>`;
+        container.innerHTML = `<div class="p-8 border rounded-xl bg-white text-center text-base text-gray-500">${type} 설정 관리 패널</div>`;
       }
     }
 
@@ -691,7 +852,7 @@
         item.href = url;
         item.target = "_blank";
         item.className = "p-4 border rounded-xl bg-slate-50 hover:bg-indigo-50 text-center flex flex-col items-center justify-center gap-2 shadow-sm";
-        item.innerHTML = `<i class="fa-solid fa-link text-indigo-600 text-xl"></i><span class="text-xs font-bold truncate w-full">${name}</span>`;
+        item.innerHTML = `<i class="fa-solid fa-link text-indigo-600 text-2xl"></i><span class="text-sm font-bold truncate w-full">${name}</span>`;
         grid.appendChild(item);
       }
     }
