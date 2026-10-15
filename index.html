@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>6학년 학년 관리 포털</title>
   
   <!-- CSS & Icon Libraries -->
@@ -15,40 +15,56 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
   <style>
-    body { font-family: 'Noto Sans KR', sans-serif; background-color: #ffffff; color: #000000; font-size: 15px; }
+    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    body { font-family: 'Noto Sans KR', sans-serif; background-color: #ffffff; color: #000000; font-size: 14px; word-break: keep-all; }
     
-    /* 지정 테마 색상 */
-    .bg-holiday { background-color: #FCE8E6 !important; color: #d93025 !important; }
-    .bg-saturday { background-color: #CFE2F3 !important; color: #1a73e8 !important; }
-    
-    /* 시간표 요일별 교차 색상 */
+    .whitespace-nowrap { white-space: nowrap !important; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* 요일별 기본 지정 색상 */
     .bg-mon { background-color: #E0F7FA !important; }
     .bg-tue { background-color: #FEF8E3 !important; }
     .bg-wed { background-color: #F3EEFE !important; }
     .bg-thu { background-color: #FEF8E3 !important; }
     .bg-fri { background-color: #E0F7FA !important; }
 
-    /* 특별실 공간별 팔레트 색상 */
-    .bg-room-auditorium { background-color: #CFE2F3; }
-    .bg-room-multipurpose { background-color: #FCE5CD; }
-    .bg-room-playground { background-color: #D9EAD3; }
-    .bg-room-narae { background-color: #FFFEB5; }
-    .bg-room-vr { background-color: #E4D7F5; }
+    /* 지정 휴일 & 주말 서식 */
+    .bg-holiday { background-color: #FCE8E6 !important; color: #d93025 !important; }
+    .bg-saturday { background-color: #CFE2F3 !important; color: #1a73e8 !important; }
 
-    .no-scrollbar::-webkit-scrollbar { display: none; }
+    /* 모바일 가로 스크롤 및 스티키 스타일 */
+    .sticky-col { 
+      position: sticky; 
+      left: 0; 
+      z-index: 20; 
+      background-color: #f8fafc; 
+      min-width: 44px; 
+      max-width: 44px;
+      box-shadow: 2px 0 4px -2px rgba(0,0,0,0.15);
+    }
+
     .sticky-header th { position: sticky; top: 0; z-index: 10; background-color: #f8fafc; }
-    .sticky-col { position: sticky; left: 0; z-index: 5; background-color: #f1f5f9; }
     .modal-backdrop { background-color: rgba(0, 0, 0, 0.5); }
 
-    /* 스프레드시트 셀 스타일 */
-    .sheet-table td, .sheet-table th { border: 1px solid #94a3b8; padding: 4px; }
-    .sheet-table input, .sheet-table select { width: 100%; background: transparent; outline: none; font-size: 13px; }
+    /* 정밀 격자 표 스타일 */
+    .tt-grid-table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+    .tt-grid-table th, .tt-grid-table td { 
+      border: 1px solid #cbd5e1; 
+      text-align: center; 
+      vertical-align: middle; 
+      white-space: nowrap !important;
+      min-width: 42px;
+      max-width: 55px;
+      overflow: hidden;
+    }
 
-    /* 월간 시간표 전용 정밀 스타일 */
-    .tt-grid-table th, .tt-grid-table td { border: 1px solid #cbd5e1; text-align: center; vertical-align: middle; }
-    .tt-cell-text { font-size: 10.5px; line-height: 1.25; word-break: break-all; }
+    .tt-cell-text { font-size: 10px; line-height: 1.2; padding: 2px 1px; }
     .tt-overlap-cell { background-color: #FCE8E6 !important; color: #d93025 !important; font-style: italic; font-weight: bold; }
     .tt-holiday-cell { background-color: #475569 !important; color: #cbd5e1 !important; font-size: 10px; font-weight: 500; }
+
+    /* 서브탭 버튼 방지 */
+    .subtab-btn { white-space: nowrap !important; flex-shrink: 0; }
 
     @media print {
       header, aside, .no-print { display: none !important; }
@@ -60,20 +76,20 @@
 
   <!-- GNB 헤더 -->
   <header class="border-b border-gray-200 bg-white sticky top-0 z-40 shadow-sm no-print">
-    <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-      <div class="flex items-center gap-4">
-        <button onclick="toggleSidebar()" class="p-2 text-gray-700 hover:text-black text-2xl">
+    <div class="max-w-7xl mx-auto px-3 sm:px-4 h-14 sm:h-16 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2 sm:gap-4 shrink-0">
+        <button onclick="toggleSidebar()" class="p-1.5 text-gray-700 hover:text-black text-xl sm:text-2xl">
           <i class="fa-solid fa-bars"></i>
         </button>
-        <h1 id="page-title" class="font-bold text-2xl tracking-tight text-gray-900">홈</h1>
+        <h1 id="page-title" class="font-bold text-lg sm:text-2xl tracking-tight text-gray-900 whitespace-nowrap">시간표</h1>
       </div>
       
-      <div class="flex items-center gap-2 text-sm sm:text-base overflow-x-auto no-scrollbar py-1">
-        <button onclick="navigateTo('home')" class="px-3.5 py-2 rounded-lg border hover:bg-gray-100 font-medium">홈</button>
-        <button onclick="navigateTo('overview')" class="px-3.5 py-2 rounded-lg border hover:bg-gray-100 font-medium">6학년 개요</button>
-        <button onclick="navigateTo('timetable')" class="px-3.5 py-2 rounded-lg border hover:bg-gray-100 font-medium">시간표</button>
-        <button onclick="navigateTo('budget')" class="px-3.5 py-2 rounded-lg border hover:bg-gray-100 font-medium">예산</button>
-        <button onclick="navigateTo('admin')" class="px-3.5 py-2 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 font-bold hover:bg-indigo-100">⚙️ 관리자</button>
+      <div class="flex items-center gap-1 sm:gap-2 text-xs sm:text-base overflow-x-auto no-scrollbar py-1 shrink">
+        <button onclick="navigateTo('home')" class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg border hover:bg-gray-100 font-medium whitespace-nowrap">홈</button>
+        <button onclick="navigateTo('overview')" class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg border hover:bg-gray-100 font-medium whitespace-nowrap">6학년 개요</button>
+        <button onclick="navigateTo('timetable')" class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg border hover:bg-gray-100 font-medium whitespace-nowrap">시간표</button>
+        <button onclick="navigateTo('budget')" class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg border hover:bg-gray-100 font-medium whitespace-nowrap">예산</button>
+        <button onclick="navigateTo('admin')" class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 font-bold hover:bg-indigo-100 whitespace-nowrap">⚙️ 관리자</button>
       </div>
     </div>
   </header>
@@ -102,46 +118,46 @@
   </aside>
 
   <!-- 메인 콘텐츠 영역 -->
-  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6">
+  <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6">
 
     <!-- PAGE 1: 홈 -->
-    <section id="page-home" class="page-view space-y-6">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="p-5 border rounded-xl bg-slate-50 shadow-sm text-center">
-          <div class="text-sm text-gray-500 font-semibold mb-1">오늘 날짜</div>
-          <div id="home-today-date" class="text-lg font-bold text-gray-800">--</div>
+    <section id="page-home" class="page-view space-y-4 sm:space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+        <div class="p-4 sm:p-5 border rounded-xl bg-slate-50 shadow-sm text-center">
+          <div class="text-xs sm:text-sm text-gray-500 font-semibold mb-1">오늘 날짜</div>
+          <div id="home-today-date" class="text-base sm:text-lg font-bold text-gray-800">--</div>
         </div>
-        <div class="p-5 border rounded-xl bg-blue-50 shadow-sm text-center">
-          <div class="text-sm text-blue-600 font-semibold mb-1">여름방학식</div>
-          <div class="summer-dday-val text-lg font-bold text-blue-900">--</div>
+        <div class="p-4 sm:p-5 border rounded-xl bg-blue-50 shadow-sm text-center">
+          <div class="text-xs sm:text-sm text-blue-600 font-semibold mb-1">여름방학식</div>
+          <div class="summer-dday-val text-base sm:text-lg font-bold text-blue-900">--</div>
         </div>
-        <div class="p-5 border rounded-xl bg-purple-50 shadow-sm text-center">
-          <div class="text-sm text-purple-600 font-semibold mb-1">겨울방학식</div>
-          <div class="winter-dday-val text-lg font-bold text-purple-900">--</div>
+        <div class="p-4 sm:p-5 border rounded-xl bg-purple-50 shadow-sm text-center">
+          <div class="text-xs sm:text-sm text-purple-600 font-semibold mb-1">겨울방학식</div>
+          <div class="winter-dday-val text-base sm:text-lg font-bold text-purple-900">--</div>
         </div>
       </div>
 
-      <div class="border rounded-xl p-6 bg-white shadow-sm">
-        <h2 class="font-bold text-xl mb-4 flex items-center gap-2"><i class="fa-solid fa-calendar-week text-indigo-600"></i> 주요 일정 (오늘 기준 7일간)</h2>
-        <div id="home-upcoming-schedule" class="divide-y divide-gray-100 text-base">
+      <div class="border rounded-xl p-4 sm:p-6 bg-white shadow-sm">
+        <h2 class="font-bold text-lg sm:text-xl mb-3 sm:mb-4 flex items-center gap-2"><i class="fa-solid fa-calendar-week text-indigo-600"></i> 주요 일정 (오늘 기준 7일간)</h2>
+        <div id="home-upcoming-schedule" class="divide-y divide-gray-100 text-sm sm:text-base">
           <p class="text-gray-400 py-4 text-center">일정을 불러오는 중...</p>
         </div>
       </div>
     </section>
 
     <!-- PAGE 2: 6학년 개요 -->
-    <section id="page-overview" class="page-view space-y-6 hidden">
+    <section id="page-overview" class="page-view space-y-4 sm:space-y-6 hidden">
       <!-- 1) 학년 개요 -->
       <div class="border rounded-xl bg-white shadow-sm overflow-hidden">
         <div class="p-4 bg-gray-50 border-b flex justify-between items-center cursor-pointer" onclick="toggleAccordion('acc-overview')">
-          <div class="flex items-center gap-2 font-bold text-xl">
+          <div class="flex items-center gap-2 font-bold text-lg sm:text-xl">
             <span>📋 학년 개요</span>
             <button onclick="event.stopPropagation(); toggleOverviewEdit()" class="text-gray-400 hover:text-indigo-600 text-base ml-2" title="수정"><i class="fa-solid fa-pen"></i></button>
           </div>
           <i id="acc-overview-icon" class="fa-solid fa-chevron-down text-gray-400 text-lg"></i>
         </div>
-        <div id="acc-overview" class="p-4 overflow-x-auto">
-          <table class="w-full text-sm text-center border-collapse border border-gray-200">
+        <div id="acc-overview" class="p-3 sm:p-4 overflow-x-auto">
+          <table class="w-full text-xs sm:text-sm text-center border-collapse border border-gray-200">
             <thead id="overview-table-head"></thead>
             <tbody id="overview-table-body"></tbody>
           </table>
@@ -151,46 +167,46 @@
       <!-- 2) 학년 예산 개요 -->
       <div class="border rounded-xl bg-white shadow-sm overflow-hidden">
         <div class="p-4 bg-gray-50 border-b flex justify-between items-center cursor-pointer" onclick="toggleAccordion('acc-budget')">
-          <div class="flex items-center gap-2 font-bold text-xl">
+          <div class="flex items-center gap-2 font-bold text-lg sm:text-xl">
             <span>💳 학년 예산</span>
             <button onclick="event.stopPropagation(); addBudgetCardPrompt()" class="text-gray-400 hover:text-indigo-600 text-base ml-2" title="카드 추가"><i class="fa-solid fa-pen"></i></button>
           </div>
           <i id="acc-budget-icon" class="fa-solid fa-chevron-down text-gray-400 text-lg"></i>
         </div>
-        <div id="acc-budget" class="p-4">
-          <div id="budget-cards-container" class="flex flex-wrap gap-4"></div>
+        <div id="acc-budget" class="p-3 sm:p-4">
+          <div id="budget-cards-container" class="flex flex-wrap gap-3 sm:gap-4"></div>
         </div>
       </div>
 
       <!-- 3) D-Day 카드 -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="p-4 border rounded-xl bg-slate-50 text-center"><div class="text-sm text-gray-500 mb-1">오늘 날짜</div><div class="overview-today-date font-bold text-base">--</div></div>
-        <div class="p-4 border rounded-xl bg-blue-50 text-center"><div class="text-sm text-blue-600 mb-1">여름방학식</div><div class="summer-dday-val font-bold text-base">--</div></div>
-        <div class="p-4 border rounded-xl bg-purple-50 text-center"><div class="text-sm text-purple-600 mb-1">겨울방학식</div><div class="winter-dday-val font-bold text-base">--</div></div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+        <div class="p-4 border rounded-xl bg-slate-50 text-center"><div class="text-xs text-gray-500 mb-1">오늘 날짜</div><div class="overview-today-date font-bold text-sm sm:text-base">--</div></div>
+        <div class="p-4 border rounded-xl bg-blue-50 text-center"><div class="text-xs text-blue-600 mb-1">여름방학식</div><div class="summer-dday-val font-bold text-sm sm:text-base">--</div></div>
+        <div class="p-4 border rounded-xl bg-purple-50 text-center"><div class="text-xs text-purple-600 mb-1">겨울방학식</div><div class="winter-dday-val font-bold text-sm sm:text-base">--</div></div>
       </div>
 
       <!-- 4) 전체 일정 -->
-      <div class="border rounded-xl bg-white p-6 shadow-sm space-y-4">
-        <div class="flex flex-wrap justify-between items-center gap-3 border-b pb-3">
+      <div class="border rounded-xl bg-white p-4 sm:p-6 shadow-sm space-y-4">
+        <div class="flex flex-wrap justify-between items-center gap-2 border-b pb-3">
           <div class="flex items-center gap-2">
-            <h2 class="font-bold text-xl">📅 전체 일정</h2>
-            <button onclick="toggleScheduleOrder()" id="schedule-sort-btn" class="text-gray-600 hover:text-black border px-2.5 py-1 rounded text-xs ml-2 font-bold"><i class="fa-solid fa-arrow-down-short-wide"></i> 오름차순</button>
+            <h2 class="font-bold text-lg sm:text-xl">📅 전체 일정</h2>
+            <button onclick="toggleScheduleOrder()" id="schedule-sort-btn" class="text-gray-600 hover:text-black border px-2 py-1 rounded text-xs ml-1 font-bold whitespace-nowrap"><i class="fa-solid fa-arrow-down-short-wide"></i> 오름차순</button>
           </div>
-          <div class="flex items-center gap-2 text-sm">
-            <button onclick="filterSchedule('week')" id="filter-btn-week" class="px-3.5 py-1.5 border rounded hover:bg-gray-100 font-medium">이번주</button>
-            <button onclick="filterSchedule('today')" id="filter-btn-today" class="px-3.5 py-1.5 border rounded bg-indigo-50 text-indigo-600 font-bold">오늘</button>
-            <button onclick="filterSchedule('all')" id="filter-btn-all" class="px-3.5 py-1.5 border rounded hover:bg-gray-100 font-medium">전체</button>
+          <div class="flex items-center gap-1.5 text-xs sm:text-sm">
+            <button onclick="filterSchedule('week')" id="filter-btn-week" class="px-2.5 sm:px-3.5 py-1.5 border rounded hover:bg-gray-100 font-medium whitespace-nowrap">이번주</button>
+            <button onclick="filterSchedule('today')" id="filter-btn-today" class="px-2.5 sm:px-3.5 py-1.5 border rounded bg-indigo-50 text-indigo-600 font-bold whitespace-nowrap">오늘</button>
+            <button onclick="filterSchedule('all')" id="filter-btn-all" class="px-2.5 sm:px-3.5 py-1.5 border rounded hover:bg-gray-100 font-medium whitespace-nowrap">전체</button>
           </div>
         </div>
 
-        <div id="schedule-scroll-container" class="max-h-[600px] overflow-y-auto border rounded-lg">
-          <table class="w-full text-sm text-left border-collapse sticky-header">
+        <div id="schedule-scroll-container" class="max-h-[500px] overflow-y-auto border rounded-lg">
+          <table class="w-full text-xs sm:text-sm text-left border-collapse sticky-header">
             <thead>
               <tr class="border-b bg-gray-100 font-bold text-gray-800">
-                <th class="p-3 w-36 text-center">날짜</th>
-                <th class="p-3 w-1/3">학교행사</th>
-                <th class="p-3 w-1/4">학년 강사 일정</th>
-                <th class="p-3">학년 일정</th>
+                <th class="p-2.5 w-32 text-center whitespace-nowrap">날짜</th>
+                <th class="p-2.5 w-1/3 whitespace-nowrap">학교행사</th>
+                <th class="p-2.5 w-1/4 whitespace-nowrap">학년 강사 일정</th>
+                <th class="p-2.5 whitespace-nowrap">학년 일정</th>
               </tr>
             </thead>
             <tbody id="full-schedule-tbody" class="divide-y divide-gray-100"></tbody>
@@ -201,19 +217,19 @@
 
     <!-- PAGE 3: 학년 전체 명렬표 -->
     <section id="page-roster" class="page-view space-y-4 hidden">
-      <div id="roster-auth-gate" class="p-8 border rounded-2xl bg-slate-50 text-center max-w-md mx-auto space-y-4 shadow-sm">
-        <i class="fa-solid fa-lock text-4xl text-gray-400"></i>
-        <h3 class="font-bold text-xl">학년 전체 명렬표 보안 접근</h3>
+      <div id="roster-auth-gate" class="p-6 sm:p-8 border rounded-2xl bg-slate-50 text-center max-w-md mx-auto space-y-4 shadow-sm">
+        <i class="fa-solid fa-lock text-3xl sm:text-4xl text-gray-400"></i>
+        <h3 class="font-bold text-lg sm:text-xl">학년 전체 명렬표 보안 접근</h3>
         <input type="password" id="roster-pw-input" placeholder="비밀번호 입력 (초기: 0000)" class="w-full p-3 border rounded-lg text-center font-bold text-base">
         <button onclick="verifyRosterAccess()" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 text-base">접속 확인</button>
       </div>
 
-      <div id="roster-content" class="hidden border rounded-xl p-6 bg-white shadow-sm space-y-4">
-        <h2 class="font-bold text-xl border-b pb-3">👥 6학년 전체 명렬표</h2>
+      <div id="roster-content" class="hidden border rounded-xl p-4 sm:p-6 bg-white shadow-sm space-y-4">
+        <h2 class="font-bold text-lg sm:text-xl border-b pb-3">👥 6학년 전체 명렬표</h2>
         <div class="overflow-x-auto">
-          <table class="w-full text-sm text-center border">
+          <table class="w-full text-xs sm:text-sm text-center border">
             <thead class="bg-gray-100 font-bold">
-              <tr><th class="p-2.5 border">학급</th><th class="p-2.5 border">번호</th><th class="p-2.5 border">성별</th><th class="p-2.5 border">생년월일</th><th class="p-2.5 border">비고</th></tr>
+              <tr><th class="p-2 border">학급</th><th class="p-2 border">번호</th><th class="p-2 border">성별</th><th class="p-2 border">생년월일</th><th class="p-2 border">비고</th></tr>
             </thead>
             <tbody id="roster-tbody"></tbody>
           </table>
@@ -222,88 +238,89 @@
     </section>
 
     <!-- PAGE 4: 시간표 -->
-    <section id="page-timetable" class="page-view space-y-4 hidden">
-      <div class="flex border-b text-sm sm:text-base font-bold overflow-x-auto no-scrollbar gap-2">
-        <button onclick="switchTimetableSub('base')" id="tt-subtab-base" class="subtab-tt px-4 py-2.5 border-b-2 border-indigo-600 text-indigo-600">기초 시간표</button>
-        <button onclick="switchTimetableSub('monthly')" id="tt-subtab-monthly" class="subtab-tt px-4 py-2.5 text-gray-500 hover:text-black">월간 시간표</button>
-        <button onclick="switchTimetableSub('specialist')" id="tt-subtab-specialist" class="subtab-tt px-4 py-2.5 text-gray-500 hover:text-black">전담 시간표</button>
-        <button onclick="switchTimetableSub('rooms')" id="tt-subtab-rooms" class="subtab-tt px-4 py-2.5 text-gray-500 hover:text-black">특별실 시간표</button>
-        <button onclick="switchTimetableSub('class_tt')" id="tt-subtab-class_tt" class="subtab-tt px-4 py-2.5 text-gray-500 hover:text-black">반별 시간표</button>
-        <button onclick="switchTimetableSub('course_tt')" id="tt-subtab-course_tt" class="subtab-tt px-4 py-2.5 text-gray-500 hover:text-black">강좌별 시간표</button>
-        <button onclick="switchTimetableSub('assign_tt')" id="tt-subtab-assign_tt" class="subtab-tt px-4 py-2.5 text-gray-500 hover:text-black">시간표 배정기</button>
+    <section id="page-timetable" class="page-view space-y-3 sm:space-y-4 hidden">
+      <!-- 서브탭 가로 스크롤 레이아웃 -->
+      <div class="flex border-b text-xs sm:text-base font-bold overflow-x-auto no-scrollbar gap-1 sm:gap-2 pb-1">
+        <button onclick="switchTimetableSub('base')" id="tt-subtab-base" class="subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black">기초 시간표</button>
+        <button onclick="switchTimetableSub('monthly')" id="tt-subtab-monthly" class="subtab-btn px-3 sm:px-4 py-2 border-b-2 border-indigo-600 text-indigo-600 font-bold">월간 시간표</button>
+        <button onclick="switchTimetableSub('specialist')" id="tt-subtab-specialist" class="subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black">전담 시간표</button>
+        <button onclick="switchTimetableSub('rooms')" id="tt-subtab-rooms" class="subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black">특별실 시간표</button>
+        <button onclick="switchTimetableSub('class_tt')" id="tt-subtab-class_tt" class="subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black">반별 시간표</button>
+        <button onclick="switchTimetableSub('course_tt')" id="tt-subtab-course_tt" class="subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black">강좌별 시간표</button>
+        <button onclick="switchTimetableSub('assign_tt')" id="tt-subtab-assign_tt" class="subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black">시간표 배정기</button>
       </div>
-      <div id="tt-subview-container" class="pt-2"></div>
+      <div id="tt-subview-container" class="pt-1"></div>
     </section>
 
     <!-- PAGE 5: 예산 -->
-    <section id="page-budget" class="page-view space-y-4 hidden">
-      <div class="flex border-b text-sm sm:text-base font-bold overflow-x-auto no-scrollbar gap-2">
-        <button onclick="switchBudgetSub('shopid')" id="bg-subtab-shopid" class="subtab-bg px-4 py-2.5 border-b-2 border-indigo-600 text-indigo-600">쇼핑몰 ID🔒</button>
-        <button onclick="switchBudgetSub('grade_bg')" id="bg-subtab-grade_bg" class="subtab-bg px-4 py-2.5 text-gray-500 hover:text-black">학년 예산</button>
-        <button onclick="switchBudgetSub('supplies')" id="bg-subtab-supplies" class="subtab-bg px-4 py-2.5 text-gray-500 hover:text-black">학습준비물</button>
-        <button onclick="switchBudgetSub('cleaning')" id="bg-subtab-cleaning" class="subtab-bg px-4 py-2.5 text-gray-500 hover:text-black">청소용품</button>
-        <button onclick="switchBudgetSub('other_bg')" id="bg-subtab-other_bg" class="subtab-bg px-4 py-2.5 text-gray-500 hover:text-black">그 외 예산</button>
+    <section id="page-budget" class="page-view space-y-3 sm:space-y-4 hidden">
+      <div class="flex border-b text-xs sm:text-base font-bold overflow-x-auto no-scrollbar gap-1 sm:gap-2 pb-1">
+        <button onclick="switchBudgetSub('shopid')" id="bg-subtab-shopid" class="subtab-btn px-3 sm:px-4 py-2 border-b-2 border-indigo-600 text-indigo-600">쇼핑몰 ID🔒</button>
+        <button onclick="switchBudgetSub('grade_bg')" id="bg-subtab-grade_bg" class="subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black">학년 예산</button>
+        <button onclick="switchBudgetSub('supplies')" id="bg-subtab-supplies" class="subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black">학습준비물</button>
+        <button onclick="switchBudgetSub('cleaning')" id="bg-subtab-cleaning" class="subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black">청소용품</button>
+        <button onclick="switchBudgetSub('other_bg')" id="bg-subtab-other_bg" class="subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black">그 외 예산</button>
       </div>
-      <div id="budget-subview-container" class="pt-2"></div>
+      <div id="budget-subview-container" class="pt-1"></div>
     </section>
 
     <!-- PAGE 6: 바로가기 -->
     <section id="page-shortcuts" class="page-view space-y-4 hidden">
       <div class="flex justify-between items-center border-b pb-3">
-        <h2 class="font-bold text-xl">🔗 바로가기 목록</h2>
-        <button onclick="addShortcutPrompt()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold">+ 추가</button>
+        <h2 class="font-bold text-lg sm:text-xl">🔗 바로가기 목록</h2>
+        <button onclick="addShortcutPrompt()" class="px-3.5 py-1.5 bg-indigo-600 text-white rounded-lg text-xs sm:text-sm font-bold">+ 추가</button>
       </div>
-      <div id="shortcuts-grid" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4 pt-2"></div>
+      <div id="shortcuts-grid" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3 sm:gap-4 pt-2"></div>
     </section>
 
     <!-- PAGE 7: 교실배치도 -->
     <section id="page-layout" class="page-view space-y-4 hidden">
       <div class="flex justify-between items-center border-b pb-3">
-        <h2 class="font-bold text-xl">🗺️ 교실배치도</h2>
+        <h2 class="font-bold text-lg sm:text-xl">🗺️ 교실배치도</h2>
         <input type="file" id="layout-file-input" accept="image/*" class="hidden" onchange="uploadLayoutImage(this)">
-        <button onclick="document.getElementById('layout-file-input').click()" class="px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-bold">이미지 업로드/교체</button>
+        <button onclick="document.getElementById('layout-file-input').click()" class="px-3.5 py-1.5 bg-gray-800 text-white rounded-lg text-xs sm:text-sm font-bold">이미지 업로드/교체</button>
       </div>
-      <div id="layout-image-container" class="border rounded-xl p-4 flex items-center justify-center min-h-[450px] bg-slate-50">
-        <p class="text-gray-400 text-base">등록된 교실배치도 이미지가 없습니다.</p>
+      <div id="layout-image-container" class="border rounded-xl p-4 flex items-center justify-center min-h-[350px] bg-slate-50">
+        <p class="text-gray-400 text-sm">등록된 교실배치도 이미지가 없습니다.</p>
       </div>
     </section>
 
     <!-- PAGE 8: 내선번호 -->
     <section id="page-phone" class="page-view space-y-4 hidden">
-      <div id="phone-auth-gate" class="p-8 border rounded-2xl bg-slate-50 text-center max-w-md mx-auto space-y-4 shadow-sm">
-        <i class="fa-solid fa-lock text-4xl text-gray-400"></i>
-        <h3 class="font-bold text-xl">내선번호표 보안 접근</h3>
+      <div id="phone-auth-gate" class="p-6 sm:p-8 border rounded-2xl bg-slate-50 text-center max-w-md mx-auto space-y-4 shadow-sm">
+        <i class="fa-solid fa-lock text-3xl sm:text-4xl text-gray-400"></i>
+        <h3 class="font-bold text-lg sm:text-xl">내선번호표 보안 접근</h3>
         <input type="password" id="phone-pw-input" placeholder="비밀번호 입력 (초기: 0000)" class="w-full p-3 border rounded-lg text-center font-bold text-base">
         <button onclick="verifyPhoneAccess()" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 text-base">접속 확인</button>
       </div>
 
-      <div id="phone-content" class="hidden border rounded-xl p-6 bg-white shadow-sm space-y-4">
+      <div id="phone-content" class="hidden border rounded-xl p-4 sm:p-6 bg-white shadow-sm space-y-4">
         <div class="flex justify-between items-center border-b pb-3">
-          <h2 class="font-bold text-xl">📞 학교 내선번호표</h2>
+          <h2 class="font-bold text-lg sm:text-xl">📞 학교 내선번호표</h2>
           <input type="file" id="phone-file-input" accept="image/*" class="hidden" onchange="uploadPhoneImage(this)">
-          <button onclick="document.getElementById('phone-file-input').click()" class="px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-bold">이미지 업로드/교체</button>
+          <button onclick="document.getElementById('phone-file-input').click()" class="px-3.5 py-1.5 bg-gray-800 text-white rounded-lg text-xs sm:text-sm font-bold">이미지 업로드/교체</button>
         </div>
-        <div id="phone-image-container" class="border rounded-xl p-4 flex items-center justify-center min-h-[450px] bg-slate-50">
-          <p class="text-gray-400 text-base">등록된 내선번호표 이미지가 없습니다.</p>
+        <div id="phone-image-container" class="border rounded-xl p-4 flex items-center justify-center min-h-[350px] bg-slate-50">
+          <p class="text-gray-400 text-sm">등록된 내선번호표 이미지가 없습니다.</p>
         </div>
       </div>
     </section>
 
     <!-- PAGE 9: 학년 관리자 -->
     <section id="page-admin" class="page-view space-y-4 hidden">
-      <div id="admin-auth-gate" class="p-8 border rounded-2xl bg-slate-50 text-center max-w-md mx-auto space-y-4 shadow-sm">
-        <i class="fa-solid fa-user-shield text-4xl text-indigo-600"></i>
-        <h3 class="font-bold text-xl">학년 관리자 접속</h3>
+      <div id="admin-auth-gate" class="p-6 sm:p-8 border rounded-2xl bg-slate-50 text-center max-w-md mx-auto space-y-4 shadow-sm">
+        <i class="fa-solid fa-user-shield text-3xl sm:text-4xl text-indigo-600"></i>
+        <h3 class="font-bold text-lg sm:text-xl">학년 관리자 접속</h3>
         <input type="password" id="admin-pw-input" placeholder="관리자 비밀번호 입력 (초기: 0000)" class="w-full p-3 border rounded-lg text-center font-bold text-base">
         <button onclick="verifyAdminAccess()" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 text-base">관리자 인증</button>
       </div>
 
-      <div id="admin-content" class="hidden space-y-6">
-        <div class="flex border-b text-sm sm:text-base font-bold gap-2">
-          <button onclick="switchAdminSub('basic')" id="adm-subtab-basic" class="subtab-adm px-4 py-2.5 border-b-2 border-indigo-600 text-indigo-600">학년 기초 설정</button>
-          <button onclick="switchAdminSub('timetable')" id="adm-subtab-timetable" class="subtab-adm px-4 py-2.5 text-gray-500 hover:text-black">시간표 설정</button>
-          <button onclick="switchAdminSub('rooms')" id="adm-subtab-rooms" class="subtab-adm px-4 py-2.5 text-gray-500 hover:text-black">공간 개방 설정</button>
-          <button onclick="switchAdminSub('security')" id="adm-subtab-security" class="subtab-adm px-4 py-2.5 text-gray-500 hover:text-black">비밀번호/데이터 관리</button>
+      <div id="admin-content" class="hidden space-y-4 sm:space-y-6">
+        <div class="flex border-b text-xs sm:text-base font-bold overflow-x-auto no-scrollbar gap-1 sm:gap-2 pb-1">
+          <button onclick="switchAdminSub('basic')" id="adm-subtab-basic" class="subtab-btn px-3 sm:px-4 py-2 border-b-2 border-indigo-600 text-indigo-600">학년 기초 설정</button>
+          <button onclick="switchAdminSub('timetable')" id="adm-subtab-timetable" class="subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black">시간표 설정</button>
+          <button onclick="switchAdminSub('rooms')" id="adm-subtab-rooms" class="subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black">공간 개방 설정</button>
+          <button onclick="switchAdminSub('security')" id="adm-subtab-security" class="subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black">비밀번호/데이터 관리</button>
         </div>
         <div id="admin-subview-container"></div>
       </div>
@@ -312,16 +329,16 @@
   </main>
 
   <!-- 사진 첨부 팝업 모달 -->
-  <div id="photo-modal" class="fixed inset-0 modal-backdrop z-50 flex items-center justify-center hidden">
-    <div class="bg-white p-6 rounded-xl max-w-md w-full space-y-4 shadow-xl">
+  <div id="photo-modal" class="fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white p-5 rounded-xl max-w-md w-full space-y-4 shadow-xl">
       <div class="flex justify-between items-center border-b pb-2">
-        <h3 class="font-bold text-lg">📷 이미지 관리</h3>
+        <h3 class="font-bold text-base sm:text-lg">📷 이미지 관리</h3>
         <button onclick="closePhotoModal()" class="text-gray-400 hover:text-black"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
-      <div id="modal-image-preview" class="min-h-[200px] border rounded bg-slate-50 flex items-center justify-center p-2">
+      <div id="modal-image-preview" class="min-h-[180px] border rounded bg-slate-50 flex items-center justify-center p-2">
         <p class="text-xs text-gray-400">등록된 사진이 없습니다.</p>
       </div>
-      <input type="file" id="modal-photo-input" accept="image/*" class="text-xs">
+      <input type="file" id="modal-photo-input" accept="image/*" class="text-xs w-full">
       <div class="flex justify-end gap-2 pt-2">
         <button onclick="savePhotoModal()" class="px-4 py-2 bg-indigo-600 text-white rounded font-bold text-xs">저장</button>
         <button onclick="closePhotoModal()" class="px-4 py-2 border rounded font-bold text-xs">닫기</button>
@@ -330,7 +347,7 @@
   </div>
 
   <script>
-    // 파이어베이스 설정 객체
+    // 파이어베이스 인증 및 설정
     const firebaseConfig = {
       apiKey: "AIzaSyDonpgXJGlSjqv-sFVAdlokpZ0XhONpjY0",
       authDomain: "gradeplanner-d5499.firebaseapp.com",
@@ -358,11 +375,88 @@
       scheduleAscending: true,
       isOverviewEditing: false,
       
-      // 월간 시간표용 캐시 데이터
       subTimetables: [],
       addTimetables: [],
       roomTimetables: [],
       holidays: []
+    };
+
+    // 예시용 시간표 기본 데이터 캐시 (이미지 데이터 100% 매칭)
+    const sampleTimetableMap = {
+      '09.28. (월)-1-3': '전담(과)', '09.28. (월)-1-4': '전담(과)',
+      '09.28. (월)-3-6': '<span class="text-red-600 font-bold">다목(3층)<br>운동장</span>',
+      '09.28. (월)-4-1': '전담(영)', '09.28. (월)-4-2': '전담(영)',
+      '09.28. (월)-5-4': '전담(영)', '09.28. (월)-5-5': '전담(영)',
+      '09.28. (월)-6-5': '나래', '09.28. (월)-8-6': '운동장', '09.28. (월)-10-6': 'VR',
+
+      '09.29. (화)-1-1': '구강검진(09:00)', '09.29. (화)-1-6': '운동장',
+      '09.29. (화)-2-1': '구강검진(09:00)', '09.29. (화)-2-5': '전담(영)', '09.29. (화)-2-6': '운동장',
+      '09.29. (화)-3-1': '전담(과)<br><span class="text-red-600">구강검진(09:40)</span>', '09.29. (화)-3-2': '전담(과)',
+      '09.29. (화)-4-3': '구강검진(11:00)', '09.29. (화)-4-4': '나래',
+      '09.29. (화)-5-2': '우쿨(7~8)', '09.29. (화)-5-3': '전담(영)<br><span class="text-red-600">구강검진(10:20)</span>', '09.29. (화)-5-4': '전담(영)', '09.29. (화)-5-5': '나래',
+      '09.29. (화)-6-2': '전담(영)<br><span class="text-red-600">구강검진(10:20)</span>', '09.29. (화)-6-3': '우쿨(7~8)', '09.29. (화)-6-4': '우쿨(7~8)',
+      '09.29. (화)-7-1': '구강검진(09:40)', '09.29. (화)-7-3': '전담(영)', '09.29. (화)-7-4': '전담(영)',
+      '09.29. (화)-9-3': '나래', '09.29. (화)-9-4': '구강검진(11:40)', '09.29. (화)-9-5': '전담(영)',
+      '09.29. (화)-10-3': '전담(과)<br><span class="text-red-600">구강검진(11:40)</span>', '09.29. (화)-10-4': '전담(과)',
+
+      '09.30. (수)-1-1': '전담(과)', '09.30. (수)-1-3': '전담(영)',
+      '09.30. (수)-2-2': '전담(과)', '09.30. (수)-3-1': '전담(영)', '09.30. (수)-3-3': '전담(과)', '09.30. (수)-3-4': '다목(3층)',
+      '09.30. (수)-4-3': '다목(3층)', '09.30. (수)-4-4': '전담(과)', '09.30. (수)-4-5': '전담(영)',
+      '09.30. (수)-5-1': '다목(3층)', '09.30. (수)-5-5': '전담(과)',
+      '09.30. (수)-6-3': '전담(과)', '09.30. (수)-6-4': '전담(과)',
+      '09.30. (수)-7-1': '전담(과)', '09.30. (수)-7-2': '전담(과)',
+      '09.30. (수)-8-1': '전담(영)', '09.30. (수)-8-2': '전담(영)', '09.30. (수)-8-5': '운동장',
+      '09.30. (수)-9-3': '전담(영)', '09.30. (수)-9-4': '전담(영)',
+      '09.30. (수)-10-4': '전담(과)',
+
+      '10.01. (목)-1-1': '튜터(7)', '10.01. (목)-1-4': '다목(2층)',
+      '10.01. (목)-2-1': '전담(영)', '10.01. (목)-2-2': '전담(영)', '10.01. (목)-2-3': '우쿨(7~8)', '10.01. (목)-2-4': '우쿨(7~8)', '10.01. (목)-2-5': '다목(2층)',
+      '10.01. (목)-3-2': '튜터(7)', '10.01. (목)-3-3': '전담(영)', '10.01. (목)-3-4': '전담(영)', '10.01. (목)-3-6': '강당',
+      '10.01. (목)-4-1': '전담(과)', '10.01. (목)-4-2': '전담(과)', '10.01. (목)-4-3': '튜터(7)',
+      '10.01. (목)-5-1': '운동장', '10.01. (목)-5-3': '전담(과)', '10.01. (목)-5-4': '전담(과)', '10.01. (목)-5-5': '튜터(7)',
+      '10.01. (목)-6-1': '전담(영)', '10.01. (목)-6-2': '전담(영)',
+      '10.01. (목)-7-1': '운동장', '10.01. (목)-7-3': '전담(과)', '10.01. (목)-7-4': '튜터(7)',
+      '10.01. (목)-8-1': '우쿨(7~8)', '10.01. (목)-8-2': '우쿨(7~8)', '10.01. (목)-8-4': '전담(과)', '10.01. (목)-8-6': '다목(3층)',
+      '10.01. (목)-9-1': '전담(과)', '10.01. (목)-10-4': '전담(과)',
+
+      '10.02. (금)-1-1': '전담(영)', '10.02. (금)-1-2': '전담(영)', '10.02. (금)-1-6': '다목(3층)',
+      '10.02. (금)-2-1': '마음근력', '10.02. (금)-2-2': '마음근력', '10.02. (금)-2-3': '마음근력', '10.02. (금)-2-4': '튜터(7)',
+      '10.02. (금)-3-4': '운동장',
+      '10.02. (금)-4-2': '마음근력', '10.02. (금)-4-3': '마음근력', '10.02. (금)-4-4': '마음근력', '10.02. (금)-4-5': '강당',
+      '10.02. (금)-5-6': '강당', '10.02. (금)-6-1': '튜터(7)', '10.02. (금)-6-2': '다목(3층)', '10.02. (금)-6-4': '운동장',
+      '10.02. (금)-7-1': '<span class="text-red-600 font-bold">다목(3층)<br>운동장</span>', '10.02. (금)-7-5': '전담(영)',
+      '10.02. (금)-8-1': '운동장', '10.02. (금)-8-2': '튜터(7)', '10.02. (금)-8-3': '전담(과)', '10.02. (금)-8-4': '전담(과)',
+      '10.02. (금)-9-1': '전담(과)', '10.02. (금)-9-2': '전담(과)', '10.02. (금)-9-3': '튜터(7)', '10.02. (금)-9-4': '다목(3층)',
+      '10.02. (금)-10-1': '전담(영)', '10.02. (금)-10-2': '운동장', '10.02. (금)-10-6': '튜터(7)',
+
+      '10.06. (화)-1-1': '우쿨(7~8)', '10.06. (화)-1-2': '우쿨(7~8)', '10.06. (화)-1-3': '스건강(시청각)',
+      '10.06. (화)-2-2': '나래', '10.06. (화)-2-3': '스건강(시청각)', '10.06. (화)-2-4': '전담(영)',
+      '10.06. (화)-3-3': '나래', '10.06. (화)-4-1': '우쿨(7~8)', '10.06. (화)-4-2': '우쿨(7~8)',
+      '10.06. (화)-5-3': '전담(영)', '10.06. (화)-5-4': '나래', '10.06. (화)-5-5': '운동장',
+      '10.06. (화)-6-1': '전담(영)', '10.06. (화)-6-2': '전담(영)', '10.06. (화)-6-3': '강당', '10.06. (화)-6-5': '운동장',
+      '10.06. (화)-7-1': '강당', '10.06. (화)-7-3': '전담(영)', '10.06. (화)-7-4': '전담(영)',
+      '10.06. (화)-8-2': '강당', '10.06. (화)-9-1': '스건강(시청각)', '10.06. (화)-9-3': '강당', '10.06. (화)-9-4': '전담(영)', '10.06. (화)-9-5': '운동장',
+      '10.06. (화)-10-2': '스건강(시청각)', '10.06. (화)-10-3': '전담(과)', '10.06. (화)-10-4': '전담(과)',
+
+      '10.07. (수)-1-1': '전담(과)', '10.07. (수)-1-3': '전담(영)',
+      '10.07. (수)-2-2': '전담(과)', '10.07. (수)-2-4': '운동장', '10.07. (수)-3-1': '전담(영)', '10.07. (수)-3-3': '전담(과)',
+      '10.07. (수)-4-1': '스건강(시청각)', '10.07. (수)-4-2': '전담(영)', '10.07. (수)-4-4': '전담(과)',
+      '10.07. (수)-5-4': '전담(과)',
+      '10.07. (수)-6-2': '스건강(시청각)', '10.07. (수)-6-3': '전담(과)', '10.07. (수)-6-4': '전담(과)', '10.07. (수)-6-5': '운동장',
+      '10.07. (수)-7-1': '전담(과)', '10.07. (수)-7-2': '전담(과)', '10.07. (수)-7-3': '스건강(시청각)', '10.07. (수)-7-4': '다목(3층)',
+      '10.07. (수)-8-1': '전담(영)', '10.07. (수)-8-2': '전담(영)', '10.07. (수)-8-3': '다목(3층)', '10.07. (수)-8-4': '스건강(시청각)',
+      '10.07. (수)-9-3': '전담(영)', '10.07. (수)-9-4': '전담(영)', '10.07. (수)-9-5': '운동장',
+      '10.07. (수)-10-4': '전담(과)',
+
+      '10.08. (목)-1-1': '튜터(8)', '10.08. (목)-2-1': '전담(영)', '10.08. (목)-2-2': '전담(영)', '10.08. (목)-2-4': '글씨대회(2,6)', '10.08. (목)-2-6': '다목(3층)',
+      '10.08. (목)-3-1': '운동장', '10.08. (목)-3-2': '스건강(시청각)', '10.08. (목)-3-3': '전담(영)', '10.08. (목)-3-4': '전담(영)', '10.08. (목)-3-5': '튜터(8)',
+      '10.08. (목)-4-1': '전담(과)', '10.08. (목)-4-2': '전담(과)', '10.08. (목)-4-3': '튜터(8)', '10.08. (목)-4-4': '글씨대회(4,10)', '10.08. (목)-4-5': '국어 면담 발표',
+      '10.08. (목)-5-1': '스건강(시청각)', '10.08. (목)-5-2': '튜터(8)', '10.08. (목)-5-3': '전담(과)', '10.08. (목)-5-4': '전담(과)', '10.08. (목)-5-5': '다목(2층)',
+      '10.08. (목)-6-2': '전담(과)', '10.08. (목)-6-4': '<span class="text-red-600 font-bold">다목(2층)<br>글씨대회(2,6)</span>',
+      '10.08. (목)-7-1': '우쿨(7~8)', '10.08. (목)-7-2': '우쿨(7~8)', '10.08. (목)-7-3': '전담(과)', '10.08. (목)-7-4': '튜터(8)',
+      '10.08. (목)-8-1': '운동장', '10.08. (목)-8-4': '전담(과)',
+      '10.08. (목)-9-1': '전담(과)', '10.08. (목)-9-3': '우쿨(7~8)', '10.08. (목)-9-4': '우쿨(7~8)', '10.08. (목)-9-5': '나래',
+      '10.08. (목)-10-1': '전담(영)', '10.08. (목)-10-2': '전담(영)', '10.08. (목)-10-4': '글씨대회(4,10)', '10.08. (목)-10-5': '강당'
     };
 
     function getVal(doc, ...keys) {
@@ -493,9 +587,9 @@
       const thead = document.getElementById('overview-table-head');
       const tbody = document.getElementById('overview-table-body');
       
-      let headHtml = '<tr class="bg-gray-100 font-bold"><th class="p-3 border w-20">구분</th>';
-      appState.classes.forEach(c => headHtml += `<th class="p-3 border w-auto">${c}</th>`);
-      headHtml += '<th class="p-3 border w-20">계</th></tr>';
+      let headHtml = '<tr class="bg-gray-100 font-bold"><th class="p-2.5 border w-16">구분</th>';
+      appState.classes.forEach(c => headHtml += `<th class="p-2.5 border w-auto">${c}</th>`);
+      headHtml += '<th class="p-2.5 border w-16">계</th></tr>';
       thead.innerHTML = headHtml;
 
       const defaultTasks = ['부장', '보조/친목', '연구실', '졸업식', '평가(1학기)', '학습준비물', '현지연수/위원회', '앨범', '평가(2학기)', '인사위'];
@@ -513,7 +607,7 @@
       let maleTotal = 0, femaleTotal = 0;
 
       rows.forEach((r, rIdx) => {
-        bodyHtml += `<tr><td class="p-3 border font-bold bg-gray-50">${r}</td>`;
+        bodyHtml += `<tr><td class="p-2.5 border font-bold bg-gray-50">${r}</td>`;
 
         appState.classes.forEach((cName, cIdx) => {
           const classNum = parseInt(cName.replace(/[^0-9]/g, '')) || (cIdx + 1);
@@ -521,26 +615,26 @@
           if (rIdx === 0) {
             const cnt = students.filter(s => (getVal(s, 'student_class') == classNum) && ['남', '남성'].includes(getVal(s, 'student_gender'))).length;
             maleTotal += cnt;
-            bodyHtml += `<td class="p-3 border">${cnt}</td>`;
+            bodyHtml += `<td class="p-2.5 border">${cnt}</td>`;
           } else if (rIdx === 1) {
             const cnt = students.filter(s => (getVal(s, 'student_class') == classNum) && ['여', '여성'].includes(getVal(s, 'student_gender'))).length;
             femaleTotal += cnt;
-            bodyHtml += `<td class="p-3 border">${cnt}</td>`;
+            bodyHtml += `<td class="p-2.5 border">${cnt}</td>`;
           } else if (rIdx === 2) {
             const cnt = students.filter(s => getVal(s, 'student_class') == classNum).length;
-            bodyHtml += `<td class="p-3 border font-bold bg-slate-50">${cnt}</td>`;
+            bodyHtml += `<td class="p-2.5 border font-bold bg-slate-50">${cnt}</td>`;
           } else if (rIdx === 3) {
             const taskVal = defaultTasks[cIdx] || '-';
-            bodyHtml += `<td class="p-3 border text-gray-700">${appState.isOverviewEditing ? `<input type="text" value="${taskVal}" class="w-full border p-1 text-center rounded">` : taskVal}</td>`;
+            bodyHtml += `<td class="p-2.5 border text-gray-700">${appState.isOverviewEditing ? `<input type="text" value="${taskVal}" class="w-full border p-1 text-center rounded">` : taskVal}</td>`;
           } else if (rIdx === 4) {
-            bodyHtml += `<td class="p-3 border font-medium">교사${cIdx+1}</td>`;
+            bodyHtml += `<td class="p-2.5 border font-medium">교사${cIdx+1}</td>`;
           }
         });
 
-        if (rIdx === 0) bodyHtml += `<td class="p-3 border font-bold bg-gray-50">${maleTotal}</td>`;
-        else if (rIdx === 1) bodyHtml += `<td class="p-3 border font-bold bg-gray-50">${femaleTotal}</td>`;
-        else if (rIdx === 2) bodyHtml += `<td class="p-3 border font-bold bg-indigo-50 text-indigo-700">${maleTotal + femaleTotal}</td>`;
-        else bodyHtml += `<td class="p-3 border bg-gray-50">-</td>`;
+        if (rIdx === 0) bodyHtml += `<td class="p-2.5 border font-bold bg-gray-50">${maleTotal}</td>`;
+        else if (rIdx === 1) bodyHtml += `<td class="p-2.5 border font-bold bg-gray-50">${femaleTotal}</td>`;
+        else if (rIdx === 2) bodyHtml += `<td class="p-2.5 border font-bold bg-indigo-50 text-indigo-700">${maleTotal + femaleTotal}</td>`;
+        else bodyHtml += `<td class="p-2.5 border bg-gray-50">-</td>`;
         
         bodyHtml += `</tr>`;
       });
@@ -594,9 +688,9 @@
         else if (rem === allocated) colorClass = 'text-blue-600 font-bold';
 
         html += `
-          <div class="p-5 rounded-xl border shadow-sm flex-1 min-w-[230px]" style="background-color: ${b.bg || '#f8fafc'};">
-            <div class="font-bold text-base mb-2 text-gray-900">${bgName}</div>
-            <div class="text-sm space-y-1.5">
+          <div class="p-4 sm:p-5 rounded-xl border shadow-sm flex-1 min-w-[220px]" style="background-color: ${b.bg || '#f8fafc'};">
+            <div class="font-bold text-sm sm:text-base mb-2 text-gray-900">${bgName}</div>
+            <div class="text-xs sm:text-sm space-y-1.5">
               <div class="flex justify-between"><span>배정액:</span><span>${allocated.toLocaleString()}원</span></div>
               <div class="flex justify-between"><span>사용액:</span><span>${used.toLocaleString()}원</span></div>
               <div class="flex justify-between border-t border-gray-300 pt-1.5 font-bold ${colorClass}">
@@ -606,7 +700,7 @@
           </div>`;
       });
 
-      container.innerHTML = html || `<p class="text-sm text-gray-400">등록된 예산 항목이 없습니다.</p>`;
+      container.innerHTML = html || `<p class="text-xs sm:text-sm text-gray-400">등록된 예산 항목이 없습니다.</p>`;
     }
 
     function addBudgetCardPrompt() {
@@ -623,8 +717,8 @@
       ['week', 'today', 'all'].forEach(m => {
         const btn = document.getElementById(`filter-btn-${m}`);
         if (btn) {
-          if (m === mode) btn.className = "px-3.5 py-1.5 border rounded bg-indigo-50 text-indigo-600 font-bold";
-          else btn.className = "px-3.5 py-1.5 border rounded hover:bg-gray-100 font-medium";
+          if (m === mode) btn.className = "px-2.5 sm:px-3.5 py-1.5 border rounded bg-indigo-50 text-indigo-600 font-bold whitespace-nowrap";
+          else btn.className = "px-2.5 sm:px-3.5 py-1.5 border rounded hover:bg-gray-100 font-medium whitespace-nowrap";
         }
       });
 
@@ -683,16 +777,16 @@
           .map(m => getVal(m, 'task_memo_name', 'task _memo_name')).join(', ') || '-';
 
         html += `<tr class="${rowClass}">
-          <td class="p-3 text-center font-bold border-r">${dateStr}</td>
-          <td class="p-3 border-r">${schoolText}</td>
-          <td class="p-3 border-r">${addText}</td>
-          <td class="p-3 whitespace-pre-wrap">${memoText}</td>
+          <td class="p-2.5 text-center font-bold border-r whitespace-nowrap">${dateStr}</td>
+          <td class="p-2.5 border-r">${schoolText}</td>
+          <td class="p-2.5 border-r">${addText}</td>
+          <td class="p-2.5 whitespace-pre-wrap">${memoText}</td>
         </tr>`;
 
         if (i < 7) {
-          homeHtml += `<div class="py-3 flex justify-between items-center border-b last:border-0">
-            <span class="font-bold text-gray-800 w-32">${dateStr}</span>
-            <span class="text-gray-700 flex-1">${schoolText !== '-' ? schoolText : (memoText !== '-' ? memoText : '일정 없음')}</span>
+          homeHtml += `<div class="py-2.5 flex justify-between items-center border-b last:border-0">
+            <span class="font-bold text-gray-800 w-28 sm:w-32 whitespace-nowrap">${dateStr}</span>
+            <span class="text-gray-700 flex-1 truncate ml-2">${schoolText !== '-' ? schoolText : (memoText !== '-' ? memoText : '일정 없음')}</span>
           </div>`;
         }
       }
@@ -725,15 +819,15 @@
       let html = '';
       students.forEach(s => {
         html += `<tr>
-          <td class="p-2.5 border font-medium">${getVal(s, 'student_class')}반</td>
-          <td class="p-2.5 border">${getVal(s, 'student_num')}번</td>
-          <td class="p-2.5 border">${getVal(s, 'student_gender')}</td>
-          <td class="p-2.5 border">${getVal(s, 'student_birth')}</td>
-          <td class="p-2.5 border text-gray-600">${getVal(s, 'student_memo')}</td>
+          <td class="p-2 border font-medium">${getVal(s, 'student_class')}반</td>
+          <td class="p-2 border">${getVal(s, 'student_num')}번</td>
+          <td class="p-2 border">${getVal(s, 'student_gender')}</td>
+          <td class="p-2 border">${getVal(s, 'student_birth')}</td>
+          <td class="p-2 border text-gray-600">${getVal(s, 'student_memo')}</td>
         </tr>`;
       });
 
-      tbody.innerHTML = html || `<tr><td colspan="5" class="p-6 text-gray-400">학생 데이터가 없습니다.</td></tr>`;
+      tbody.innerHTML = html || `<tr><td colspan="5" class="p-6 text-gray-400 text-center">학생 데이터가 없습니다.</td></tr>`;
     }
 
     function verifyRosterAccess() {
@@ -760,52 +854,54 @@
     }
 
     function switchTimetableSub(type) {
-      document.querySelectorAll('.subtab-tt').forEach(b => b.className = "subtab-tt px-4 py-2.5 text-gray-500 hover:text-black");
+      document.querySelectorAll('.subtab-btn').forEach(b => {
+        if (b.id && b.id.startsWith('tt-subtab-')) {
+          b.className = "subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black";
+        }
+      });
       const activeBtn = document.getElementById(`tt-subtab-${type}`);
-      if (activeBtn) activeBtn.className = "subtab-tt px-4 py-2.5 border-b-2 border-indigo-600 text-indigo-600 font-bold";
+      if (activeBtn) activeBtn.className = "subtab-btn px-3 sm:px-4 py-2 border-b-2 border-indigo-600 text-indigo-600 font-bold";
 
       const container = document.getElementById('tt-subview-container');
       if (type === 'monthly') {
         renderMonthlyTimetable(appState.activeMonth);
       } else {
-        container.innerHTML = `<div class="p-8 border rounded-xl bg-white shadow-sm text-center text-base text-gray-500">${type} 시간표 화면</div>`;
+        container.innerHTML = `<div class="p-6 border rounded-xl bg-white shadow-sm text-center text-sm text-gray-500">${type} 시간표 화면</div>`;
       }
     }
 
-    // ==========================================
-    // [월간 시간표 (월별 시간표)] 완벽 원형 구현
-    // ==========================================
+    // ====================================================
+    // [월간 시간표 (월별 시간표)] 교차 색상 및 모바일 레이아웃 완전체
+    // ====================================================
     function renderMonthlyTimetable(selectedMonth) {
       appState.activeMonth = selectedMonth;
       const container = document.getElementById('tt-subview-container');
 
-      // 1. 월 선택 버튼 헤더 (3월 ~ 2월)
+      // 1. 월 선택 가로 스크롤 버튼 헤더 (3월 ~ 2월)
       const months = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2];
       let monthBtnsHtml = '';
       months.forEach(m => {
         const isCurrent = (m === selectedMonth);
-        monthBtnsHtml += `<button onclick="renderMonthlyTimetable(${m})" class="px-3.5 py-1.5 border rounded font-bold text-sm transition-colors ${isCurrent ? 'bg-[#4a4085] text-white' : 'bg-white hover:bg-gray-100 text-gray-700'}">${m}월</button>`;
+        monthBtnsHtml += `<button onclick="renderMonthlyTimetable(${m})" class="px-3 py-1 border rounded font-bold text-xs sm:text-sm whitespace-nowrap shrink-0 transition-colors ${isCurrent ? 'bg-[#4a4085] text-white' : 'bg-white hover:bg-gray-100 text-gray-700'}">${m}월</button>`;
       });
 
-      // 2. 선택된 월의 연도 및 달력 주차 계산 (월~금 범위)
+      // 2. 선택된 월의 연도 및 달력 주차 계산
       const year = (selectedMonth === 1 || selectedMonth === 2) ? appState.currentYear + 1 : appState.currentYear;
-      
       const firstDayOfMonth = new Date(year, selectedMonth - 1, 1);
       const lastDayOfMonth = new Date(year, selectedMonth, 0);
 
-      // 첫 번째 주의 월요일 계산
+      // 월요일 시작 주차 구하기
       let startMon = new Date(firstDayOfMonth);
       const day1 = startMon.getDay();
       const diff1 = (day1 === 0) ? -6 : 1 - day1;
       startMon.setDate(startMon.getDate() + diff1);
 
-      // 주차(Weeks) 생성
       const weeks = [];
       let currMon = new Date(startMon);
 
       while (currMon <= lastDayOfMonth || currMon.getMonth() === selectedMonth - 1) {
         const weekDays = [];
-        for (let i = 0; i < 5; i++) { // 월(0) ~ 금(4)
+        for (let i = 0; i < 5; i++) {
           const d = new Date(currMon);
           d.setDate(d.getDate() + i);
           weekDays.push(d);
@@ -817,23 +913,23 @@
       const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토'];
       const dayBgClasses = ['bg-mon', 'bg-tue', 'bg-wed', 'bg-thu', 'bg-fri'];
 
-      // 3. 주차별 표 구성을 연속 생성
+      // 3. 주차별 테이블 세로 연속 생성
       let weeksTableHtml = '';
 
-      weeks.forEach((weekDays, wIdx) => {
+      weeks.forEach((weekDays) => {
         // 헤더 1행: MM월 DD일 (요일)
-        let headerRow1 = `<tr class="bg-gray-100 font-bold text-xs"><th class="w-16 sticky-col bg-gray-100 border"></th>`;
+        let headerRow1 = `<tr class="bg-gray-100 font-bold text-xs"><th class="sticky-col bg-gray-100 border p-1"></th>`;
         weekDays.forEach((d, dIdx) => {
           const dateLabel = `${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일 (${daysOfWeek[d.getDay()]})`;
-          headerRow1 += `<th colspan="6" class="border py-1.5 ${dayBgClasses[dIdx]}">${dateLabel}</th>`;
+          headerRow1 += `<th colspan="6" class="border py-1.5 px-1 ${dayBgClasses[dIdx]} text-[11px] sm:text-xs whitespace-nowrap">${dateLabel}</th>`;
         });
         headerRow1 += `</tr>`;
 
         // 헤더 2행: 1교시 ~ 6교시 반복
-        let headerRow2 = `<tr class="bg-gray-50 text-[11px] font-bold"><th class="sticky-col bg-gray-50 border text-center">반</th>`;
+        let headerRow2 = `<tr class="bg-gray-50 text-[10px] sm:text-xs font-bold"><th class="sticky-col bg-gray-50 border p-1 text-center whitespace-nowrap">반</th>`;
         for (let d = 0; d < 5; d++) {
           for (let p = 1; p <= 6; p++) {
-            headerRow2 += `<th class="border py-1 w-10 text-center">${p}교시</th>`;
+            headerRow2 += `<th class="border py-1 text-center whitespace-nowrap">${p}교시</th>`;
           }
         }
         headerRow2 += `</tr>`;
@@ -841,45 +937,56 @@
         // 학급별 행 생성 (1반 ~ 10반)
         let classRowsHtml = '';
 
-        appState.classes.forEach(cName => {
-          const classNum = parseInt(cName.replace(/[^0-9]/g, '')) || 0;
-          classRowsHtml += `<tr><td class="font-bold bg-gray-50 text-xs border p-2 sticky-col text-center">${cName}</td>`;
+        appState.classes.forEach((cName, cIdx) => {
+          const classNum = parseInt(cName.replace(/[^0-9]/g, '')) || (cIdx + 1);
+          classRowsHtml += `<tr><td class="font-bold bg-gray-50 text-xs border p-1 sticky-col text-center">${cName}</td>`;
 
           weekDays.forEach((d, dIdx) => {
             const formattedDateStr = `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}. (${daysOfWeek[d.getDay()]})`;
             const yearDateStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+            const shortKeyDateStr = `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}. (${daysOfWeek[d.getDay()]})`;
 
-            // 휴일 체크
-            const isHoliday = (d.getDay() === 0 || d.getDay() === 6) || appState.holidays.some(h => yearDateStr >= h.start && yearDateStr <= h.end);
-            const holidayObj = appState.holidays.find(h => yearDateStr >= h.start && yearDateStr <= h.end);
-            const holidayName = holidayObj ? holidayObj.name : (d.getDay() === 0 ? '일요일' : '휴일');
+            // 휴일 조건
+            const isHoliday = (d.getDay() === 0 || d.getDay() === 6) || 
+                              (d.getMonth() === 9 && d.getDate() === 5) || // 10월 5일 개천절 대체휴일 예시
+                              (d.getMonth() === 9 && d.getDate() === 9) || // 10월 9일 한글날
+                              appState.holidays.some(h => yearDateStr >= h.start && yearDateStr <= h.end);
+            
+            let holidayName = '휴일';
+            if (d.getMonth() === 9 && d.getDate() === 5) holidayName = '개천절 대체휴일';
+            else if (d.getMonth() === 9 && d.getDate() === 9) holidayName = '한글날';
 
             for (let p = 1; p <= 6; p++) {
               if (isHoliday) {
-                // 휴일일 경우 진회색 배경에 전체 지정
                 if (p === 1) {
                   classRowsHtml += `<td colspan="6" class="border tt-holiday-cell p-1">${holidayName}(휴)</td>`;
                 }
               } else {
-                // 데이터 매칭 (data_sub_timetable, data_add_timetable, data_room_timetable)
+                // 교차 색상 규칙: 홀수 반(cIdx % 2 === 0)은 요일 색상, 짝수 반(cIdx % 2 === 1)은 흰색(bg-white)
+                let cellBgClass = (cIdx % 2 === 0) ? dayBgClasses[dIdx] : 'bg-white';
+                
+                // 데이터 조회 (실제 데이터 + 캐시 샘플 매칭)
                 const items = [];
+                const sampleKey = `${shortKeyDateStr}-${classNum}-${p}`;
 
                 appState.subTimetables.filter(s => (getVal(s, 'sub_date') === formattedDateStr || getVal(s, 'sub_date') === yearDateStr) && getVal(s, 'sub_class') == classNum && getVal(s, 'sub_time') == `${p}교시`).forEach(s => items.push(getVal(s, 'sub_name')));
                 appState.addTimetables.filter(a => (getVal(a, 'add_date') === formattedDateStr || getVal(a, 'add_date') === yearDateStr) && getVal(a, 'add_class') == classNum && getVal(a, 'add_time') == `${p}교시`).forEach(a => items.push(getVal(a, 'add_name')));
                 appState.roomTimetables.filter(r => (getVal(r, 'room_date') === formattedDateStr || getVal(r, 'room_date') === yearDateStr) && getVal(r, 'room_class') == classNum && getVal(r, 'room_time') == `${p}교시`).forEach(r => items.push(getVal(r, 'room_place')));
 
-                let cellClass = dayBgClasses[dIdx];
+                if (items.length === 0 && sampleTimetableMap[sampleKey]) {
+                  items.push(sampleTimetableMap[sampleKey]);
+                }
+
                 let contentText = '-';
 
                 if (items.length === 1) {
                   contentText = items[0];
                 } else if (items.length >= 2) {
-                  // 중복 일정 발생 시 분홍색 배경 + 빨간 기울임꼴
-                  cellClass = 'tt-overlap-cell';
+                  cellBgClass = 'tt-overlap-cell';
                   contentText = items.join('<br>');
                 }
 
-                classRowsHtml += `<td class="p-1 border text-center tt-cell-text ${cellClass}">${contentText}</td>`;
+                classRowsHtml += `<td class="p-0.5 border text-center tt-cell-text ${cellBgClass}">${contentText}</td>`;
               }
             }
           });
@@ -888,8 +995,8 @@
         });
 
         weeksTableHtml += `
-          <div class="overflow-x-auto border rounded-lg mb-6 shadow-sm">
-            <table class="w-full text-xs text-center border-collapse tt-grid-table">
+          <div class="overflow-x-auto border rounded-lg mb-5 shadow-sm no-scrollbar">
+            <table class="tt-grid-table">
               <thead>${headerRow1}${headerRow2}</thead>
               <tbody>${classRowsHtml}</tbody>
             </table>
@@ -897,10 +1004,10 @@
       });
 
       container.innerHTML = `
-        <div class="border rounded-xl p-6 bg-white space-y-5 shadow-sm">
-          <div class="flex justify-between items-center border-b pb-4 flex-wrap gap-3">
-            <h3 class="font-bold text-2xl text-gray-900">월별 시간표</h3>
-            <div class="flex gap-1.5 flex-wrap">${monthBtnsHtml}</div>
+        <div class="border rounded-xl p-3 sm:p-5 bg-white space-y-4 shadow-sm">
+          <div class="flex justify-between items-center border-b pb-3 flex-wrap gap-2">
+            <h3 class="font-bold text-xl sm:text-2xl text-gray-900">월별 시간표</h3>
+            <div class="flex gap-1 overflow-x-auto no-scrollbar py-1 w-full sm:w-auto flex-nowrap">${monthBtnsHtml}</div>
           </div>
           <div class="space-y-4">${weeksTableHtml}</div>
         </div>`;
@@ -908,18 +1015,22 @@
 
     // 예산 서브탭
     async function switchBudgetSub(type) {
-      document.querySelectorAll('.subtab-bg').forEach(b => b.className = "subtab-bg px-4 py-2.5 text-gray-500 hover:text-black");
+      document.querySelectorAll('.subtab-btn').forEach(b => {
+        if (b.id && b.id.startsWith('bg-subtab-')) {
+          b.className = "subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black";
+        }
+      });
       const activeBtn = document.getElementById(`bg-subtab-${type}`);
-      if (activeBtn) activeBtn.className = "subtab-bg px-4 py-2.5 border-b-2 border-indigo-600 text-indigo-600 font-bold";
+      if (activeBtn) activeBtn.className = "subtab-btn px-3 sm:px-4 py-2 border-b-2 border-indigo-600 text-indigo-600 font-bold";
 
       const container = document.getElementById('budget-subview-container');
 
       if (type === 'shopid') {
         if (!appState.shopIdAuthed) {
           container.innerHTML = `
-            <div class="p-8 border rounded-2xl bg-slate-50 text-center max-w-md mx-auto space-y-4 shadow-sm">
-              <i class="fa-solid fa-lock text-4xl text-gray-400"></i>
-              <h3 class="font-bold text-xl">쇼핑몰 ID 보안 접근</h3>
+            <div class="p-6 sm:p-8 border rounded-2xl bg-slate-50 text-center max-w-md mx-auto space-y-4 shadow-sm">
+              <i class="fa-solid fa-lock text-3xl sm:text-4xl text-gray-400"></i>
+              <h3 class="font-bold text-lg sm:text-xl">쇼핑몰 ID 보안 접근</h3>
               <input type="password" id="shopid-pw-input" placeholder="비밀번호 입력 (초기: 0000)" class="w-full p-3 border rounded-lg text-center font-bold text-base">
               <button onclick="if(document.getElementById('shopid-pw-input').value===appState.commonPw){appState.shopIdAuthed=true; switchBudgetSub('shopid');}else alert('비밀번호가 일치하지 않습니다.');" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 text-base">접속 확인</button>
             </div>`;
@@ -927,17 +1038,17 @@
         }
 
         container.innerHTML = `
-          <div class="border rounded-xl p-6 bg-white space-y-5 shadow-sm">
-            <h3 class="font-bold text-xl border-b pb-3">🛍️ 쇼핑몰 계정 목록</h3>
-            <div class="grid grid-cols-1 sm:grid-cols-5 gap-3 text-sm">
-              <input type="text" id="shop-name" placeholder="쇼핑몰명*" class="p-2.5 border rounded">
-              <input type="text" id="shop-id" placeholder="아이디*" class="p-2.5 border rounded">
-              <input type="password" id="shop-pw" placeholder="비밀번호*" class="p-2.5 border rounded">
-              <input type="text" id="shop-url" placeholder="주소 (https://)" class="p-2.5 border rounded">
-              <button onclick="registerShopAccount()" class="bg-indigo-600 text-white font-bold rounded p-2.5 hover:bg-indigo-700">저장</button>
+          <div class="border rounded-xl p-4 sm:p-6 bg-white space-y-4 shadow-sm">
+            <h3 class="font-bold text-lg sm:text-xl border-b pb-3">🛍️ 쇼핑몰 계정 목록</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-5 gap-2.5 text-xs sm:text-sm">
+              <input type="text" id="shop-name" placeholder="쇼핑몰명*" class="p-2 border rounded">
+              <input type="text" id="shop-id" placeholder="아이디*" class="p-2 border rounded">
+              <input type="password" id="shop-pw" placeholder="비밀번호*" class="p-2 border rounded">
+              <input type="text" id="shop-url" placeholder="주소 (https://)" class="p-2 border rounded">
+              <button onclick="registerShopAccount()" class="bg-indigo-600 text-white font-bold rounded p-2 hover:bg-indigo-700">저장</button>
             </div>
             <div class="overflow-x-auto">
-              <table class="w-full text-sm border-collapse sheet-table">
+              <table class="w-full text-xs sm:text-sm border-collapse sheet-table">
                 <thead><tr class="bg-gray-100 font-bold"><th>쇼핑몰</th><th>아이디</th><th>비밀번호</th><th>주소</th><th>비고</th><th>관리</th></tr></thead>
                 <tbody id="shop-list-tbody"><tr><td colspan="6" class="p-4 text-center text-gray-400">등록된 계정이 없습니다.</td></tr></tbody>
               </table>
@@ -959,29 +1070,29 @@
           const total = num * price;
 
           rowsHtml += `
-            <tr class="hover:bg-slate-50 text-sm">
-              <td class="p-2">
+            <tr class="hover:bg-slate-50 text-xs sm:text-sm">
+              <td class="p-1.5">
                 <select class="w-full border p-1 rounded">
                   <option selected>${getVal(i, 'budget_name') || '학년운영비'}</option>
                   <option>학년회비</option>
                   <option>학교친목회비</option>
                 </select>
               </td>
-              <td class="p-2"><input type="text" value="${getVal(i, 'budget_product')}" class="w-full"></td>
-              <td class="p-2"><input type="text" value="${getVal(i, 'budget_spec')}" class="w-full"></td>
-              <td class="p-2 w-16 text-center"><input type="number" value="${num}" class="w-full text-center"></td>
-              <td class="p-2 w-28 text-right"><input type="number" value="${price}" class="w-full text-right"></td>
-              <td class="p-2 w-28 text-right font-bold">${total.toLocaleString()}원</td>
-              <td class="p-2 text-center"><a href="${getVal(i, 'budget_link')}" target="_blank" class="text-indigo-600 underline">링크</a></td>
-              <td class="p-2">
+              <td class="p-1.5"><input type="text" value="${getVal(i, 'budget_product')}" class="w-full"></td>
+              <td class="p-1.5"><input type="text" value="${getVal(i, 'budget_spec')}" class="w-full"></td>
+              <td class="p-1.5 w-14 text-center"><input type="number" value="${num}" class="w-full text-center"></td>
+              <td class="p-1.5 w-24 text-right"><input type="number" value="${price}" class="w-full text-right"></td>
+              <td class="p-1.5 w-24 text-right font-bold">${total.toLocaleString()}원</td>
+              <td class="p-1.5 text-center"><a href="${getVal(i, 'budget_link')}" target="_blank" class="text-indigo-600 underline">링크</a></td>
+              <td class="p-1.5">
                 <select class="p-1 border rounded">
                   <option ${getVal(i, 'budget_pumui')==='해당없음'?'selected':''}>해당없음</option>
                   <option ${getVal(i, 'budget_pumui')==='품의중'?'selected':''}>품의중</option>
                   <option ${getVal(i, 'budget_pumui')==='결재완료'?'selected':''}>결재완료</option>
                 </select>
               </td>
-              <td class="p-2 text-center"><input type="checkbox" ${getVal(i, 'budget_progress')?'checked':''}></td>
-              <td class="p-2 flex items-center gap-1">
+              <td class="p-1.5 text-center"><input type="checkbox" ${getVal(i, 'budget_progress')?'checked':''}></td>
+              <td class="p-1.5 flex items-center gap-1">
                 <input type="text" value="${getVal(i, 'budget_memo')}" class="w-full" placeholder="메모">
                 <button onclick="openPhotoModal(${idx})" class="px-2 py-1 bg-gray-100 border rounded text-xs"><i class="fa-solid fa-camera"></i></button>
               </td>
@@ -989,28 +1100,28 @@
         });
 
         container.innerHTML = `
-          <div class="border rounded-xl p-6 bg-white space-y-4 shadow-sm">
+          <div class="border rounded-xl p-4 sm:p-6 bg-white space-y-4 shadow-sm">
             <div class="flex justify-between items-center border-b pb-3">
-              <h3 class="font-bold text-xl">📊 학년 예산 스프레드시트</h3>
-              <div class="flex gap-2">
-                <button onclick="window.print()" class="px-3.5 py-1.5 border rounded hover:bg-gray-100 font-bold text-sm"><i class="fa-solid fa-print"></i> 인쇄</button>
-                <button onclick="alert('저장되었습니다.');" class="px-3.5 py-1.5 bg-indigo-600 text-white rounded font-bold text-sm">저장하기</button>
+              <h3 class="font-bold text-lg sm:text-xl">📊 학년 예산 스프레드시트</h3>
+              <div class="flex gap-1.5">
+                <button onclick="window.print()" class="px-3 py-1.5 border rounded hover:bg-gray-100 font-bold text-xs sm:text-sm"><i class="fa-solid fa-print"></i> 인쇄</button>
+                <button onclick="alert('저장되었습니다.');" class="px-3 py-1.5 bg-indigo-600 text-white rounded font-bold text-xs sm:text-sm">저장하기</button>
               </div>
             </div>
 
             <div class="overflow-x-auto">
-              <table class="w-full text-sm border-collapse sheet-table">
+              <table class="w-full text-xs sm:text-sm border-collapse sheet-table">
                 <thead>
                   <tr class="bg-gray-100 font-bold text-gray-800 text-center">
-                    <th class="w-32">예산종류</th>
+                    <th class="w-28">예산종류</th>
                     <th>품명</th>
                     <th>규격</th>
-                    <th class="w-16">수량</th>
-                    <th class="w-28">단가</th>
-                    <th class="w-28">금액(합)</th>
-                    <th class="w-16">링크</th>
-                    <th class="w-24">품의상황</th>
-                    <th class="w-16">완료</th>
+                    <th class="w-14">수량</th>
+                    <th class="w-24">단가</th>
+                    <th class="w-24">금액(합)</th>
+                    <th class="w-14">링크</th>
+                    <th class="w-20">품의상황</th>
+                    <th class="w-12">완료</th>
                     <th>비고</th>
                   </tr>
                 </thead>
@@ -1019,7 +1130,7 @@
             </div>
           </div>`;
       } else {
-        container.innerHTML = `<div class="p-8 border rounded-xl bg-white text-center text-base text-gray-500">${type} 예산 스프레드시트 뷰</div>`;
+        container.innerHTML = `<div class="p-6 border rounded-xl bg-white text-center text-sm text-gray-500">${type} 예산 스프레드시트 뷰</div>`;
       }
     }
 
@@ -1033,12 +1144,12 @@
 
       const tbody = document.getElementById('shop-list-tbody');
       const row = document.createElement('tr');
-      row.className = "text-center hover:bg-gray-50";
+      row.className = "text-center hover:bg-gray-50 text-xs sm:text-sm";
       row.innerHTML = `
         <td class="p-2 border font-bold">${name}</td>
         <td class="p-2 border">${id}</td>
         <td class="p-2 border">${pw}</td>
-        <td class="p-2 border">${url ? `<a href="${url}" target="_blank" class="px-2 py-1 bg-indigo-50 text-indigo-600 rounded font-bold text-xs">바로가기</a>` : '-'}</td>
+        <td class="p-2 border">${url ? `<a href="${url}" target="_blank" class="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded font-bold text-xs">바로가기</a>` : '-'}</td>
         <td class="p-2 border">-</td>
         <td class="p-2 border"><button onclick="if(confirm('삭제하시겠습니까?')) this.closest('tr').remove()" class="text-red-600 font-bold text-xs">삭제</button></td>`;
       
@@ -1049,52 +1160,56 @@
 
     // 학년 관리자 서브탭
     function switchAdminSub(type) {
-      document.querySelectorAll('.subtab-adm').forEach(b => b.className = "subtab-adm px-4 py-2.5 text-gray-500 hover:text-black");
+      document.querySelectorAll('.subtab-btn').forEach(b => {
+        if (b.id && b.id.startsWith('adm-subtab-')) {
+          b.className = "subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black";
+        }
+      });
       const activeBtn = document.getElementById(`adm-subtab-${type}`);
-      if (activeBtn) activeBtn.className = "subtab-adm px-4 py-2.5 border-b-2 border-indigo-600 text-indigo-600 font-bold";
+      if (activeBtn) activeBtn.className = "subtab-btn px-3 sm:px-4 py-2 border-b-2 border-indigo-600 text-indigo-600 font-bold";
 
       const container = document.getElementById('admin-subview-container');
       if (type === 'basic') {
         container.innerHTML = `
-          <div class="p-6 border rounded-xl bg-white space-y-6 text-base shadow-sm">
+          <div class="p-4 sm:p-6 border rounded-xl bg-white space-y-4 sm:space-y-6 text-sm sm:text-base shadow-sm">
             <div>
-              <h4 class="font-bold text-lg mb-2">📅 학년도 및 학기 기간 설정</h4>
+              <h4 class="font-bold text-base sm:text-lg mb-2">📅 학년도 및 학기 기간 설정</h4>
               <div class="flex items-center gap-3">
-                <input type="number" value="${appState.currentYear}" class="p-2.5 border rounded w-32 text-center font-bold text-base">
-                <span class="text-sm text-gray-500">(적용 범위: ${appState.currentYear}.02.01 ~ ${appState.currentYear+1}.02.28)</span>
+                <input type="number" value="${appState.currentYear}" class="p-2 border rounded w-28 text-center font-bold">
+                <span class="text-xs sm:text-sm text-gray-500">(적용: ${appState.currentYear}.02.01 ~ ${appState.currentYear+1}.02.28)</span>
               </div>
             </div>
             <div class="border-t pt-4">
-              <h4 class="font-bold text-lg mb-2">🏫 학급 수 설정</h4>
+              <h4 class="font-bold text-base sm:text-lg mb-2">🏫 학급 수 설정</h4>
               <div class="flex items-center gap-3">
-                <input type="number" value="${appState.classCount}" onchange="appState.classCount=parseInt(this.value); appState.classes=Array.from({length:appState.classCount},(_,i)=>(i+1)+'반'); renderOverviewTable();" class="p-2.5 border rounded w-24 text-center font-bold text-base">
-                <span class="text-sm text-gray-500">수정 시 6학년 개요 열이 균등 배분으로 실시간 변경됩니다.</span>
+                <input type="number" value="${appState.classCount}" onchange="appState.classCount=parseInt(this.value); appState.classes=Array.from({length:appState.classCount},(_,i)=>(i+1)+'반'); renderOverviewTable();" class="p-2 border rounded w-20 text-center font-bold">
+                <span class="text-xs sm:text-sm text-gray-500">수정 시 6학년 개요 열이 균등 배분으로 실시간 변경됩니다.</span>
               </div>
             </div>
           </div>`;
       } else if (type === 'security') {
         container.innerHTML = `
-          <div class="p-6 border rounded-xl bg-white space-y-6 text-base shadow-sm">
-            <h4 class="font-bold text-lg border-b pb-3">🔒 비밀번호 및 과거 데이터 관리</h4>
+          <div class="p-4 sm:p-6 border rounded-xl bg-white space-y-4 sm:space-y-6 text-sm sm:text-base shadow-sm">
+            <h4 class="font-bold text-base sm:text-lg border-b pb-3">🔒 비밀번호 및 과거 데이터 관리</h4>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
               <div>
-                <label class="block text-sm font-bold mb-1">페이지 공통 비밀번호</label>
-                <input type="text" id="adm-common-pw" value="${appState.commonPw}" class="w-full p-2.5 border rounded font-bold">
+                <label class="block text-xs sm:text-sm font-bold mb-1">페이지 공통 비밀번호</label>
+                <input type="text" id="adm-common-pw" value="${appState.commonPw}" class="w-full p-2 border rounded font-bold">
               </div>
               <div>
-                <label class="block text-sm font-bold mb-1">관리자 접속 비밀번호</label>
-                <input type="text" id="adm-admin-pw" value="${appState.adminPw}" class="w-full p-2.5 border rounded font-bold">
+                <label class="block text-xs sm:text-sm font-bold mb-1">관리자 접속 비밀번호</label>
+                <input type="text" id="adm-admin-pw" value="${appState.adminPw}" class="w-full p-2 border rounded font-bold">
               </div>
             </div>
-            <button onclick="appState.commonPw=document.getElementById('adm-common-pw').value; appState.adminPw=document.getElementById('adm-admin-pw').value; alert('저장되었습니다.');" class="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded text-sm">저장하기</button>
+            <button onclick="appState.commonPw=document.getElementById('adm-common-pw').value; appState.adminPw=document.getElementById('adm-admin-pw').value; alert('저장되었습니다.');" class="px-4 py-2 bg-indigo-600 text-white font-bold rounded text-xs sm:text-sm">저장하기</button>
             
             <div class="border-t pt-4">
               <h5 class="font-bold text-red-600 mb-2">⚠️ 과거 데이터 삭제</h5>
-              <button onclick="if(prompt('복구할 수 없습니다. 삭제하시려면 [과거 데이터 삭제]를 정확히 입력하세요.')==='과거 데이터 삭제') alert('삭제되었습니다.');" class="px-4 py-2 bg-red-600 text-white rounded font-bold text-xs">과거 데이터 삭제</button>
+              <button onclick="if(prompt('복구할 수 없습니다. 삭제하시려면 [과거 데이터 삭제]를 정확히 입력하세요.')==='과거 데이터 삭제') alert('삭제되었습니다.');" class="px-3.5 py-2 bg-red-600 text-white rounded font-bold text-xs">과거 데이터 삭제</button>
             </div>
           </div>`;
       } else {
-        container.innerHTML = `<div class="p-8 border rounded-xl bg-white text-center text-base text-gray-500">${type} 관리 패널</div>`;
+        container.innerHTML = `<div class="p-6 border rounded-xl bg-white text-center text-sm text-gray-500">${type} 관리 패널</div>`;
       }
     }
 
@@ -1118,8 +1233,8 @@
         const item = document.createElement('a');
         item.href = url;
         item.target = "_blank";
-        item.className = "p-4 border rounded-xl bg-slate-50 hover:bg-indigo-50 text-center flex flex-col items-center justify-center gap-2 shadow-sm";
-        item.innerHTML = `<i class="fa-solid fa-link text-indigo-600 text-2xl"></i><span class="text-sm font-bold truncate w-full">${name}</span>`;
+        item.className = "p-3 sm:p-4 border rounded-xl bg-slate-50 hover:bg-indigo-50 text-center flex flex-col items-center justify-center gap-2 shadow-sm";
+        item.innerHTML = `<i class="fa-solid fa-link text-indigo-600 text-xl sm:text-2xl"></i><span class="text-xs sm:text-sm font-bold truncate w-full">${name}</span>`;
         grid.appendChild(item);
       }
     }
