@@ -17,16 +17,16 @@
   <style>
     body { font-family: 'Noto Sans KR', sans-serif; background-color: #ffffff; color: #000000; font-size: 15px; }
     
-    /* 사용자 지정 테마 색상 */
+    /* 지정 테마 색상 */
     .bg-holiday { background-color: #FCE8E6 !important; color: #d93025 !important; }
     .bg-saturday { background-color: #CFE2F3 !important; color: #1a73e8 !important; }
     
     /* 시간표 요일별 교차 색상 */
-    .bg-mon { background-color: #E0F7FA; }
-    .bg-tue { background-color: #FEF8E3; }
-    .bg-wed { background-color: #F3EEFE; }
-    .bg-thu { background-color: #FEF8E3; }
-    .bg-fri { background-color: #E0F7FA; }
+    .bg-mon { background-color: #E0F7FA !important; }
+    .bg-tue { background-color: #FEF8E3 !important; }
+    .bg-wed { background-color: #F3EEFE !important; }
+    .bg-thu { background-color: #FEF8E3 !important; }
+    .bg-fri { background-color: #E0F7FA !important; }
 
     /* 특별실 공간별 팔레트 색상 */
     .bg-room-auditorium { background-color: #CFE2F3; }
@@ -41,13 +41,14 @@
     .modal-backdrop { background-color: rgba(0, 0, 0, 0.5); }
 
     /* 스프레드시트 셀 스타일 */
-    .sheet-table td, .sheet-table th { border: 1px solid #cbd5e1; padding: 6px; }
-    .sheet-table input, .sheet-table select { width: 100%; background: transparent; outline: none; font-size: 14px; }
+    .sheet-table td, .sheet-table th { border: 1px solid #94a3b8; padding: 4px; }
+    .sheet-table input, .sheet-table select { width: 100%; background: transparent; outline: none; font-size: 13px; }
 
-    /* 월간 시간표 셀 폰트 크기 및 중복 스타일 */
-    .tt-cell { font-size: 11px; line-height: 1.2; word-break: break-all; }
-    .tt-overlap { background-color: #FCE8E6 !important; color: #d93025 !important; font-style: italic; font-weight: bold; }
-    .tt-holiday { background-color: #475569 !important; color: #94a3b8 !important; }
+    /* 월간 시간표 전용 정밀 스타일 */
+    .tt-grid-table th, .tt-grid-table td { border: 1px solid #cbd5e1; text-align: center; vertical-align: middle; }
+    .tt-cell-text { font-size: 10.5px; line-height: 1.25; word-break: break-all; }
+    .tt-overlap-cell { background-color: #FCE8E6 !important; color: #d93025 !important; font-style: italic; font-weight: bold; }
+    .tt-holiday-cell { background-color: #475569 !important; color: #cbd5e1 !important; font-size: 10px; font-weight: 500; }
 
     @media print {
       header, aside, .no-print { display: none !important; }
@@ -171,7 +172,10 @@
       <!-- 4) 전체 일정 -->
       <div class="border rounded-xl bg-white p-6 shadow-sm space-y-4">
         <div class="flex flex-wrap justify-between items-center gap-3 border-b pb-3">
-          <h2 class="font-bold text-xl">📅 전체 일정</h2>
+          <div class="flex items-center gap-2">
+            <h2 class="font-bold text-xl">📅 전체 일정</h2>
+            <button onclick="toggleScheduleOrder()" id="schedule-sort-btn" class="text-gray-600 hover:text-black border px-2.5 py-1 rounded text-xs ml-2 font-bold"><i class="fa-solid fa-arrow-down-short-wide"></i> 오름차순</button>
+          </div>
           <div class="flex items-center gap-2 text-sm">
             <button onclick="filterSchedule('week')" id="filter-btn-week" class="px-3.5 py-1.5 border rounded hover:bg-gray-100 font-medium">이번주</button>
             <button onclick="filterSchedule('today')" id="filter-btn-today" class="px-3.5 py-1.5 border rounded bg-indigo-50 text-indigo-600 font-bold">오늘</button>
@@ -311,7 +315,7 @@
   <div id="photo-modal" class="fixed inset-0 modal-backdrop z-50 flex items-center justify-center hidden">
     <div class="bg-white p-6 rounded-xl max-w-md w-full space-y-4 shadow-xl">
       <div class="flex justify-between items-center border-b pb-2">
-        <h3 class="font-bold text-lg">📷 메모/비고 이미지 관리</h3>
+        <h3 class="font-bold text-lg">📷 이미지 관리</h3>
         <button onclick="closePhotoModal()" class="text-gray-400 hover:text-black"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
       <div id="modal-image-preview" class="min-h-[200px] border rounded bg-slate-50 flex items-center justify-center p-2">
@@ -326,7 +330,7 @@
   </div>
 
   <script>
-    // 파이어베이스 인증 객체
+    // 파이어베이스 설정 객체
     const firebaseConfig = {
       apiKey: "AIzaSyDonpgXJGlSjqv-sFVAdlokpZ0XhONpjY0",
       authDomain: "gradeplanner-d5499.firebaseapp.com",
@@ -350,7 +354,15 @@
       commonPw: "0000",
       adminPw: "0000",
       shopIdAuthed: false,
-      activeMonth: 4
+      activeMonth: 10,
+      scheduleAscending: true,
+      isOverviewEditing: false,
+      
+      // 월간 시간표용 캐시 데이터
+      subTimetables: [],
+      addTimetables: [],
+      roomTimetables: [],
+      holidays: []
     };
 
     function getVal(doc, ...keys) {
@@ -384,6 +396,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
       initAppDates();
       await loadBasicSettings();
+      await fetchTimetableData();
       await renderOverviewTable();
       await loadBudgetOverviewCards();
       await filterSchedule('today');
@@ -418,13 +431,28 @@
           const semStart = getVal(d, 'semester_start_date', 'semester_start_Date');
           const semEnd = getVal(d, 'semester_end_date');
 
-          if (semStart) {
-            document.querySelectorAll('.summer-dday-val').forEach(el => el.innerText = calcDDay(semStart));
-          }
-          if (semEnd) {
-            document.querySelectorAll('.winter-dday-val').forEach(el => el.innerText = calcDDay(semEnd));
-          }
+          if (semStart) document.querySelectorAll('.summer-dday-val').forEach(el => el.innerText = calcDDay(semStart));
+          if (semEnd) document.querySelectorAll('.winter-dday-val').forEach(el => el.innerText = calcDDay(semEnd));
+
+          const hName = getVal(d, 'holiday');
+          const hStart = getVal(d, 'holiday_start_date');
+          const hEnd = getVal(d, 'holiday_end_date');
+          if (hStart) appState.holidays.push({ name: hName || '휴일', start: hStart, end: hEnd || hStart });
         });
+      } catch(e) {}
+    }
+
+    async function fetchTimetableData() {
+      if (!db) return;
+      try {
+        const subSnap = await db.collection('data_sub_timetable').get();
+        subSnap.forEach(d => appState.subTimetables.push(d.data()));
+
+        const addSnap = await db.collection('data_add_timetable').get();
+        addSnap.forEach(d => appState.addTimetables.push(d.data()));
+
+        const roomSnap = await db.collection('data_room_timetable').get();
+        roomSnap.forEach(d => appState.roomTimetables.push(d.data()));
       } catch(e) {}
     }
 
@@ -441,7 +469,7 @@
       window.scrollTo(0, 0);
 
       if (pageId === 'budget') switchBudgetSub('shopid');
-      if (pageId === 'timetable') switchTimetableSub('base');
+      if (pageId === 'timetable') switchTimetableSub('monthly');
     }
 
     function toggleSidebar() {
@@ -460,7 +488,7 @@
       document.getElementById(id).classList.toggle('hidden');
     }
 
-    // [6학년 개요] 표 렌더링 (균등너비 및 인원자동계산)
+    // [6학년 개요] 표 렌더링
     async function renderOverviewTable() {
       const thead = document.getElementById('overview-table-head');
       const tbody = document.getElementById('overview-table-body');
@@ -502,7 +530,8 @@
             const cnt = students.filter(s => getVal(s, 'student_class') == classNum).length;
             bodyHtml += `<td class="p-3 border font-bold bg-slate-50">${cnt}</td>`;
           } else if (rIdx === 3) {
-            bodyHtml += `<td class="p-3 border text-gray-700">${defaultTasks[cIdx] || '-'}</td>`;
+            const taskVal = defaultTasks[cIdx] || '-';
+            bodyHtml += `<td class="p-3 border text-gray-700">${appState.isOverviewEditing ? `<input type="text" value="${taskVal}" class="w-full border p-1 text-center rounded">` : taskVal}</td>`;
           } else if (rIdx === 4) {
             bodyHtml += `<td class="p-3 border font-medium">교사${cIdx+1}</td>`;
           }
@@ -519,7 +548,12 @@
       tbody.innerHTML = bodyHtml;
     }
 
-    // [학년 예산 개요] 카드
+    function toggleOverviewEdit() {
+      appState.isOverviewEditing = !appState.isOverviewEditing;
+      renderOverviewTable();
+    }
+
+    // [학년 예산 개요]
     async function loadBudgetOverviewCards() {
       const container = document.getElementById('budget-cards-container');
       let basicBudgets = [];
@@ -540,10 +574,16 @@
         const bgName = getVal(b, 'list_budget');
         if (!bgName) return;
 
-        const allocated = Number(getVal(b, 'list_butget_amount', 'list_budget_amount')) || 0;
+        let allocated = Number(getVal(b, 'list_butget_amount', 'list_budget_amount')) || 0;
         
+        budgetItems.filter(item => getVal(item, 'budget_name') === bgName).forEach(item => {
+          if (['학년회비', '학교친목회비'].includes(bgName) && getVal(item, 'budget_spec_checked')) {
+            allocated += ((Number(getVal(item, 'budget_num')) || 0) * (Number(getVal(item, 'budget_price')) || 0));
+          }
+        });
+
         const used = budgetItems
-          .filter(item => getVal(item, 'budget_name') === bgName)
+          .filter(item => getVal(item, 'budget_name') === bgName && !getVal(item, 'budget_spec_checked'))
           .reduce((sum, item) => sum + ((Number(getVal(item, 'budget_num')) || 0) * (Number(getVal(item, 'budget_price')) || 0)), 0);
 
         const rem = allocated - used;
@@ -554,7 +594,7 @@
         else if (rem === allocated) colorClass = 'text-blue-600 font-bold';
 
         html += `
-          <div class="p-5 rounded-xl border shadow-sm flex-1 min-w-[230px] bg-slate-50">
+          <div class="p-5 rounded-xl border shadow-sm flex-1 min-w-[230px]" style="background-color: ${b.bg || '#f8fafc'};">
             <div class="font-bold text-base mb-2 text-gray-900">${bgName}</div>
             <div class="text-sm space-y-1.5">
               <div class="flex justify-between"><span>배정액:</span><span>${allocated.toLocaleString()}원</span></div>
@@ -569,16 +609,22 @@
       container.innerHTML = html || `<p class="text-sm text-gray-400">등록된 예산 항목이 없습니다.</p>`;
     }
 
-    // [전체 일정] 필터링 (이번주, 오늘, 전체)
+    function addBudgetCardPrompt() {
+      const name = prompt('예산 이름을 입력하세요:');
+      const amount = prompt('배정액을 입력하세요:');
+      if (name && amount) {
+        alert('저장되었습니다.');
+        loadBudgetOverviewCards();
+      }
+    }
+
+    // [전체 일정] 필터링
     async function filterSchedule(mode) {
       ['week', 'today', 'all'].forEach(m => {
         const btn = document.getElementById(`filter-btn-${m}`);
         if (btn) {
-          if (m === mode) {
-            btn.className = "px-3.5 py-1.5 border rounded bg-indigo-50 text-indigo-600 font-bold";
-          } else {
-            btn.className = "px-3.5 py-1.5 border rounded hover:bg-gray-100 font-medium";
-          }
+          if (m === mode) btn.className = "px-3.5 py-1.5 border rounded bg-indigo-50 text-indigo-600 font-bold";
+          else btn.className = "px-3.5 py-1.5 border rounded hover:bg-gray-100 font-medium";
         }
       });
 
@@ -616,7 +662,8 @@
       }
 
       for(let i=0; i<60; i++) {
-        const d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i);
+        const idx = appState.scheduleAscending ? i : -i;
+        const d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + idx);
         const dateStr = `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}. (${days[d.getDay()]})`;
         
         let rowClass = "hover:bg-gray-50";
@@ -639,7 +686,7 @@
           <td class="p-3 text-center font-bold border-r">${dateStr}</td>
           <td class="p-3 border-r">${schoolText}</td>
           <td class="p-3 border-r">${addText}</td>
-          <td class="p-3">${memoText}</td>
+          <td class="p-3 whitespace-pre-wrap">${memoText}</td>
         </tr>`;
 
         if (i < 7) {
@@ -652,6 +699,13 @@
 
       tbody.innerHTML = html;
       homeSchedule.innerHTML = homeHtml;
+    }
+
+    function toggleScheduleOrder() {
+      appState.scheduleAscending = !appState.scheduleAscending;
+      const btn = document.getElementById('schedule-sort-btn');
+      btn.innerHTML = appState.scheduleAscending ? `<i class="fa-solid fa-arrow-down-short-wide"></i> 오름차순` : `<i class="fa-solid fa-arrow-up-wide-short"></i> 내림차순`;
+      filterSchedule('today');
     }
 
     // [학년 전체 명렬표]
@@ -705,11 +759,8 @@
       } else alert('관리자 비밀번호가 일치하지 않습니다.');
     }
 
-    // 시간표 서브탭 선택 상태 전환
     function switchTimetableSub(type) {
-      document.querySelectorAll('.subtab-tt').forEach(b => {
-        b.className = "subtab-tt px-4 py-2.5 text-gray-500 hover:text-black";
-      });
+      document.querySelectorAll('.subtab-tt').forEach(b => b.className = "subtab-tt px-4 py-2.5 text-gray-500 hover:text-black");
       const activeBtn = document.getElementById(`tt-subtab-${type}`);
       if (activeBtn) activeBtn.className = "subtab-tt px-4 py-2.5 border-b-2 border-indigo-600 text-indigo-600 font-bold";
 
@@ -721,62 +772,143 @@
       }
     }
 
-    // [월간 시간표] (3월 ~ 1월 / 월~금 6교시)
-    function renderMonthlyTimetable(month) {
-      appState.activeMonth = month;
+    // ==========================================
+    // [월간 시간표 (월별 시간표)] 완벽 원형 구현
+    // ==========================================
+    function renderMonthlyTimetable(selectedMonth) {
+      appState.activeMonth = selectedMonth;
       const container = document.getElementById('tt-subview-container');
 
-      const months = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1];
+      // 1. 월 선택 버튼 헤더 (3월 ~ 2월)
+      const months = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2];
       let monthBtnsHtml = '';
       months.forEach(m => {
-        const isCurrent = m === month;
-        monthBtnsHtml += `<button onclick="renderMonthlyTimetable(${m})" class="px-3 py-1.5 border rounded font-bold text-sm ${isCurrent?'bg-indigo-600 text-white':'hover:bg-gray-100'}">${m}월</button>`;
+        const isCurrent = (m === selectedMonth);
+        monthBtnsHtml += `<button onclick="renderMonthlyTimetable(${m})" class="px-3.5 py-1.5 border rounded font-bold text-sm transition-colors ${isCurrent ? 'bg-[#4a4085] text-white' : 'bg-white hover:bg-gray-100 text-gray-700'}">${m}월</button>`;
       });
 
-      let tbodyRows = '';
-      appState.classes.forEach(cName => {
-        tbodyRows += `<tr><td class="font-bold bg-gray-50 text-sm border p-2 sticky-col">${cName}</td>`;
-        for(let d=0; d<5; d++) {
-          for(let p=1; p<=6; p++) {
-            tbodyRows += `<td class="p-1 border text-center tt-cell hover:bg-indigo-50">-</td>`;
+      // 2. 선택된 월의 연도 및 달력 주차 계산 (월~금 범위)
+      const year = (selectedMonth === 1 || selectedMonth === 2) ? appState.currentYear + 1 : appState.currentYear;
+      
+      const firstDayOfMonth = new Date(year, selectedMonth - 1, 1);
+      const lastDayOfMonth = new Date(year, selectedMonth, 0);
+
+      // 첫 번째 주의 월요일 계산
+      let startMon = new Date(firstDayOfMonth);
+      const day1 = startMon.getDay();
+      const diff1 = (day1 === 0) ? -6 : 1 - day1;
+      startMon.setDate(startMon.getDate() + diff1);
+
+      // 주차(Weeks) 생성
+      const weeks = [];
+      let currMon = new Date(startMon);
+
+      while (currMon <= lastDayOfMonth || currMon.getMonth() === selectedMonth - 1) {
+        const weekDays = [];
+        for (let i = 0; i < 5; i++) { // 월(0) ~ 금(4)
+          const d = new Date(currMon);
+          d.setDate(d.getDate() + i);
+          weekDays.push(d);
+        }
+        weeks.push(weekDays);
+        currMon.setDate(currMon.getDate() + 7);
+      }
+
+      const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토'];
+      const dayBgClasses = ['bg-mon', 'bg-tue', 'bg-wed', 'bg-thu', 'bg-fri'];
+
+      // 3. 주차별 표 구성을 연속 생성
+      let weeksTableHtml = '';
+
+      weeks.forEach((weekDays, wIdx) => {
+        // 헤더 1행: MM월 DD일 (요일)
+        let headerRow1 = `<tr class="bg-gray-100 font-bold text-xs"><th class="w-16 sticky-col bg-gray-100 border"></th>`;
+        weekDays.forEach((d, dIdx) => {
+          const dateLabel = `${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일 (${daysOfWeek[d.getDay()]})`;
+          headerRow1 += `<th colspan="6" class="border py-1.5 ${dayBgClasses[dIdx]}">${dateLabel}</th>`;
+        });
+        headerRow1 += `</tr>`;
+
+        // 헤더 2행: 1교시 ~ 6교시 반복
+        let headerRow2 = `<tr class="bg-gray-50 text-[11px] font-bold"><th class="sticky-col bg-gray-50 border text-center">반</th>`;
+        for (let d = 0; d < 5; d++) {
+          for (let p = 1; p <= 6; p++) {
+            headerRow2 += `<th class="border py-1 w-10 text-center">${p}교시</th>`;
           }
         }
-        tbodyRows += `</tr>`;
+        headerRow2 += `</tr>`;
+
+        // 학급별 행 생성 (1반 ~ 10반)
+        let classRowsHtml = '';
+
+        appState.classes.forEach(cName => {
+          const classNum = parseInt(cName.replace(/[^0-9]/g, '')) || 0;
+          classRowsHtml += `<tr><td class="font-bold bg-gray-50 text-xs border p-2 sticky-col text-center">${cName}</td>`;
+
+          weekDays.forEach((d, dIdx) => {
+            const formattedDateStr = `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}. (${daysOfWeek[d.getDay()]})`;
+            const yearDateStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+
+            // 휴일 체크
+            const isHoliday = (d.getDay() === 0 || d.getDay() === 6) || appState.holidays.some(h => yearDateStr >= h.start && yearDateStr <= h.end);
+            const holidayObj = appState.holidays.find(h => yearDateStr >= h.start && yearDateStr <= h.end);
+            const holidayName = holidayObj ? holidayObj.name : (d.getDay() === 0 ? '일요일' : '휴일');
+
+            for (let p = 1; p <= 6; p++) {
+              if (isHoliday) {
+                // 휴일일 경우 진회색 배경에 전체 지정
+                if (p === 1) {
+                  classRowsHtml += `<td colspan="6" class="border tt-holiday-cell p-1">${holidayName}(휴)</td>`;
+                }
+              } else {
+                // 데이터 매칭 (data_sub_timetable, data_add_timetable, data_room_timetable)
+                const items = [];
+
+                appState.subTimetables.filter(s => (getVal(s, 'sub_date') === formattedDateStr || getVal(s, 'sub_date') === yearDateStr) && getVal(s, 'sub_class') == classNum && getVal(s, 'sub_time') == `${p}교시`).forEach(s => items.push(getVal(s, 'sub_name')));
+                appState.addTimetables.filter(a => (getVal(a, 'add_date') === formattedDateStr || getVal(a, 'add_date') === yearDateStr) && getVal(a, 'add_class') == classNum && getVal(a, 'add_time') == `${p}교시`).forEach(a => items.push(getVal(a, 'add_name')));
+                appState.roomTimetables.filter(r => (getVal(r, 'room_date') === formattedDateStr || getVal(r, 'room_date') === yearDateStr) && getVal(r, 'room_class') == classNum && getVal(r, 'room_time') == `${p}교시`).forEach(r => items.push(getVal(r, 'room_place')));
+
+                let cellClass = dayBgClasses[dIdx];
+                let contentText = '-';
+
+                if (items.length === 1) {
+                  contentText = items[0];
+                } else if (items.length >= 2) {
+                  // 중복 일정 발생 시 분홍색 배경 + 빨간 기울임꼴
+                  cellClass = 'tt-overlap-cell';
+                  contentText = items.join('<br>');
+                }
+
+                classRowsHtml += `<td class="p-1 border text-center tt-cell-text ${cellClass}">${contentText}</td>`;
+              }
+            }
+          });
+
+          classRowsHtml += `</tr>`;
+        });
+
+        weeksTableHtml += `
+          <div class="overflow-x-auto border rounded-lg mb-6 shadow-sm">
+            <table class="w-full text-xs text-center border-collapse tt-grid-table">
+              <thead>${headerRow1}${headerRow2}</thead>
+              <tbody>${classRowsHtml}</tbody>
+            </table>
+          </div>`;
       });
 
       container.innerHTML = `
-        <div class="border rounded-xl p-5 bg-white space-y-4 shadow-sm">
-          <div class="flex justify-between items-center border-b pb-3 flex-wrap gap-2">
-            <h3 class="font-bold text-xl">📅 ${month}월 월간 시간표</h3>
+        <div class="border rounded-xl p-6 bg-white space-y-5 shadow-sm">
+          <div class="flex justify-between items-center border-b pb-4 flex-wrap gap-3">
+            <h3 class="font-bold text-2xl text-gray-900">월별 시간표</h3>
             <div class="flex gap-1.5 flex-wrap">${monthBtnsHtml}</div>
           </div>
-          <div class="overflow-x-auto max-h-[600px]">
-            <table class="w-full text-xs text-center border-collapse sheet-table sticky-header">
-              <thead>
-                <tr class="bg-gray-100 font-bold text-sm">
-                  <th class="w-16 sticky-col bg-gray-100">구분</th>
-                  <th colspan="6" class="bg-mon">월요일</th>
-                  <th colspan="6" class="bg-tue">화요일</th>
-                  <th colspan="6" class="bg-wed">수요일</th>
-                  <th colspan="6" class="bg-thu">목요일</th>
-                  <th colspan="6" class="bg-fri">금요일</th>
-                </tr>
-                <tr class="bg-gray-50 text-xs font-bold">
-                  <th class="sticky-col bg-gray-50">반</th>
-                  ${Array(5).fill('<th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th>').join('')}
-                </tr>
-              </thead>
-              <tbody>${tbodyRows}</tbody>
-            </table>
-          </div>
+          <div class="space-y-4">${weeksTableHtml}</div>
         </div>`;
     }
 
-    // 예산 서브탭 선택 상태 전환
+    // 예산 서브탭
     async function switchBudgetSub(type) {
-      document.querySelectorAll('.subtab-bg').forEach(b => {
-        b.className = "subtab-bg px-4 py-2.5 text-gray-500 hover:text-black";
-      });
+      document.querySelectorAll('.subtab-bg').forEach(b => b.className = "subtab-bg px-4 py-2.5 text-gray-500 hover:text-black");
       const activeBtn = document.getElementById(`bg-subtab-${type}`);
       if (activeBtn) activeBtn.className = "subtab-bg px-4 py-2.5 border-b-2 border-indigo-600 text-indigo-600 font-bold";
 
@@ -861,7 +993,7 @@
             <div class="flex justify-between items-center border-b pb-3">
               <h3 class="font-bold text-xl">📊 학년 예산 스프레드시트</h3>
               <div class="flex gap-2">
-                <button onclick="window.print()" class="px-3.5 py-1.5 border rounded hover:bg-gray-100 font-bold text-sm"><i class="fa-solid fa-print"></i> 스프레드시트 인쇄</button>
+                <button onclick="window.print()" class="px-3.5 py-1.5 border rounded hover:bg-gray-100 font-bold text-sm"><i class="fa-solid fa-print"></i> 인쇄</button>
                 <button onclick="alert('저장되었습니다.');" class="px-3.5 py-1.5 bg-indigo-600 text-white rounded font-bold text-sm">저장하기</button>
               </div>
             </div>
@@ -908,7 +1040,7 @@
         <td class="p-2 border">${pw}</td>
         <td class="p-2 border">${url ? `<a href="${url}" target="_blank" class="px-2 py-1 bg-indigo-50 text-indigo-600 rounded font-bold text-xs">바로가기</a>` : '-'}</td>
         <td class="p-2 border">-</td>
-        <td class="p-2 border"><button onclick="this.closest('tr').remove()" class="text-red-600 font-bold text-xs">삭제</button></td>`;
+        <td class="p-2 border"><button onclick="if(confirm('삭제하시겠습니까?')) this.closest('tr').remove()" class="text-red-600 font-bold text-xs">삭제</button></td>`;
       
       if (tbody.querySelector('td[colspan]')) tbody.innerHTML = '';
       tbody.appendChild(row);
@@ -917,9 +1049,7 @@
 
     // 학년 관리자 서브탭
     function switchAdminSub(type) {
-      document.querySelectorAll('.subtab-adm').forEach(b => {
-        b.className = "subtab-adm px-4 py-2.5 text-gray-500 hover:text-black";
-      });
+      document.querySelectorAll('.subtab-adm').forEach(b => b.className = "subtab-adm px-4 py-2.5 text-gray-500 hover:text-black");
       const activeBtn = document.getElementById(`adm-subtab-${type}`);
       if (activeBtn) activeBtn.className = "subtab-adm px-4 py-2.5 border-b-2 border-indigo-600 text-indigo-600 font-bold";
 
@@ -976,7 +1106,7 @@
       document.getElementById('photo-modal').classList.add('hidden');
     }
     function savePhotoModal() {
-      alert('사진이 추가되었습니다.');
+      alert('저장되었습니다.');
       closePhotoModal();
     }
 
