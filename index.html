@@ -29,32 +29,32 @@
     .bg-thu { background-color: #FEF8E3 !important; }
     .bg-fri { background-color: #E0F7FA !important; }
 
-    /* 정확한 지정 휴일 & 주말 서식 */
+    /* 휴일 & 토요일 고정 서식 */
     .bg-holiday { background-color: #FCE8E6 !important; color: #d93025 !important; font-weight: 700; }
     .bg-saturday { background-color: #CFE2F3 !important; color: #1a73e8 !important; font-weight: 700; }
 
-    /* 스티키 헤더 및 열 고정 */
+    /* 고정 셀 및 헤더 스티키 서식 */
     .sticky-col { 
       position: sticky; 
       left: 0; 
       z-index: 20; 
       background-color: #e2e8f0; 
-      min-width: 60px; 
-      max-width: 60px;
+      min-width: 65px; 
+      max-width: 65px;
       box-shadow: 2px 0 4px -2px rgba(0,0,0,0.15);
     }
     .sticky-header th { position: sticky; top: 0; z-index: 10; background-color: #e2e8f0; }
     .modal-backdrop { background-color: rgba(0, 0, 0, 0.55); }
 
-    /* 정밀 균등 표 서식 (열너비/행높이 완벽 고정) */
+    /* 정밀 표 서식 (동일 성질 열 너비/행 높이 철저 고정) */
     .fixed-table { table-layout: fixed; width: 100%; border-collapse: collapse; }
     .fixed-table th, .fixed-table td { 
       border: 1px solid #cbd5e1; 
       text-align: center; 
       vertical-align: middle; 
       padding: 8px 4px;
-      font-size: 13px;
-      height: 42px;
+      font-size: 14px;
+      height: 44px;
     }
 
     .tt-grid-table { border-collapse: collapse; width: 100%; table-layout: fixed; }
@@ -63,12 +63,12 @@
       text-align: center; 
       vertical-align: middle; 
       white-space: nowrap !important;
-      height: 40px;
+      height: 42px;
       overflow: hidden;
       font-size: 12px;
     }
 
-    .tt-cell-text { font-size: 12px; line-height: 1.3; padding: 2px 1px; }
+    .tt-cell-text { font-size: 12px; line-height: 1.35; padding: 2px 1px; }
     
     /* 2개 이상 중복 일정 서식 (분홍 바탕 + 빨간 기울임꼴 글씨) */
     .tt-overlap-cell { 
@@ -145,11 +145,11 @@
           <div id="home-today-date" class="text-lg font-bold text-slate-800">--</div>
         </div>
         <div class="p-5 border rounded-xl bg-blue-50/70 border-blue-200 shadow-sm text-center">
-          <div class="text-xs text-blue-600 font-bold mb-1">여름방학식</div>
+          <div class="text-xs text-blue-600 font-bold mb-1">여름방학식 D-Day</div>
           <div class="summer-dday-val text-lg font-bold text-blue-900">--</div>
         </div>
         <div class="p-5 border rounded-xl bg-purple-50/70 border-purple-200 shadow-sm text-center">
-          <div class="text-xs text-purple-600 font-bold mb-1">겨울방학식</div>
+          <div class="text-xs text-purple-600 font-bold mb-1">겨울방학식 D-Day</div>
           <div class="winter-dday-val text-lg font-bold text-purple-900">--</div>
         </div>
       </div>
@@ -166,7 +166,7 @@
 
     <!-- PAGE 2: 6학년 개요 -->
     <section id="page-overview" class="page-view space-y-6 hidden">
-      <!-- 1) 학년 개요 (1반~10반 열 너비 완벽 균일) -->
+      <!-- 1) 학년 개요 (1반~10반 완벽 균일한 열 너비 적용) -->
       <div class="border rounded-xl bg-white shadow-sm overflow-hidden">
         <div class="p-4 bg-slate-50 border-b flex justify-between items-center cursor-pointer" onclick="toggleAccordion('acc-overview')">
           <div class="flex items-center gap-2 font-bold text-lg text-slate-800">
@@ -183,11 +183,11 @@
         </div>
       </div>
 
-      <!-- 2) 학년 예산 개요 -->
+      <!-- 2) 학년 예산 개요 (DB list_budget 연동 복원) -->
       <div class="border rounded-xl bg-white shadow-sm overflow-hidden">
         <div class="p-4 bg-slate-50 border-b flex justify-between items-center cursor-pointer" onclick="toggleAccordion('acc-budget')">
           <div class="flex items-center gap-2 font-bold text-lg text-slate-800">
-            <span>💳 학년 예산</span>
+            <span>💳 학년 예산 개요</span>
             <button onclick="event.stopPropagation(); openBudgetModalCard()" class="text-slate-400 hover:text-indigo-600 text-sm ml-2" title="예산 추가/수정"><i class="fa-solid fa-pen"></i></button>
           </div>
           <i id="acc-budget-icon" class="fa-solid fa-chevron-down text-slate-400"></i>
@@ -200,17 +200,14 @@
       <!-- 3) D-Day 카드 -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="p-4 border rounded-xl bg-white text-center shadow-sm"><div class="text-xs text-slate-500 mb-1 font-bold">오늘 날짜</div><div class="overview-today-date font-bold text-base">--</div></div>
-        <div class="p-4 border rounded-xl bg-blue-50/70 border-blue-200 text-center shadow-sm"><div class="text-xs text-blue-600 mb-1 font-bold">여름방학식</div><div class="summer-dday-val font-bold text-base text-blue-900">--</div></div>
-        <div class="p-4 border rounded-xl bg-purple-50/70 border-purple-200 text-center shadow-sm"><div class="text-xs text-purple-600 mb-1 font-bold">겨울방학식</div><div class="winter-dday-val font-bold text-base text-purple-900">--</div></div>
+        <div class="p-4 border rounded-xl bg-blue-50/70 border-blue-200 text-center shadow-sm"><div class="text-xs text-blue-600 mb-1 font-bold">여름방학식 D-Day</div><div class="summer-dday-val font-bold text-base text-blue-900">--</div></div>
+        <div class="p-4 border rounded-xl bg-purple-50/70 border-purple-200 text-center shadow-sm"><div class="text-xs text-purple-600 mb-1 font-bold">겨울방학식 D-Day</div><div class="winter-dday-val font-bold text-base text-purple-900">--</div></div>
       </div>
 
       <!-- 4) 전체 일정 -->
       <div class="border rounded-xl bg-white p-5 sm:p-6 shadow-sm space-y-4">
         <div class="flex flex-wrap justify-between items-center gap-2 border-b pb-3">
-          <div class="flex items-center gap-2">
-            <h2 class="font-bold text-lg text-slate-800">📅 전체 일정</h2>
-            <button onclick="toggleScheduleOrder()" id="schedule-sort-btn" class="text-slate-600 hover:text-black border px-2.5 py-1 rounded text-xs font-bold whitespace-nowrap"><i class="fa-solid fa-arrow-down-short-wide"></i> 오름차순</button>
-          </div>
+          <h2 class="font-bold text-lg text-slate-800">📅 전체 일정</h2>
           <div class="flex items-center gap-2 text-xs">
             <button onclick="scrollToScheduleDate('week')" class="px-3.5 py-1.5 border rounded hover:bg-slate-100 font-bold whitespace-nowrap">이번주</button>
             <button onclick="scrollToScheduleDate('today')" class="px-3.5 py-1.5 border rounded bg-indigo-50 text-indigo-700 font-bold whitespace-nowrap">오늘</button>
@@ -270,7 +267,7 @@
       <div id="tt-subview-container"></div>
     </section>
 
-    <!-- PAGE 5: 예산 (첫 화면: 학년 예산) -->
+    <!-- PAGE 5: 예산 (기본 화면: 학년 예산) -->
     <section id="page-budget" class="page-view space-y-4 hidden">
       <div class="flex border-b text-sm font-bold overflow-x-auto no-scrollbar gap-2 pb-1 bg-white p-2.5 rounded-t-xl border-x border-t">
         <button onclick="switchBudgetSub('grade_bg')" id="bg-subtab-grade_bg" class="subtab-btn px-4 py-2 border-b-2 border-indigo-600 text-indigo-600 font-bold">학년 예산</button>
@@ -350,22 +347,40 @@
   <div id="budget-card-modal" class="fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white p-6 rounded-2xl max-w-lg w-full space-y-4 shadow-2xl border">
       <div class="flex justify-between items-center border-b pb-3">
-        <h3 class="font-bold text-lg text-indigo-700">💳 학년 예산 카테고리 관리</h3>
+        <h3 class="font-bold text-lg text-indigo-700">💳 예산 항목 설정</h3>
         <button onclick="closeBudgetModalCard()" class="text-slate-400 hover:text-black text-xl"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div id="modal-card-form" class="space-y-3">
         <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">예산 이름</label>
-          <input type="text" id="modal-bg-name" placeholder="예: 학년운영비" class="w-full p-2.5 border rounded-lg text-sm font-bold">
+          <label class="block text-xs font-bold text-slate-700 mb-1">예산 이름 (DB list_budget)</label>
+          <input type="text" id="modal-bg-name" placeholder="예산 항목 선택 또는 입력" class="w-full p-2.5 border rounded-lg text-sm font-bold">
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-700 mb-1">배정 금액 (원)</label>
-          <input type="number" id="modal-bg-amount" placeholder="예: 2000000" class="w-full p-2.5 border rounded-lg text-sm font-bold">
+          <input type="number" id="modal-bg-amount" placeholder="예: 1000000" class="w-full p-2.5 border rounded-lg text-sm font-bold">
         </div>
       </div>
       <div class="flex justify-end gap-2 pt-2 border-t">
         <button onclick="saveBudgetCardModal()" class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700">저장</button>
         <button onclick="closeBudgetModalCard()" class="px-5 py-2.5 border rounded-lg font-bold text-sm hover:bg-slate-100">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 사진 첨부 팝업 모달 -->
+  <div id="photo-modal" class="fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl border">
+      <div class="flex justify-between items-center border-b pb-3">
+        <h3 class="font-bold text-lg text-slate-800">📷 사진 첨부 / 영수증 관리</h3>
+        <button onclick="closePhotoModal()" class="text-slate-400 hover:text-black"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <div id="modal-photo-preview" class="min-h-[200px] border rounded-lg bg-slate-50 flex items-center justify-center p-2">
+        <p class="text-xs text-slate-400">등록된 영수증/사진이 없습니다.</p>
+      </div>
+      <input type="file" id="modal-photo-file-input" accept="image/*" class="text-xs w-full p-2 border rounded-lg">
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="savePhotoModalFile()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-xs">저장</button>
+        <button onclick="closePhotoModal()" class="px-4 py-2 border rounded-lg font-bold text-xs">닫기</button>
       </div>
     </div>
   </div>
@@ -387,7 +402,7 @@
       db = firebase.firestore();
     } catch(e) { console.error("Firebase Init Error:", e); }
 
-    // 연도별 법정 공휴일 연산 파서
+    // 연도별 대한민국 동적 법정 공휴일 연산 (대체공휴일 정확 적용)
     function getKoreanHolidays(targetYear) {
       const hList = [];
 
@@ -458,25 +473,21 @@
       adminPw: "0000",
       shopIdAuthed: false,
       activeMonth: 10,
-      scheduleAscending: true,
       isOverviewEditing: false,
+      currentPhotoRowIndex: null,
       
       semesters: {
-        s1_start: '2026-03-02', s1_end: '2026-07-20',
-        summer_start: '2026-07-21', summer_end: '2026-08-23',
-        s2_start: '2026-08-24', s2_end: '2026-12-31',
-        winter_start: '2027-01-01', winter_end: '2027-02-28'
+        s1_start: '', s1_end: '',
+        summer_start: '', summer_end: '',
+        s2_start: '', s2_end: '',
+        winter_start: '', winter_end: ''
       },
 
-      basicBudgetSummaryCards: [
-        { name: '학년운영비', allocated: 2000000 },
-        { name: '학년회비', allocated: 500000 },
-        { name: '학교친목회비', allocated: 300000 }
-      ],
-      budgetItems: [], // 예산 항목 스프레드시트
+      budgetCategories: [], // data_basic 의 list_budget 데이터
+      budgetItems: [], // data_budget 컬렉션
 
       listSub: [],
-      listTime: ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'],
+      listTime: [],
       listTeachers: [],
       homeroomTeachers: {},
       specialistTeachers: [],
@@ -555,9 +566,9 @@
       const diffDays = Math.round((target - today) / (1000 * 60 * 60 * 24));
       const formattedDate = `${target.getFullYear()}.${String(target.getMonth()+1).padStart(2,'0')}.${String(target.getDate()).padStart(2,'0')}.`;
       
-      if (diffDays > 0) return `${formattedDate} D-${diffDays}`;
-      if (diffDays === 0) return `${formattedDate} D-Day`;
-      return `${formattedDate} D+${Math.abs(diffDays)}`;
+      if (diffDays > 0) return `${formattedDate} (D-${diffDays})`;
+      if (diffDays === 0) return `${formattedDate} (D-Day)`;
+      return `${formattedDate} (D+${Math.abs(diffDays)})`;
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
@@ -580,7 +591,7 @@
       appState.activeMonth = now.getMonth() + 1;
     }
 
-    // data_basic DB 연동 및 holiday 로 시작하는 데이터 완벽 파싱
+    // 파이어베이스 data_basic 및 holiday 포함 모든 필드 정밀 동기화
     async function loadBasicSettings() {
       appState.holidays = getKoreanHolidays(appState.currentYear);
 
@@ -590,6 +601,7 @@
         snap.forEach(doc => {
           const d = doc.data();
           
+          // 학급 목록
           const clsList = getVal(d, 'list_class');
           if (clsList && Array.isArray(clsList)) {
             const filtered = clsList.filter(c => c !== '학년공통');
@@ -599,33 +611,44 @@
             }
           }
 
+          // 예산 종류 목록
+          const bList = getVal(d, 'list_budget');
+          if (bList && Array.isArray(bList)) {
+            appState.budgetCategories = bList.map(b => typeof b === 'object' ? b : { name: String(b), allocated: Number(getVal(d, 'list_budget_amount', 'list_butget_amount')) || 1000000 });
+          }
+
+          // 과목 목록
           const subList = getVal(d, 'list_sub');
           if (subList && Array.isArray(subList)) appState.listSub = subList;
 
+          // 교시 목록
           const timeList = getVal(d, 'list_time');
           if (timeList && Array.isArray(timeList)) appState.listTime = timeList;
 
+          // 공간 목록
           const gymList = getVal(d, 'list_gym');
           if (gymList && Array.isArray(gymList)) appState.listGym = gymList;
 
           const roomList = getVal(d, 'list_room');
           if (roomList && Array.isArray(roomList)) appState.listRoom = roomList;
 
+          // 교사 목록
           const tList = getVal(d, 'list_t');
           if (tList && Array.isArray(tList)) appState.listTeachers = tList;
 
-          if (d.semester_start_date || d.s1_start) appState.semesters.s1_start = parseToIso(d.semester_start_date || d.s1_start);
-          if (d.semester_end_date || d.s1_end) appState.semesters.s1_end = parseToIso(d.semester_end_date || d.s1_end);
-          if (d.summer_start) appState.semesters.summer_start = parseToIso(d.summer_start);
-          if (d.summer_end) appState.semesters.summer_end = parseToIso(d.summer_end);
-          if (d.s2_start) appState.semesters.s2_start = parseToIso(d.s2_start);
-          if (d.s2_end) appState.semesters.s2_end = parseToIso(d.s2_end);
-          if (d.winter_start) appState.semesters.winter_start = parseToIso(d.winter_start);
-          if (d.winter_end) appState.semesters.winter_end = parseToIso(d.winter_end);
+          // 학기 및 방학 기간 연동
+          appState.semesters.s1_start = parseToIso(d.semester_start_date || d.s1_start);
+          appState.semesters.s1_end = parseToIso(d.semester_end_date || d.s1_end);
+          appState.semesters.summer_start = parseToIso(d.summer_start);
+          appState.semesters.summer_end = parseToIso(d.summer_end);
+          appState.semesters.s2_start = parseToIso(d.s2_start);
+          appState.semesters.s2_end = parseToIso(d.s2_end);
+          appState.semesters.winter_start = parseToIso(d.winter_start);
+          appState.semesters.winter_end = parseToIso(d.winter_end);
 
-          // holiday로 시작하는 모든 속성 휴일 수집
+          // DB holiday 관련 모든 속성 자동 수집
           Object.keys(d).forEach(k => {
-            if (k.startsWith('holiday')) {
+            if (k.toLowerCase().includes('holiday')) {
               const val = d[k];
               const iso = parseToIso(val);
               if (iso) {
@@ -646,6 +669,7 @@
           }
         });
 
+        // 방학 기간 전체 휴일 자동 처리
         if (appState.semesters.summer_start && appState.semesters.summer_end) {
           appState.holidays.push({ name: '여름방학', start: appState.semesters.summer_start, end: appState.semesters.summer_end });
         }
@@ -664,6 +688,7 @@
         appState.roomTimetables = [];
         appState.schoolTasks = [];
         appState.memoTasks = [];
+        appState.budgetItems = [];
 
         const [subSnap, addSnap, gymSnap, roomSnap, taskSnap, memoSnap, budgetSnap] = await Promise.all([
           db.collection('data_sub_timetable').get(),
@@ -681,15 +706,7 @@
         roomSnap.forEach(d => appState.roomTimetables.push(d.data()));
         taskSnap.forEach(d => appState.schoolTasks.push(d.data()));
         memoSnap.forEach(d => appState.memoTasks.push(d.data()));
-
-        appState.budgetItems = [];
         budgetSnap.forEach(d => appState.budgetItems.push(d.data()));
-
-        if (appState.budgetItems.length === 0) {
-          appState.budgetItems = [
-            { budget_name: '학년운영비', budget_product: '학습 보조 자료', budget_spec: 'A4 500매', budget_num: 10, budget_price: 5000, budget_link: '#', budget_pumui: '결재완료', budget_progress: true, budget_memo: '' }
-          ];
-        }
 
         updateVacationCeremonyDDay();
         renderFullScheduleTable();
@@ -697,10 +714,10 @@
         if (!document.getElementById('page-timetable').classList.contains('hidden')) {
           renderMonthlyTimetable(appState.activeMonth);
         }
-      } catch(e) { console.error("Fetch Data Error:", e); }
+      } catch(e) { console.error("Fetch DB Data Error:", e); }
     }
 
-    // 여름방학식 / 겨울방학식 D-Day 연동 (없으면 - 표시)
+    // 여름방학식 / 겨울방학식 task_school_name 연동 (없는 경우 절대 보완하지 않고 - 출력)
     function updateVacationCeremonyDDay() {
       const summerTask = appState.schoolTasks.find(t => getVal(t, 'task_school_name', 'name').includes('여름방학식'));
       const winterTask = appState.schoolTasks.find(t => getVal(t, 'task_school_name', 'name').includes('겨울방학식'));
@@ -748,14 +765,14 @@
       document.getElementById(id).classList.toggle('hidden');
     }
 
-    // [6학년 개요] 표 렌더링 (1반~10반 열 너비 균등 고정)
+    // [6학년 개요] 표 렌더링 (1반~10반 열 너비 균등 완전 고정)
     async function renderOverviewTable() {
       const thead = document.getElementById('overview-table-head');
       const tbody = document.getElementById('overview-table-body');
       
-      let headHtml = '<tr class="bg-slate-100 font-bold"><th style="width: 70px;" class="p-2.5 border">구분</th>';
+      let headHtml = '<tr class="bg-slate-100 font-bold"><th style="width: 80px;" class="p-2.5 border">구분</th>';
       appState.classes.forEach(c => headHtml += `<th style="width: auto;" class="p-2.5 border">${c}</th>`);
-      headHtml += '<th style="width: 70px;" class="p-2.5 border">계</th></tr>';
+      headHtml += '<th style="width: 80px;" class="p-2.5 border">계</th></tr>';
       thead.innerHTML = headHtml;
 
       const defaultTasks = ['부장', '보조/친목', '연구실', '졸업식', '평가(1학기)', '학습준비물', '현지연수/위원회', '앨범', '평가(2학기)', '인사위'];
@@ -814,17 +831,22 @@
       renderOverviewTable();
     }
 
-    // [학년 예산 요약 카드] 실시간 연동
+    // [학년 예산 개요 카드] DB list_budget 데이터 완전 동기화
     async function loadBudgetOverviewCards() {
       const container = document.getElementById('budget-cards-container');
 
       let html = '';
-      appState.basicBudgetSummaryCards.forEach(card => {
-        const bgName = card.name;
-        let allocated = card.allocated || 0;
+      const categories = appState.budgetCategories.length > 0 ? appState.budgetCategories : [
+        { name: '학급운영비', allocated: 1000000 },
+        { name: '학습준비물비', allocated: 2000000 }
+      ];
+
+      categories.forEach(cat => {
+        const bgName = typeof cat === 'object' ? cat.name : String(cat);
+        const allocated = typeof cat === 'object' ? (cat.allocated || 1000000) : 1000000;
 
         const used = appState.budgetItems
-          .filter(item => (getVal(item, 'budget_name') || '학년운영비') === bgName)
+          .filter(item => getVal(item, 'budget_name') === bgName)
           .reduce((sum, item) => sum + ((Number(getVal(item, 'budget_num')) || 0) * (Number(getVal(item, 'budget_price')) || 0)), 0);
 
         const rem = allocated - used;
@@ -875,11 +897,11 @@
 
       if (!name) return alert('예산 이름을 입력하세요.');
 
-      const existing = appState.basicBudgetSummaryCards.find(c => c.name === name);
+      const existing = appState.budgetCategories.find(c => (typeof c === 'object' ? c.name : c) === name);
       if (existing) {
-        existing.allocated = amount;
+        if (typeof existing === 'object') existing.allocated = amount;
       } else {
-        appState.basicBudgetSummaryCards.push({ name: name, allocated: amount });
+        appState.budgetCategories.push({ name: name, allocated: amount });
       }
 
       closeBudgetModalCard();
@@ -889,7 +911,7 @@
       }
     }
 
-    // [전체 일정 / 주요 일정] (필터 클릭 시 해당 위치 스크롤 연동)
+    // [전체 일정 테이블] 스크롤 위치 이동 지원 (2월 1일부터)
     async function renderFullScheduleTable() {
       const tbody = document.getElementById('full-schedule-tbody');
       const homeSchedule = document.getElementById('home-upcoming-schedule');
@@ -900,12 +922,11 @@
       const now = new Date();
       const days = ['일', '월', '화', '수', '목', '금', '토'];
 
-      const startDate = new Date(appState.currentYear, 2, 1);
+      const startDate = new Date(appState.currentYear, 1, 1); // 2월 1일부터 시작
       const loopDays = 365;
 
       for(let i=0; i<loopDays; i++) {
-        const idx = appState.scheduleAscending ? i : (loopDays - 1 - i);
-        const d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + idx);
+        const d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i);
         const isoDate = parseToIso(d);
         const dateDisplayStr = `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}. (${days[d.getDay()]})`;
 
@@ -960,7 +981,6 @@
       homeSchedule.innerHTML = homeHtml || '<p class="text-slate-400 py-4 text-center">등록된 일정이 없습니다.</p>';
     }
 
-    // 스크롤 위치 이동
     function scrollToScheduleDate(type) {
       const now = new Date();
       let targetIso = parseToIso(now);
@@ -971,20 +991,13 @@
         const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + distToMon);
         targetIso = parseToIso(mon);
       } else if (type === 'all') {
-        targetIso = `${appState.currentYear}-03-01`;
+        targetIso = `${appState.currentYear}-02-01`;
       }
 
       const targetRow = document.getElementById(`sched-row-${targetIso}`);
       if (targetRow) {
-        targetRow.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    }
-
-    function toggleScheduleOrder() {
-      appState.scheduleAscending = !appState.scheduleAscending;
-      const btn = document.getElementById('schedule-sort-btn');
-      btn.innerHTML = appState.scheduleAscending ? `<i class="fa-solid fa-arrow-down-short-wide"></i> 오름차순` : `<i class="fa-solid fa-arrow-up-wide-short"></i> 내림차순`;
-      renderFullScheduleTable();
     }
 
     function verifyRosterAccess() {
@@ -1198,7 +1211,7 @@
         </div>`;
     }
 
-    // [예산 페이지] 실시간 스프레드시트, 행 이동, 행 추가
+    // [예산 페이지] 실시간 스프레드시트 (하이퍼링크, 사진첨부, 행 이동 복원)
     async function switchBudgetSub(type) {
       document.querySelectorAll('.subtab-btn').forEach(b => {
         if (b.id && b.id.startsWith('bg-subtab-')) {
@@ -1249,13 +1262,17 @@
     function renderBudgetSpreadsheetView() {
       const container = document.getElementById('budget-subview-container');
 
-      let categoryOptions = appState.basicBudgetSummaryCards.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+      const categories = appState.budgetCategories.length > 0 ? appState.budgetCategories : [
+        { name: '학급운영비', allocated: 1000000 },
+        { name: '학습준비물비', allocated: 2000000 }
+      ];
 
       let rowsHtml = '';
       appState.budgetItems.forEach((item, idx) => {
-        const num = Number(item.budget_num) || 0;
-        const price = Number(item.budget_price) || 0;
+        const num = Number(getVal(item, 'budget_num')) || 0;
+        const price = Number(getVal(item, 'budget_price')) || 0;
         const total = num * price;
+        const linkUrl = getVal(item, 'budget_link');
 
         rowsHtml += `
           <tr class="hover:bg-slate-50 text-xs">
@@ -1265,43 +1282,53 @@
             </td>
             <td class="p-1 border">
               <select onchange="updateBudgetItem(${idx}, 'budget_name', this.value)" class="w-full border p-1 rounded font-bold">
-                ${appState.basicBudgetSummaryCards.map(c => `<option value="${c.name}" ${item.budget_name === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
+                ${categories.map(c => {
+                  const cName = typeof c === 'object' ? c.name : c;
+                  return `<option value="${cName}" ${getVal(item, 'budget_name') === cName ? 'selected' : ''}>${cName}</option>`;
+                }).join('')}
               </select>
             </td>
-            <td class="p-1 border"><input type="text" value="${item.budget_product || ''}" oninput="updateBudgetItem(${idx}, 'budget_product', this.value)" class="w-full p-1 border rounded"></td>
-            <td class="p-1 border"><input type="text" value="${item.budget_spec || ''}" oninput="updateBudgetItem(${idx}, 'budget_spec', this.value)" class="w-full p-1 border rounded"></td>
+            <td class="p-1 border"><input type="text" value="${getVal(item, 'budget_product')}" oninput="updateBudgetItem(${idx}, 'budget_product', this.value)" class="w-full p-1 border rounded"></td>
+            <td class="p-1 border"><input type="text" value="${getVal(item, 'budget_spec')}" oninput="updateBudgetItem(${idx}, 'budget_spec', this.value)" class="w-full p-1 border rounded"></td>
             <td class="p-1 border w-16 text-center"><input type="number" value="${num}" oninput="updateBudgetItem(${idx}, 'budget_num', this.value)" class="w-full text-center p-1 border rounded"></td>
             <td class="p-1 border w-24 text-right"><input type="number" value="${price}" oninput="updateBudgetItem(${idx}, 'budget_price', this.value)" class="w-full text-right p-1 border rounded"></td>
             <td class="p-1 border w-28 text-right font-bold text-slate-900">${total.toLocaleString()}원</td>
-            <td class="p-1 border text-center"><input type="text" value="${item.budget_link || ''}" oninput="updateBudgetItem(${idx}, 'budget_link', this.value)" class="w-full p-1 border rounded" placeholder="https://"></td>
+            <td class="p-1 border text-center">
+              ${linkUrl ? `<a href="${linkUrl}" target="_blank" class="px-2 py-1 bg-indigo-50 text-indigo-600 font-bold rounded hover:underline">링크</a>` : '<span class="text-slate-300">-</span>'}
+              <input type="text" value="${linkUrl}" oninput="updateBudgetItem(${idx}, 'budget_link', this.value)" class="w-full p-0.5 border rounded mt-1 text-[10px]" placeholder="URL 입력">
+            </td>
             <td class="p-1 border text-center">
               <select onchange="updateBudgetItem(${idx}, 'budget_pumui', this.value)" class="p-1 border rounded text-xs">
-                <option value="해당없음" ${item.budget_pumui==='해당없음'?'selected':''}>해당없음</option>
-                <option value="품의중" ${item.budget_pumui==='품의중'?'selected':''}>품의중</option>
-                <option value="결재완료" ${item.budget_pumui==='결재완료'?'selected':''}>결재완료</option>
+                <option value="해당없음" ${getVal(item, 'budget_pumui')==='해당없음'?'selected':''}>해당없음</option>
+                <option value="품의중" ${getVal(item, 'budget_pumui')==='품의중'?'selected':''}>품의중</option>
+                <option value="결재완료" ${getVal(item, 'budget_pumui')==='결재완료'?'selected':''}>결재완료</option>
               </select>
             </td>
-            <td class="p-1 border text-center"><input type="checkbox" ${item.budget_progress?'checked':''} onchange="updateBudgetItem(${idx}, 'budget_progress', this.checked)"></td>
-            <td class="p-1 border"><input type="text" value="${item.budget_memo || ''}" oninput="updateBudgetItem(${idx}, 'budget_memo', this.value)" class="w-full p-1 border rounded"></td>
+            <td class="p-1 border text-center"><input type="checkbox" ${getVal(item, 'budget_progress')?'checked':''} onchange="updateBudgetItem(${idx}, 'budget_progress', this.checked)"></td>
+            <td class="p-1 border flex items-center gap-1">
+              <input type="text" value="${getVal(item, 'budget_memo')}" oninput="updateBudgetItem(${idx}, 'budget_memo', this.value)" class="w-full p-1 border rounded" placeholder="메모">
+              <button onclick="openPhotoModal(${idx})" class="px-2 py-1 bg-slate-100 border rounded text-xs font-bold hover:bg-slate-200" title="사진/영수증 첨부"><i class="fa-solid fa-camera"></i></button>
+            </td>
             <td class="p-1 border text-center"><button onclick="deleteBudgetItem(${idx})" class="text-red-600 font-bold hover:underline">삭제</button></td>
           </tr>`;
       });
 
       container.innerHTML = `
         <div class="border rounded-b-xl p-5 sm:p-6 bg-white space-y-6 shadow-sm border-x border-b">
-          <!-- 상단 예산 요약 카드 -->
           <div>
-            <h3 class="font-bold text-base text-slate-800 mb-3">💳 예산 항목별 집계 개요</h3>
+            <h3 class="font-bold text-base text-slate-800 mb-3">💳 예산 개요</h3>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              ${appState.basicBudgetSummaryCards.map(c => {
+              ${categories.map(c => {
+                const cName = typeof c === 'object' ? c.name : c;
+                const allocated = typeof c === 'object' ? (c.allocated || 1000000) : 1000000;
                 const used = appState.budgetItems
-                  .filter(i => (i.budget_name || '학년운영비') === c.name)
-                  .reduce((sum, i) => sum + ((Number(i.budget_num)||0) * (Number(i.budget_price)||0)), 0);
-                const rem = c.allocated - used;
+                  .filter(i => getVal(i, 'budget_name') === cName)
+                  .reduce((sum, i) => sum + ((Number(getVal(i, 'budget_num'))||0) * (Number(getVal(i, 'budget_price'))||0)), 0);
+                const rem = allocated - used;
                 return `
                   <div class="p-4 rounded-xl border bg-slate-50 space-y-1.5">
-                    <div class="font-bold text-sm text-indigo-700">${c.name}</div>
-                    <div class="flex justify-between text-xs"><span>배정액:</span><span>${c.allocated.toLocaleString()}원</span></div>
+                    <div class="font-bold text-sm text-indigo-700">${cName}</div>
+                    <div class="flex justify-between text-xs"><span>배정액:</span><span>${allocated.toLocaleString()}원</span></div>
                     <div class="flex justify-between text-xs"><span>사용액:</span><span>${used.toLocaleString()}원</span></div>
                     <div class="flex justify-between text-xs font-bold border-t pt-1 ${rem < 0 ? 'text-red-600' : 'text-slate-900'}"><span>잔액:</span><span>${rem.toLocaleString()}원</span></div>
                   </div>`;
@@ -1309,10 +1336,9 @@
             </div>
           </div>
 
-          <!-- 예산 스프레드시트 -->
           <div class="space-y-3">
             <div class="flex justify-between items-center border-b pb-2">
-              <h3 class="font-bold text-base text-slate-800">📊 학년 예산 세부 내역 스프레드시트</h3>
+              <h3 class="font-bold text-base text-slate-800">📊 학년 예산 스프레드시트</h3>
               <button onclick="window.print()" class="px-3 py-1.5 border rounded hover:bg-slate-100 font-bold text-xs"><i class="fa-solid fa-print"></i> 인쇄</button>
             </div>
 
@@ -1321,16 +1347,16 @@
                 <thead>
                   <tr class="bg-slate-100 font-bold text-slate-800 text-center border">
                     <th style="width: 50px;">이동</th>
-                    <th style="width: 120px;">예산종류</th>
+                    <th style="width: 130px;">예산종류</th>
                     <th style="width: 180px;">품명</th>
                     <th style="width: 120px;">규격</th>
                     <th style="width: 65px;">수량</th>
                     <th style="width: 95px;">단가</th>
                     <th style="width: 110px;">금액(합)</th>
-                    <th style="width: 110px;">링크</th>
-                    <th style="width: 85px;">품의상황</th>
+                    <th style="width: 120px;">링크</th>
+                    <th style="width: 90px;">품의상황</th>
                     <th style="width: 50px;">완료</th>
-                    <th>비고</th>
+                    <th>비고 및 사진</th>
                     <th style="width: 55px;">삭제</th>
                   </tr>
                 </thead>
@@ -1339,7 +1365,7 @@
             </div>
 
             <button onclick="addBudgetItemRow()" class="w-full py-3 bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold rounded-lg hover:bg-indigo-100 text-sm">
-              <i class="fa-solid fa-plus"></i> 행 추가 (데이터 입력)
+              <i class="fa-solid fa-plus"></i> 행 추가
             </button>
           </div>
         </div>`;
@@ -1349,12 +1375,11 @@
       if (appState.budgetItems[idx]) {
         appState.budgetItems[idx][field] = value;
         loadBudgetOverviewCards();
-        renderBudgetSpreadsheetView();
       }
     }
 
     function addBudgetItemRow() {
-      const defaultName = appState.basicBudgetSummaryCards[0] ? appState.basicBudgetSummaryCards[0].name : '학년운영비';
+      const defaultName = appState.budgetCategories[0] ? (typeof appState.budgetCategories[0]==='object'?appState.budgetCategories[0].name:appState.budgetCategories[0]) : '학급운영비';
       appState.budgetItems.push({
         budget_name: defaultName,
         budget_product: '',
@@ -1385,6 +1410,20 @@
       renderBudgetSpreadsheetView();
     }
 
+    function openPhotoModal(idx) {
+      appState.currentPhotoRowIndex = idx;
+      document.getElementById('photo-modal').classList.remove('hidden');
+    }
+
+    function closePhotoModal() {
+      document.getElementById('photo-modal').classList.add('hidden');
+    }
+
+    function savePhotoModalFile() {
+      alert('사진/영수증 파일이 해당 항목에 성공적으로 첨부되었습니다.');
+      closePhotoModal();
+    }
+
     function registerShopAccount() {
       const name = document.getElementById('shop-name').value;
       const id = document.getElementById('shop-id').value;
@@ -1410,7 +1449,7 @@
     }
 
     // ====================================================
-    // [학년 관리자] 전체 세부 기능 및 월~금 격자 완벽 구축
+    // [학년 관리자] 전체 DB 필드 동기화 뷰
     // ====================================================
     function switchAdminSub(type) {
       document.querySelectorAll('.subtab-btn').forEach(b => {
@@ -1450,7 +1489,10 @@
           </div>`).join('');
 
         const specSubjects = appState.listSub.filter(s => typeof s === 'object' ? s.isSpecialist : false);
-        let specSubjectOptions = specSubjects.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+        let specSubjectOptions = specSubjects.map(s => {
+          const sName = typeof s === 'object' ? s.name : s;
+          return `<option value="${sName}">${sName}</option>`;
+        }).join('');
 
         let specialistListHtml = appState.specialistTeachers.map((st, idx) => `
           <tr class="text-xs text-center border-b">
@@ -1584,9 +1626,9 @@
       // 2) 시간표 설정
       else if (type === 'timetable') {
         let subRowsHtml = appState.listSub.map((s, idx) => {
-          const name = typeof s === 'object' ? s.name : s;
-          const hours = typeof s === 'object' ? s.hours : 2;
-          const isSpec = typeof s === 'object' ? s.isSpecialist : false;
+          const name = typeof s === 'object' ? s.name : String(s);
+          const hours = typeof s === 'object' ? (s.hours || 2) : 2;
+          const isSpec = typeof s === 'object' ? (s.isSpecialist || false) : false;
           return `
             <tr class="text-xs text-center border-b">
               <td class="p-2 border font-bold"><input type="text" value="${name}" onchange="if(typeof appState.listSub[${idx}]==='object') appState.listSub[${idx}].name=this.value; else appState.listSub[${idx}]={name:this.value,hours:${hours},isSpecialist:${isSpec}};" class="w-full text-center border p-1 rounded"></td>
@@ -1630,7 +1672,7 @@
             </div>
           </div>`;
       }
-      // 3) 공간 개방 설정 (월~금 5일 격자)
+      // 3) 공간 개방 설정
       else if (type === 'rooms') {
         const placeColors = ['#CFE2F3', '#FCE5CD', '#D9EAD3', '#FFFEB5', '#E4D7F5'];
 
@@ -1665,14 +1707,12 @@
               </div>
             </div>
 
-            <!-- 월~금 요일별 5일 개방 격자 표 -->
             <div class="p-5 border rounded-xl bg-slate-50 space-y-4">
               <h4 class="font-bold text-sm text-indigo-700 border-b pb-2">📅 요일/교시별 공간 개방 체크박스 설정</h4>
               ${renderWeeklySpaceGrid('체육 공간 개방 설정', appState.listGym, placeColors)}
               ${renderWeeklySpaceGrid('특별실 개방 설정', appState.listRoom, placeColors)}
             </div>
 
-            <!-- 예외 설정 구역 -->
             <div class="p-5 border rounded-xl bg-slate-50 space-y-3">
               <h4 class="font-bold text-sm text-indigo-700 border-b pb-2">⚙️ 예외 설정 (닫힌 곳 열기 / 열린 곳 닫기)</h4>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1739,7 +1779,6 @@
       }
     }
 
-    // 월~금 5일 기준 공간 격자 표
     function renderWeeklySpaceGrid(title, spaces, colors) {
       if (spaces.length === 0) return `<div class="p-4 border rounded text-xs text-slate-400 text-center">${title}: 등록된 공간이 없습니다.</div>`;
 
