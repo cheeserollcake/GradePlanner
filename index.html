@@ -22,7 +22,7 @@
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-    /* 요일별 기본 지정 색상 */
+    /* 요일별 테마 색상 */
     .bg-mon { background-color: #E0F7FA !important; }
     .bg-tue { background-color: #FEF8E3 !important; }
     .bg-wed { background-color: #F3EEFE !important; }
@@ -33,37 +33,50 @@
     .bg-holiday { background-color: #FCE8E6 !important; color: #d93025 !important; }
     .bg-saturday { background-color: #CFE2F3 !important; color: #1a73e8 !important; }
 
-    /* 모바일 가로 스크롤 및 스티키 스타일 */
+    /* 모바일 가로 스크롤 및 고정 열(Sticky Class Column) */
     .sticky-col { 
       position: sticky; 
       left: 0; 
       z-index: 20; 
       background-color: #f8fafc; 
-      min-width: 44px; 
-      max-width: 44px;
+      min-width: 46px; 
+      max-width: 46px;
       box-shadow: 2px 0 4px -2px rgba(0,0,0,0.15);
     }
 
     .sticky-header th { position: sticky; top: 0; z-index: 10; background-color: #f8fafc; }
     .modal-backdrop { background-color: rgba(0, 0, 0, 0.5); }
 
-    /* 정밀 격자 표 스타일 */
+    /* 시간표 정밀 격자 셀 서식 */
     .tt-grid-table { border-collapse: collapse; width: 100%; table-layout: fixed; }
     .tt-grid-table th, .tt-grid-table td { 
       border: 1px solid #cbd5e1; 
       text-align: center; 
       vertical-align: middle; 
       white-space: nowrap !important;
-      min-width: 42px;
-      max-width: 55px;
+      min-width: 44px;
+      max-width: 58px;
       overflow: hidden;
     }
 
-    .tt-cell-text { font-size: 10px; line-height: 1.2; padding: 2px 1px; }
-    .tt-overlap-cell { background-color: #FCE8E6 !important; color: #d93025 !important; font-style: italic; font-weight: bold; }
-    .tt-holiday-cell { background-color: #475569 !important; color: #cbd5e1 !important; font-size: 10px; font-weight: 500; }
+    .tt-cell-text { font-size: 10px; line-height: 1.2; padding: 3px 1px; }
+    
+    /* 2개 이상 중복 일정 서식 (분홍 바탕 + 빨간 글씨 + 기울임꼴) */
+    .tt-overlap-cell { 
+      background-color: #FCE8E6 !important; 
+      color: #d93025 !important; 
+      font-style: italic !important; 
+      font-weight: bold !important; 
+    }
 
-    /* 서브탭 버튼 방지 */
+    /* 휴일 셀 서식 (진회색 바탕 + 회색 글씨) */
+    .tt-holiday-cell { 
+      background-color: #475569 !important; 
+      color: #cbd5e1 !important; 
+      font-size: 10px; 
+      font-weight: 500; 
+    }
+
     .subtab-btn { white-space: nowrap !important; flex-shrink: 0; }
 
     @media print {
@@ -239,7 +252,6 @@
 
     <!-- PAGE 4: 시간표 -->
     <section id="page-timetable" class="page-view space-y-3 sm:space-y-4 hidden">
-      <!-- 서브탭 가로 스크롤 레이아웃 -->
       <div class="flex border-b text-xs sm:text-base font-bold overflow-x-auto no-scrollbar gap-1 sm:gap-2 pb-1">
         <button onclick="switchTimetableSub('base')" id="tt-subtab-base" class="subtab-btn px-3 sm:px-4 py-2 text-gray-500 hover:text-black">기초 시간표</button>
         <button onclick="switchTimetableSub('monthly')" id="tt-subtab-monthly" class="subtab-btn px-3 sm:px-4 py-2 border-b-2 border-indigo-600 text-indigo-600 font-bold">월간 시간표</button>
@@ -347,7 +359,6 @@
   </div>
 
   <script>
-    // 파이어베이스 인증 및 설정
     const firebaseConfig = {
       apiKey: "AIzaSyDonpgXJGlSjqv-sFVAdlokpZ0XhONpjY0",
       authDomain: "gradeplanner-d5499.firebaseapp.com",
@@ -377,86 +388,9 @@
       
       subTimetables: [],
       addTimetables: [],
+      gymTimetables: [],
       roomTimetables: [],
       holidays: []
-    };
-
-    // 예시용 시간표 기본 데이터 캐시 (이미지 데이터 100% 매칭)
-    const sampleTimetableMap = {
-      '09.28. (월)-1-3': '전담(과)', '09.28. (월)-1-4': '전담(과)',
-      '09.28. (월)-3-6': '<span class="text-red-600 font-bold">다목(3층)<br>운동장</span>',
-      '09.28. (월)-4-1': '전담(영)', '09.28. (월)-4-2': '전담(영)',
-      '09.28. (월)-5-4': '전담(영)', '09.28. (월)-5-5': '전담(영)',
-      '09.28. (월)-6-5': '나래', '09.28. (월)-8-6': '운동장', '09.28. (월)-10-6': 'VR',
-
-      '09.29. (화)-1-1': '구강검진(09:00)', '09.29. (화)-1-6': '운동장',
-      '09.29. (화)-2-1': '구강검진(09:00)', '09.29. (화)-2-5': '전담(영)', '09.29. (화)-2-6': '운동장',
-      '09.29. (화)-3-1': '전담(과)<br><span class="text-red-600">구강검진(09:40)</span>', '09.29. (화)-3-2': '전담(과)',
-      '09.29. (화)-4-3': '구강검진(11:00)', '09.29. (화)-4-4': '나래',
-      '09.29. (화)-5-2': '우쿨(7~8)', '09.29. (화)-5-3': '전담(영)<br><span class="text-red-600">구강검진(10:20)</span>', '09.29. (화)-5-4': '전담(영)', '09.29. (화)-5-5': '나래',
-      '09.29. (화)-6-2': '전담(영)<br><span class="text-red-600">구강검진(10:20)</span>', '09.29. (화)-6-3': '우쿨(7~8)', '09.29. (화)-6-4': '우쿨(7~8)',
-      '09.29. (화)-7-1': '구강검진(09:40)', '09.29. (화)-7-3': '전담(영)', '09.29. (화)-7-4': '전담(영)',
-      '09.29. (화)-9-3': '나래', '09.29. (화)-9-4': '구강검진(11:40)', '09.29. (화)-9-5': '전담(영)',
-      '09.29. (화)-10-3': '전담(과)<br><span class="text-red-600">구강검진(11:40)</span>', '09.29. (화)-10-4': '전담(과)',
-
-      '09.30. (수)-1-1': '전담(과)', '09.30. (수)-1-3': '전담(영)',
-      '09.30. (수)-2-2': '전담(과)', '09.30. (수)-3-1': '전담(영)', '09.30. (수)-3-3': '전담(과)', '09.30. (수)-3-4': '다목(3층)',
-      '09.30. (수)-4-3': '다목(3층)', '09.30. (수)-4-4': '전담(과)', '09.30. (수)-4-5': '전담(영)',
-      '09.30. (수)-5-1': '다목(3층)', '09.30. (수)-5-5': '전담(과)',
-      '09.30. (수)-6-3': '전담(과)', '09.30. (수)-6-4': '전담(과)',
-      '09.30. (수)-7-1': '전담(과)', '09.30. (수)-7-2': '전담(과)',
-      '09.30. (수)-8-1': '전담(영)', '09.30. (수)-8-2': '전담(영)', '09.30. (수)-8-5': '운동장',
-      '09.30. (수)-9-3': '전담(영)', '09.30. (수)-9-4': '전담(영)',
-      '09.30. (수)-10-4': '전담(과)',
-
-      '10.01. (목)-1-1': '튜터(7)', '10.01. (목)-1-4': '다목(2층)',
-      '10.01. (목)-2-1': '전담(영)', '10.01. (목)-2-2': '전담(영)', '10.01. (목)-2-3': '우쿨(7~8)', '10.01. (목)-2-4': '우쿨(7~8)', '10.01. (목)-2-5': '다목(2층)',
-      '10.01. (목)-3-2': '튜터(7)', '10.01. (목)-3-3': '전담(영)', '10.01. (목)-3-4': '전담(영)', '10.01. (목)-3-6': '강당',
-      '10.01. (목)-4-1': '전담(과)', '10.01. (목)-4-2': '전담(과)', '10.01. (목)-4-3': '튜터(7)',
-      '10.01. (목)-5-1': '운동장', '10.01. (목)-5-3': '전담(과)', '10.01. (목)-5-4': '전담(과)', '10.01. (목)-5-5': '튜터(7)',
-      '10.01. (목)-6-1': '전담(영)', '10.01. (목)-6-2': '전담(영)',
-      '10.01. (목)-7-1': '운동장', '10.01. (목)-7-3': '전담(과)', '10.01. (목)-7-4': '튜터(7)',
-      '10.01. (목)-8-1': '우쿨(7~8)', '10.01. (목)-8-2': '우쿨(7~8)', '10.01. (목)-8-4': '전담(과)', '10.01. (목)-8-6': '다목(3층)',
-      '10.01. (목)-9-1': '전담(과)', '10.01. (목)-10-4': '전담(과)',
-
-      '10.02. (금)-1-1': '전담(영)', '10.02. (금)-1-2': '전담(영)', '10.02. (금)-1-6': '다목(3층)',
-      '10.02. (금)-2-1': '마음근력', '10.02. (금)-2-2': '마음근력', '10.02. (금)-2-3': '마음근력', '10.02. (금)-2-4': '튜터(7)',
-      '10.02. (금)-3-4': '운동장',
-      '10.02. (금)-4-2': '마음근력', '10.02. (금)-4-3': '마음근력', '10.02. (금)-4-4': '마음근력', '10.02. (금)-4-5': '강당',
-      '10.02. (금)-5-6': '강당', '10.02. (금)-6-1': '튜터(7)', '10.02. (금)-6-2': '다목(3층)', '10.02. (금)-6-4': '운동장',
-      '10.02. (금)-7-1': '<span class="text-red-600 font-bold">다목(3층)<br>운동장</span>', '10.02. (금)-7-5': '전담(영)',
-      '10.02. (금)-8-1': '운동장', '10.02. (금)-8-2': '튜터(7)', '10.02. (금)-8-3': '전담(과)', '10.02. (금)-8-4': '전담(과)',
-      '10.02. (금)-9-1': '전담(과)', '10.02. (금)-9-2': '전담(과)', '10.02. (금)-9-3': '튜터(7)', '10.02. (금)-9-4': '다목(3층)',
-      '10.02. (금)-10-1': '전담(영)', '10.02. (금)-10-2': '운동장', '10.02. (금)-10-6': '튜터(7)',
-
-      '10.06. (화)-1-1': '우쿨(7~8)', '10.06. (화)-1-2': '우쿨(7~8)', '10.06. (화)-1-3': '스건강(시청각)',
-      '10.06. (화)-2-2': '나래', '10.06. (화)-2-3': '스건강(시청각)', '10.06. (화)-2-4': '전담(영)',
-      '10.06. (화)-3-3': '나래', '10.06. (화)-4-1': '우쿨(7~8)', '10.06. (화)-4-2': '우쿨(7~8)',
-      '10.06. (화)-5-3': '전담(영)', '10.06. (화)-5-4': '나래', '10.06. (화)-5-5': '운동장',
-      '10.06. (화)-6-1': '전담(영)', '10.06. (화)-6-2': '전담(영)', '10.06. (화)-6-3': '강당', '10.06. (화)-6-5': '운동장',
-      '10.06. (화)-7-1': '강당', '10.06. (화)-7-3': '전담(영)', '10.06. (화)-7-4': '전담(영)',
-      '10.06. (화)-8-2': '강당', '10.06. (화)-9-1': '스건강(시청각)', '10.06. (화)-9-3': '강당', '10.06. (화)-9-4': '전담(영)', '10.06. (화)-9-5': '운동장',
-      '10.06. (화)-10-2': '스건강(시청각)', '10.06. (화)-10-3': '전담(과)', '10.06. (화)-10-4': '전담(과)',
-
-      '10.07. (수)-1-1': '전담(과)', '10.07. (수)-1-3': '전담(영)',
-      '10.07. (수)-2-2': '전담(과)', '10.07. (수)-2-4': '운동장', '10.07. (수)-3-1': '전담(영)', '10.07. (수)-3-3': '전담(과)',
-      '10.07. (수)-4-1': '스건강(시청각)', '10.07. (수)-4-2': '전담(영)', '10.07. (수)-4-4': '전담(과)',
-      '10.07. (수)-5-4': '전담(과)',
-      '10.07. (수)-6-2': '스건강(시청각)', '10.07. (수)-6-3': '전담(과)', '10.07. (수)-6-4': '전담(과)', '10.07. (수)-6-5': '운동장',
-      '10.07. (수)-7-1': '전담(과)', '10.07. (수)-7-2': '전담(과)', '10.07. (수)-7-3': '스건강(시청각)', '10.07. (수)-7-4': '다목(3층)',
-      '10.07. (수)-8-1': '전담(영)', '10.07. (수)-8-2': '전담(영)', '10.07. (수)-8-3': '다목(3층)', '10.07. (수)-8-4': '스건강(시청각)',
-      '10.07. (수)-9-3': '전담(영)', '10.07. (수)-9-4': '전담(영)', '10.07. (수)-9-5': '운동장',
-      '10.07. (수)-10-4': '전담(과)',
-
-      '10.08. (목)-1-1': '튜터(8)', '10.08. (목)-2-1': '전담(영)', '10.08. (목)-2-2': '전담(영)', '10.08. (목)-2-4': '글씨대회(2,6)', '10.08. (목)-2-6': '다목(3층)',
-      '10.08. (목)-3-1': '운동장', '10.08. (목)-3-2': '스건강(시청각)', '10.08. (목)-3-3': '전담(영)', '10.08. (목)-3-4': '전담(영)', '10.08. (목)-3-5': '튜터(8)',
-      '10.08. (목)-4-1': '전담(과)', '10.08. (목)-4-2': '전담(과)', '10.08. (목)-4-3': '튜터(8)', '10.08. (목)-4-4': '글씨대회(4,10)', '10.08. (목)-4-5': '국어 면담 발표',
-      '10.08. (목)-5-1': '스건강(시청각)', '10.08. (목)-5-2': '튜터(8)', '10.08. (목)-5-3': '전담(과)', '10.08. (목)-5-4': '전담(과)', '10.08. (목)-5-5': '다목(2층)',
-      '10.08. (목)-6-2': '전담(과)', '10.08. (목)-6-4': '<span class="text-red-600 font-bold">다목(2층)<br>글씨대회(2,6)</span>',
-      '10.08. (목)-7-1': '우쿨(7~8)', '10.08. (목)-7-2': '우쿨(7~8)', '10.08. (목)-7-3': '전담(과)', '10.08. (목)-7-4': '튜터(8)',
-      '10.08. (목)-8-1': '운동장', '10.08. (목)-8-4': '전담(과)',
-      '10.08. (목)-9-1': '전담(과)', '10.08. (목)-9-3': '우쿨(7~8)', '10.08. (목)-9-4': '우쿨(7~8)', '10.08. (목)-9-5': '나래',
-      '10.08. (목)-10-1': '전담(영)', '10.08. (목)-10-2': '전담(영)', '10.08. (목)-10-4': '글씨대회(4,10)', '10.08. (목)-10-5': '강당'
     };
 
     function getVal(doc, ...keys) {
@@ -467,7 +401,6 @@
       return '';
     }
 
-    // D-Day 계산 함수 (D-X, D-Day, D+X)
     function calcDDay(targetDateStr) {
       if (!targetDateStr) return '날짜 미정';
       const cleanDateStr = targetDateStr.replace(/[^0-9.]/g, '');
@@ -536,18 +469,27 @@
       } catch(e) {}
     }
 
+    // 파이어스토어 시간표 컬렉션 실시간 전체 로딩
     async function fetchTimetableData() {
       if (!db) return;
       try {
+        appState.subTimetables = [];
+        appState.addTimetables = [];
+        appState.gymTimetables = [];
+        appState.roomTimetables = [];
+
         const subSnap = await db.collection('data_sub_timetable').get();
         subSnap.forEach(d => appState.subTimetables.push(d.data()));
 
         const addSnap = await db.collection('data_add_timetable').get();
         addSnap.forEach(d => appState.addTimetables.push(d.data()));
 
+        const gymSnap = await db.collection('data_gym_timetable').get();
+        gymSnap.forEach(d => appState.gymTimetables.push(d.data()));
+
         const roomSnap = await db.collection('data_room_timetable').get();
         roomSnap.forEach(d => appState.roomTimetables.push(d.data()));
-      } catch(e) {}
+      } catch(e) { console.error("Timetable Fetch Error:", e); }
     }
 
     function navigateTo(pageId) {
@@ -871,13 +813,13 @@
     }
 
     // ====================================================
-    // [월간 시간표 (월별 시간표)] 교차 색상 및 모바일 레이아웃 완전체
+    // [월간 시간표] 파이어스토어 연동 & 교차 색상 & 중복 서식 완벽 구현
     // ====================================================
     function renderMonthlyTimetable(selectedMonth) {
       appState.activeMonth = selectedMonth;
       const container = document.getElementById('tt-subview-container');
 
-      // 1. 월 선택 가로 스크롤 버튼 헤더 (3월 ~ 2월)
+      // 1. 월 선택 상단 가로 스크롤 버튼 (3월 ~ 2월)
       const months = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2];
       let monthBtnsHtml = '';
       months.forEach(m => {
@@ -885,12 +827,11 @@
         monthBtnsHtml += `<button onclick="renderMonthlyTimetable(${m})" class="px-3 py-1 border rounded font-bold text-xs sm:text-sm whitespace-nowrap shrink-0 transition-colors ${isCurrent ? 'bg-[#4a4085] text-white' : 'bg-white hover:bg-gray-100 text-gray-700'}">${m}월</button>`;
       });
 
-      // 2. 선택된 월의 연도 및 달력 주차 계산
+      // 2. 해당 월의 날짜 및 주차 계산 (월~금 5개 요일)
       const year = (selectedMonth === 1 || selectedMonth === 2) ? appState.currentYear + 1 : appState.currentYear;
       const firstDayOfMonth = new Date(year, selectedMonth - 1, 1);
       const lastDayOfMonth = new Date(year, selectedMonth, 0);
 
-      // 월요일 시작 주차 구하기
       let startMon = new Date(firstDayOfMonth);
       const day1 = startMon.getDay();
       const diff1 = (day1 === 0) ? -6 : 1 - day1;
@@ -913,7 +854,7 @@
       const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토'];
       const dayBgClasses = ['bg-mon', 'bg-tue', 'bg-wed', 'bg-thu', 'bg-fri'];
 
-      // 3. 주차별 테이블 세로 연속 생성
+      // 3. 주차별 시간표 격자 생성
       let weeksTableHtml = '';
 
       weeks.forEach((weekDays) => {
@@ -942,19 +883,16 @@
           classRowsHtml += `<tr><td class="font-bold bg-gray-50 text-xs border p-1 sticky-col text-center">${cName}</td>`;
 
           weekDays.forEach((d, dIdx) => {
-            const formattedDateStr = `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}. (${daysOfWeek[d.getDay()]})`;
-            const yearDateStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
-            const shortKeyDateStr = `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}. (${daysOfWeek[d.getDay()]})`;
+            const dateStrFmt1 = `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}. (${daysOfWeek[d.getDay()]})`;
+            const dateStrFmt2 = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+            const dateStrFmt3 = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
-            // 휴일 조건
+            // 휴일 판단
             const isHoliday = (d.getDay() === 0 || d.getDay() === 6) || 
-                              (d.getMonth() === 9 && d.getDate() === 5) || // 10월 5일 개천절 대체휴일 예시
-                              (d.getMonth() === 9 && d.getDate() === 9) || // 10월 9일 한글날
-                              appState.holidays.some(h => yearDateStr >= h.start && yearDateStr <= h.end);
+                              appState.holidays.some(h => (dateStrFmt2 >= h.start && dateStrFmt2 <= h.end) || (dateStrFmt3 >= h.start && dateStrFmt3 <= h.end));
             
-            let holidayName = '휴일';
-            if (d.getMonth() === 9 && d.getDate() === 5) holidayName = '개천절 대체휴일';
-            else if (d.getMonth() === 9 && d.getDate() === 9) holidayName = '한글날';
+            const holidayObj = appState.holidays.find(h => (dateStrFmt2 >= h.start && dateStrFmt2 <= h.end) || (dateStrFmt3 >= h.start && dateStrFmt3 <= h.end));
+            const holidayName = holidayObj ? holidayObj.name : '휴일';
 
             for (let p = 1; p <= 6; p++) {
               if (isHoliday) {
@@ -962,23 +900,43 @@
                   classRowsHtml += `<td colspan="6" class="border tt-holiday-cell p-1">${holidayName}(휴)</td>`;
                 }
               } else {
-                // 교차 색상 규칙: 홀수 반(cIdx % 2 === 0)은 요일 색상, 짝수 반(cIdx % 2 === 1)은 흰색(bg-white)
+                // 교차 색상 규칙: 홀수 반(cIdx%2===0)은 요일 색상, 짝수 반(cIdx%2===1)은 흰색
                 let cellBgClass = (cIdx % 2 === 0) ? dayBgClasses[dIdx] : 'bg-white';
                 
-                // 데이터 조회 (실제 데이터 + 캐시 샘플 매칭)
+                // 파이어스토어 데이터베이스 항목 매칭
                 const items = [];
-                const sampleKey = `${shortKeyDateStr}-${classNum}-${p}`;
 
-                appState.subTimetables.filter(s => (getVal(s, 'sub_date') === formattedDateStr || getVal(s, 'sub_date') === yearDateStr) && getVal(s, 'sub_class') == classNum && getVal(s, 'sub_time') == `${p}교시`).forEach(s => items.push(getVal(s, 'sub_name')));
-                appState.addTimetables.filter(a => (getVal(a, 'add_date') === formattedDateStr || getVal(a, 'add_date') === yearDateStr) && getVal(a, 'add_class') == classNum && getVal(a, 'add_time') == `${p}교시`).forEach(a => items.push(getVal(a, 'add_name')));
-                appState.roomTimetables.filter(r => (getVal(r, 'room_date') === formattedDateStr || getVal(r, 'room_date') === yearDateStr) && getVal(r, 'room_class') == classNum && getVal(r, 'room_time') == `${p}교시`).forEach(r => items.push(getVal(r, 'room_place')));
+                // 1) data_sub_timetable
+                appState.subTimetables.filter(s => 
+                  [dateStrFmt1, dateStrFmt2, dateStrFmt3].includes(getVal(s, 'sub_date')) && 
+                  (getVal(s, 'sub_class') == classNum || getVal(s, 'sub_class') == cName) && 
+                  (getVal(s, 'sub_time') == `${p}교시` || getVal(s, 'sub_time') == p)
+                ).forEach(s => items.push(getVal(s, 'sub_name')));
 
-                if (items.length === 0 && sampleTimetableMap[sampleKey]) {
-                  items.push(sampleTimetableMap[sampleKey]);
-                }
+                // 2) data_add_timetable
+                appState.addTimetables.filter(a => 
+                  [dateStrFmt1, dateStrFmt2, dateStrFmt3].includes(getVal(a, 'add_date')) && 
+                  (getVal(a, 'add_class') == classNum || getVal(a, 'add_class') == cName) && 
+                  (getVal(a, 'add_time') == `${p}교시` || getVal(a, 'add_time') == p)
+                ).forEach(a => items.push(getVal(a, 'add_name')));
+
+                // 3) data_gym_timetable
+                appState.gymTimetables.filter(g => 
+                  [dateStrFmt1, dateStrFmt2, dateStrFmt3].includes(getVal(g, 'gym_date')) && 
+                  (getVal(g, 'gym_class') == classNum || getVal(g, 'gym_class') == cName) && 
+                  (getVal(g, 'gym_time') == `${p}교시` || getVal(g, 'gym_time') == p)
+                ).forEach(g => items.push(getVal(g, 'gym_place')));
+
+                // 4) data_room_timetable
+                appState.roomTimetables.filter(r => 
+                  [dateStrFmt1, dateStrFmt2, dateStrFmt3].includes(getVal(r, 'room_date')) && 
+                  (getVal(r, 'room_class') == classNum || getVal(r, 'room_class') == cName) && 
+                  (getVal(r, 'room_time') == `${p}교시` || getVal(r, 'room_time') == p)
+                ).forEach(r => items.push(getVal(r, 'room_place')));
 
                 let contentText = '-';
 
+                // 2개 이상일 때 중복 서식 적용 (분홍 바탕 + 빨간 글씨 + 기울임꼴)
                 if (items.length === 1) {
                   contentText = items[0];
                 } else if (items.length >= 2) {
