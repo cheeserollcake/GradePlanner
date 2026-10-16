@@ -375,7 +375,7 @@
       db = firebase.firestore();
     } catch(e) { console.error("Firebase Init Error:", e); }
 
-    // 대한민국 법정 공휴일 (구글 캘린더 기본 공휴일 정보)
+    // 대한민국 법정 공휴일 (구글 캘린더 공휴일 데이터)
     const googlePublicHolidays = [
       { start: '2026-01-01', end: '2026-01-01', name: '신정' },
       { start: '2026-02-16', end: '2026-02-18', name: '설날' },
@@ -417,8 +417,50 @@
       addTimetables: [],
       gymTimetables: [],
       roomTimetables: [],
+      schoolTasks: [],
+      memoTasks: [],
       holidays: [...googlePublicHolidays]
     };
+
+    // ====================================================
+    // 데이터 정규화 헬퍼 함수 (모든 날짜 포맷 100% 매칭)
+    // ====================================================
+    function parseToIso(val) {
+      if (!val) return '';
+      if (typeof val === 'object' && typeof val.toDate === 'function') {
+        const d = val.toDate();
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      }
+      if (typeof val === 'object' && val.seconds) {
+        const d = new Date(val.seconds * 1000);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      }
+      if (val instanceof Date) {
+        return `${val.getFullYear()}-${String(val.getMonth()+1).padStart(2,'0')}-${String(val.getDate()).padStart(2,'0')}`;
+      }
+      const str = String(val).trim();
+      const mFull = str.match(/(\d{4})[.-]\s*(\d{1,2})[.-]\s*(\d{1,2})/);
+      if (mFull) {
+        return `${mFull[1]}-${String(mFull[2]).padStart(2,'0')}-${String(mFull[3]).padStart(2,'0')}`;
+      }
+      const mShort = str.match(/(\d{1,2})[.-]\s*(\d{1,2})/);
+      if (mShort) {
+        return `${appState.currentYear}-${String(mShort[1]).padStart(2,'0')}-${String(mShort[2]).padStart(2,'0')}`;
+      }
+      return '';
+    }
+
+    function parseClassNum(val) {
+      if (val === undefined || val === null) return null;
+      const num = parseInt(String(val).replace(/[^0-9]/g, ''));
+      return isNaN(num) ? null : num;
+    }
+
+    function parseTimeNum(val) {
+      if (val === undefined || val === null) return null;
+      const num = parseInt(String(val).replace(/[^0-9]/g, ''));
+      return isNaN(num) ? null : num;
+    }
 
     function getVal(doc, ...keys) {
       if (!doc) return '';
@@ -494,15 +536,15 @@
           if (hStart) {
             appState.holidays.push({ 
               name: hName || '학교지정휴일', 
-              start: hStart.replace(/\./g, '-'), 
-              end: (hEnd || hStart).replace(/\./g, '-') 
+              start: parseToIso(hStart), 
+              end: parseToIso(hEnd || hStart) 
             });
           }
         });
       } catch(e) {}
     }
 
-    // 파이어스토어 시간표 관련 4개 컬렉션 데이터 실시간 조회
+    // 파이어스토어 전체 컬렉션 데이터 실시간 조회 및 바인딩
     async function fetchTimetableData() {
       if (!db) return;
       try {
@@ -510,20 +552,27 @@
         appState.addTimetables = [];
         appState.gymTimetables = [];
         appState.roomTimetables = [];
+        appState.schoolTasks = [];
+        appState.memoTasks = [];
 
-        const [subSnap, addSnap, gymSnap, roomSnap] = await Promise.all([
+        const [subSnap, addSnap, gymSnap, roomSnap, taskSnap, memoSnap] = await Promise.all([
           db.collection('data_sub_timetable').get(),
           db.collection('data_add_timetable').get(),
           db.collection('data_gym_timetable').get(),
-          db.collection('data_room_timetable').get()
+          db.collection('data_room_timetable').get(),
+          db.collection('data_task_school').get(),
+          db.collection('data_task_memo').get()
         ]);
 
         subSnap.forEach(d => appState.subTimetables.push(d.data()));
         addSnap.forEach(d => appState.addTimetables.push(d.data()));
         gymSnap.forEach(d => appState.gymTimetables.push(d.data()));
         roomSnap.forEach(d => appState.roomTimetables.push(d.data()));
+        taskSnap.forEach(d => appState.schoolTasks.push(d.data()));
+        memoSnap.forEach(d => appState.memoTasks.push(d.data()));
 
-        // 데이터 반영 후 활성화된 페이지 재렌더링
+        // 데이터 로드 완료 후 실시간 재렌더링
+        filterSchedule('today');
         if (!document.getElementById('page-timetable').classList.contains('hidden')) {
           renderMonthlyTimetable(appState.activeMonth);
         }
@@ -593,15 +642,15 @@
           const classNum = parseInt(cName.replace(/[^0-9]/g, '')) || (cIdx + 1);
 
           if (rIdx === 0) {
-            const cnt = students.filter(s => (getVal(s, 'student_class') == classNum) && ['남', '남성'].includes(getVal(s, 'student_gender'))).length;
+            const cnt = students.filter(s => (parseClassNum(getVal(s, 'student_class')) === classNum) && ['남', '남성'].includes(getVal(s, 'student_gender'))).length;
             maleTotal += cnt;
             bodyHtml += `<td class="p-2.5 border">${cnt}</td>`;
           } else if (rIdx === 1) {
-            const cnt = students.filter(s => (getVal(s, 'student_class') == classNum) && ['여', '여성'].includes(getVal(s, 'student_gender'))).length;
+            const cnt = students.filter(s => (parseClassNum(getVal(s, 'student_class')) === classNum) && ['여', '여성'].includes(getVal(s, 'student_gender'))).length;
             femaleTotal += cnt;
             bodyHtml += `<td class="p-2.5 border">${cnt}</td>`;
           } else if (rIdx === 2) {
-            const cnt = students.filter(s => getVal(s, 'student_class') == classNum).length;
+            const cnt = students.filter(s => parseClassNum(getVal(s, 'student_class')) === classNum).length;
             bodyHtml += `<td class="p-2.5 border font-bold bg-slate-50">${cnt}</td>`;
           } else if (rIdx === 3) {
             const taskVal = defaultTasks[cIdx] || '-';
@@ -692,7 +741,7 @@
       }
     }
 
-    // [전체 일정] 필터링 (구글 캘린더 공휴일 병합)
+    // [전체 일정 / 주요 일정] (공휴일 + DB 행사 연동)
     async function filterSchedule(mode) {
       ['week', 'today', 'all'].forEach(m => {
         const btn = document.getElementById(`filter-btn-${m}`);
@@ -705,74 +754,75 @@
       const tbody = document.getElementById('full-schedule-tbody');
       const homeSchedule = document.getElementById('home-upcoming-schedule');
 
-      let schoolTasks = [], addTimetables = [], memoTasks = [];
-
-      if (db) {
-        try {
-          const tSnap = await db.collection('data_task_school').get();
-          tSnap.forEach(d => schoolTasks.push(d.data()));
-
-          const aSnap = await db.collection('data_add_timetable').get();
-          aSnap.forEach(d => addTimetables.push(d.data()));
-
-          const mSnap = await db.collection('data_task_memo').get();
-          mSnap.forEach(d => memoTasks.push(d.data()));
-        } catch(e) {}
-      }
-
       let html = '';
       let homeHtml = '';
 
       const now = new Date();
       const days = ['일', '월', '화', '수', '목', '금', '토'];
 
-      let startDate = new Date(now.getFullYear(), 0, 1);
+      let startDate = new Date(now.getFullYear(), 2, 1); // 학년도 시작 (3월 1일)
+      let loopDays = 365;
+
       if (mode === 'today') {
         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        loopDays = 60;
       } else if (mode === 'week') {
         const dayOfWeek = now.getDay();
         const distToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + distToMon);
+        loopDays = 14;
       }
 
-      for(let i=0; i<60; i++) {
+      for(let i=0; i<loopDays; i++) {
         const idx = appState.scheduleAscending ? i : -i;
         const d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + idx);
-        const dateStr = `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}. (${days[d.getDay()]})`;
-        const isoDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        const isoDate = parseToIso(d);
+        const dateDisplayStr = `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}. (${days[d.getDay()]})`;
 
-        // 공휴일 확인
-        const holidayMatch = appState.holidays.find(h => isoDate >= h.start && isoDate <= h.end);
+        // 1) 공휴일 및 지정 휴일 매칭
+        const holidayMatch = appState.holidays.find(h => {
+          const hStart = parseToIso(h.start);
+          const hEnd = parseToIso(h.end || h.start);
+          return isoDate >= hStart && isoDate <= hEnd;
+        });
+
         const isHoliday = (d.getDay() === 0 || d.getDay() === 6 || !!holidayMatch);
 
         let rowClass = "hover:bg-gray-50";
         if (isHoliday) rowClass = "bg-holiday";
 
-        let schoolText = schoolTasks
-          .filter(t => getVal(t, 'task_school_date_start', 'task _school_date_start') === dateStr)
-          .map(t => getVal(t, 'task_school_name', 'task _school_name')).join(', ');
+        // 2) DB 학교 행사 매칭
+        const matchedSchoolTasks = appState.schoolTasks
+          .filter(t => parseToIso(getVal(t, 'task_school_date_start', 'task _school_date_start', 'task_school_date', 'date')) === isoDate)
+          .map(t => getVal(t, 'task_school_name', 'task _school_name', 'task_name'));
 
-        if (holidayMatch && !schoolText) schoolText = holidayMatch.name;
+        if (holidayMatch) {
+          matchedSchoolTasks.unshift(holidayMatch.name);
+        }
 
-        const addText = addTimetables
-          .filter(a => getVal(a, 'add_date') === dateStr)
-          .map(a => `${getVal(a, 'add_class')} ${getVal(a, 'add_time')} (${getVal(a, 'add_name')})`).join(', ') || '-';
+        const schoolText = matchedSchoolTasks.join(', ') || '-';
 
-        const memoText = memoTasks
-          .filter(m => getVal(m, 'task_memo_date_start', 'task _memo_date_start') === dateStr)
-          .map(m => getVal(m, 'task_memo_name', 'task _memo_name')).join(', ') || '-';
+        // 3) DB 강사/시간표 보강 일정 매칭
+        const addText = appState.addTimetables
+          .filter(a => parseToIso(getVal(a, 'add_date', 'date')) === isoDate)
+          .map(a => `${getVal(a, 'add_class')}반 ${getVal(a, 'add_time')} (${getVal(a, 'add_name')})`).join(', ') || '-';
+
+        // 4) DB 학년 메모 일정 매칭
+        const memoText = appState.memoTasks
+          .filter(m => parseToIso(getVal(m, 'task_memo_date_start', 'task _memo_date_start', 'task_memo_date', 'date')) === isoDate)
+          .map(m => getVal(m, 'task_memo_name', 'task _memo_name', 'memo_name')).join(', ') || '-';
 
         html += `<tr class="${rowClass}">
-          <td class="p-2.5 text-center font-bold border-r whitespace-nowrap">${dateStr}</td>
-          <td class="p-2.5 border-r">${schoolText || '-'}</td>
+          <td class="p-2.5 text-center font-bold border-r whitespace-nowrap">${dateDisplayStr}</td>
+          <td class="p-2.5 border-r">${schoolText}</td>
           <td class="p-2.5 border-r">${addText}</td>
           <td class="p-2.5 whitespace-pre-wrap">${memoText}</td>
         </tr>`;
 
         if (i < 7) {
           homeHtml += `<div class="py-2.5 flex justify-between items-center border-b last:border-0">
-            <span class="font-bold text-gray-800 w-28 sm:w-32 whitespace-nowrap">${dateStr}</span>
-            <span class="text-gray-700 flex-1 truncate ml-2">${schoolText ? schoolText : (memoText !== '-' ? memoText : '일정 없음')}</span>
+            <span class="font-bold text-gray-800 w-28 sm:w-32 whitespace-nowrap">${dateDisplayStr}</span>
+            <span class="text-gray-700 flex-1 truncate ml-2">${schoolText !== '-' ? schoolText : (memoText !== '-' ? memoText : '일정 없음')}</span>
           </div>`;
         }
       }
@@ -800,7 +850,7 @@
         } catch(e) {}
       }
 
-      students.sort((a,b) => (getVal(a,'student_class') - getVal(b,'student_class')) || (getVal(a,'student_num') - getVal(b,'student_num')));
+      students.sort((a,b) => (parseClassNum(getVal(a,'student_class')) - parseClassNum(getVal(b,'student_class'))) || (getVal(a,'student_num') - getVal(b,'student_num')));
 
       let html = '';
       students.forEach(s => {
@@ -857,7 +907,7 @@
     }
 
     // ====================================================
-    // [월간 시간표] 파이어베이스 연동 & 교차 색상 & 중복 서식
+    // [월간 시간표] 정규화 연동 & 공휴일 & 중복 일정 처리
     // ====================================================
     function renderMonthlyTimetable(selectedMonth) {
       appState.activeMonth = selectedMonth;
@@ -923,16 +973,19 @@
         let classRowsHtml = '';
 
         appState.classes.forEach((cName, cIdx) => {
-          const classNum = parseInt(cName.replace(/[^0-9]/g, '')) || (cIdx + 1);
+          const classNum = parseClassNum(cName) || (cIdx + 1);
           classRowsHtml += `<tr><td class="font-bold bg-gray-50 text-xs border p-1 sticky-col text-center">${cName}</td>`;
 
           weekDays.forEach((d, dIdx) => {
-            const dateStrFmt1 = `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}. (${daysOfWeek[d.getDay()]})`;
-            const dateStrFmt2 = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
-            const dateStrFmt3 = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            const isoDate = parseToIso(d);
 
-            // 휴일 조건 (구글 캘린더 법정 공휴일 + Firestore 휴일)
-            const holidayObj = appState.holidays.find(h => (dateStrFmt3 >= h.start && dateStrFmt3 <= h.end) || (dateStrFmt2 >= h.start && dateStrFmt2 <= h.end));
+            // 공휴일 확인
+            const holidayObj = appState.holidays.find(h => {
+              const hStart = parseToIso(h.start);
+              const hEnd = parseToIso(h.end || h.start);
+              return isoDate >= hStart && isoDate <= hEnd;
+            });
+
             const isHoliday = (d.getDay() === 0 || d.getDay() === 6 || !!holidayObj);
             const holidayName = holidayObj ? holidayObj.name : '휴일';
 
@@ -945,40 +998,40 @@
                 // 교차 색상 규칙: 홀수 반(cIdx%2===0)은 요일 색상, 짝수 반(cIdx%2===1)은 흰색
                 let cellBgClass = (cIdx % 2 === 0) ? dayBgClasses[dIdx] : 'bg-white';
                 
-                // 파이어스토어 데이터베이스 매칭
+                // 파이어스토어 데이터 매칭
                 const items = [];
 
                 // 1) data_sub_timetable
                 appState.subTimetables.filter(s => 
-                  [dateStrFmt1, dateStrFmt2, dateStrFmt3].includes(getVal(s, 'sub_date')) && 
-                  (getVal(s, 'sub_class') == classNum || getVal(s, 'sub_class') == cName) && 
-                  (getVal(s, 'sub_time') == `${p}교시` || getVal(s, 'sub_time') == p)
-                ).forEach(s => items.push(getVal(s, 'sub_name')));
+                  parseToIso(getVal(s, 'sub_date', 'date')) === isoDate && 
+                  parseClassNum(getVal(s, 'sub_class', 'class')) === classNum && 
+                  parseTimeNum(getVal(s, 'sub_time', 'time')) === p
+                ).forEach(s => items.push(getVal(s, 'sub_name', 'name')));
 
                 // 2) data_add_timetable
                 appState.addTimetables.filter(a => 
-                  [dateStrFmt1, dateStrFmt2, dateStrFmt3].includes(getVal(a, 'add_date')) && 
-                  (getVal(a, 'add_class') == classNum || getVal(a, 'add_class') == cName) && 
-                  (getVal(a, 'add_time') == `${p}교시` || getVal(a, 'add_time') == p)
-                ).forEach(a => items.push(getVal(a, 'add_name')));
+                  parseToIso(getVal(a, 'add_date', 'date')) === isoDate && 
+                  parseClassNum(getVal(a, 'add_class', 'class')) === classNum && 
+                  parseTimeNum(getVal(a, 'add_time', 'time')) === p
+                ).forEach(a => items.push(getVal(a, 'add_name', 'name')));
 
                 // 3) data_gym_timetable
                 appState.gymTimetables.filter(g => 
-                  [dateStrFmt1, dateStrFmt2, dateStrFmt3].includes(getVal(g, 'gym_date')) && 
-                  (getVal(g, 'gym_class') == classNum || getVal(g, 'gym_class') == cName) && 
-                  (getVal(g, 'gym_time') == `${p}교시` || getVal(g, 'gym_time') == p)
-                ).forEach(g => items.push(getVal(g, 'gym_place')));
+                  parseToIso(getVal(g, 'gym_date', 'date')) === isoDate && 
+                  parseClassNum(getVal(g, 'gym_class', 'class')) === classNum && 
+                  parseTimeNum(getVal(g, 'gym_time', 'time')) === p
+                ).forEach(g => items.push(getVal(g, 'gym_place', 'place')));
 
                 // 4) data_room_timetable
                 appState.roomTimetables.filter(r => 
-                  [dateStrFmt1, dateStrFmt2, dateStrFmt3].includes(getVal(r, 'room_date')) && 
-                  (getVal(r, 'room_class') == classNum || getVal(r, 'room_class') == cName) && 
-                  (getVal(r, 'room_time') == `${p}교시` || getVal(r, 'room_time') == p)
-                ).forEach(r => items.push(getVal(r, 'room_place')));
+                  parseToIso(getVal(r, 'room_date', 'date')) === isoDate && 
+                  parseClassNum(getVal(r, 'room_class', 'class')) === classNum && 
+                  parseTimeNum(getVal(r, 'room_time', 'time')) === p
+                ).forEach(r => items.push(getVal(r, 'room_place', 'place')));
 
                 let contentText = '-';
 
-                // 2개 이상일 때 중복 서식 적용 (분홍 바탕 + 빨간 글씨 + 기울임꼴)
+                // 2개 이상 중복 일정 서식 (분홍 바탕 + 빨간 글씨 + 기울임꼴)
                 if (items.length === 1) {
                   contentText = items[0];
                 } else if (items.length >= 2) {
