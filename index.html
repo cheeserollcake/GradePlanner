@@ -70,7 +70,7 @@
 
     .tt-cell-text { font-size: 12px; line-height: 1.35; padding: 2px 1px; }
     
-    /* 2개 이상 중복 일정 서식 (분홍 바탕 + 빨간 기울임꼴 글씨) */
+    /* 중복 일정 서식 */
     .tt-overlap-cell { 
       background-color: #FCE8E6 !important; 
       color: #d93025 !important; 
@@ -78,7 +78,7 @@
       font-weight: 700 !important; 
     }
 
-    /* 휴일 셀 서식 (진회색 바탕 + 회색 글씨) */
+    /* 휴일 셀 서식 */
     .tt-holiday-cell { 
       background-color: #334155 !important; 
       color: #f1f5f9 !important; 
@@ -145,11 +145,11 @@
           <div id="home-today-date" class="text-lg font-bold text-slate-800">--</div>
         </div>
         <div class="p-5 border rounded-xl bg-blue-50/70 border-blue-200 shadow-sm text-center">
-          <div class="text-xs text-blue-600 font-bold mb-1">여름방학식 D-Day</div>
+          <div class="text-xs text-blue-600 font-bold mb-1">여름방학식</div>
           <div class="summer-dday-val text-lg font-bold text-blue-900">--</div>
         </div>
         <div class="p-5 border rounded-xl bg-purple-50/70 border-purple-200 shadow-sm text-center">
-          <div class="text-xs text-purple-600 font-bold mb-1">겨울방학식 D-Day</div>
+          <div class="text-xs text-purple-600 font-bold mb-1">겨울방학식</div>
           <div class="winter-dday-val text-lg font-bold text-purple-900">--</div>
         </div>
       </div>
@@ -166,7 +166,7 @@
 
     <!-- PAGE 2: 6학년 개요 -->
     <section id="page-overview" class="page-view space-y-6 hidden">
-      <!-- 1) 학년 개요 (1반~10반 완벽 균일한 열 너비 적용) -->
+      <!-- 1) 학년 개요 (1반~10반 균일 열 너비) -->
       <div class="border rounded-xl bg-white shadow-sm overflow-hidden">
         <div class="p-4 bg-slate-50 border-b flex justify-between items-center cursor-pointer" onclick="toggleAccordion('acc-overview')">
           <div class="flex items-center gap-2 font-bold text-lg text-slate-800">
@@ -183,7 +183,7 @@
         </div>
       </div>
 
-      <!-- 2) 학년 예산 개요 (DB list_budget 연동 복원) -->
+      <!-- 2) 학년 예산 개요 (DB list_budget 연동) -->
       <div class="border rounded-xl bg-white shadow-sm overflow-hidden">
         <div class="p-4 bg-slate-50 border-b flex justify-between items-center cursor-pointer" onclick="toggleAccordion('acc-budget')">
           <div class="flex items-center gap-2 font-bold text-lg text-slate-800">
@@ -200,8 +200,8 @@
       <!-- 3) D-Day 카드 -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="p-4 border rounded-xl bg-white text-center shadow-sm"><div class="text-xs text-slate-500 mb-1 font-bold">오늘 날짜</div><div class="overview-today-date font-bold text-base">--</div></div>
-        <div class="p-4 border rounded-xl bg-blue-50/70 border-blue-200 text-center shadow-sm"><div class="text-xs text-blue-600 mb-1 font-bold">여름방학식 D-Day</div><div class="summer-dday-val font-bold text-base text-blue-900">--</div></div>
-        <div class="p-4 border rounded-xl bg-purple-50/70 border-purple-200 text-center shadow-sm"><div class="text-xs text-purple-600 mb-1 font-bold">겨울방학식 D-Day</div><div class="winter-dday-val font-bold text-base text-purple-900">--</div></div>
+        <div class="p-4 border rounded-xl bg-blue-50/70 border-blue-200 text-center shadow-sm"><div class="text-xs text-blue-600 mb-1 font-bold">여름방학식</div><div class="summer-dday-val font-bold text-base text-blue-900">--</div></div>
+        <div class="p-4 border rounded-xl bg-purple-50/70 border-purple-200 text-center shadow-sm"><div class="text-xs text-purple-600 mb-1 font-bold">겨울방학식</div><div class="winter-dday-val font-bold text-base text-purple-900">--</div></div>
       </div>
 
       <!-- 4) 전체 일정 -->
@@ -267,7 +267,7 @@
       <div id="tt-subview-container"></div>
     </section>
 
-    <!-- PAGE 5: 예산 (기본 화면: 학년 예산) -->
+    <!-- PAGE 5: 예산 (첫 화면: 학년 예산) -->
     <section id="page-budget" class="page-view space-y-4 hidden">
       <div class="flex border-b text-sm font-bold overflow-x-auto no-scrollbar gap-2 pb-1 bg-white p-2.5 rounded-t-xl border-x border-t">
         <button onclick="switchBudgetSub('grade_bg')" id="bg-subtab-grade_bg" class="subtab-btn px-4 py-2 border-b-2 border-indigo-600 text-indigo-600 font-bold">학년 예산</button>
@@ -347,12 +347,12 @@
   <div id="budget-card-modal" class="fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white p-6 rounded-2xl max-w-lg w-full space-y-4 shadow-2xl border">
       <div class="flex justify-between items-center border-b pb-3">
-        <h3 class="font-bold text-lg text-indigo-700">💳 예산 항목 설정</h3>
+        <h3 class="font-bold text-lg text-indigo-700">💳 예산 카테고리 설정</h3>
         <button onclick="closeBudgetModalCard()" class="text-slate-400 hover:text-black text-xl"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div id="modal-card-form" class="space-y-3">
         <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">예산 이름 (DB list_budget)</label>
+          <label class="block text-xs font-bold text-slate-700 mb-1">예산 이름</label>
           <input type="text" id="modal-bg-name" placeholder="예산 항목 선택 또는 입력" class="w-full p-2.5 border rounded-lg text-sm font-bold">
         </div>
         <div>
@@ -367,7 +367,7 @@
     </div>
   </div>
 
-  <!-- 사진 첨부 팝업 모달 -->
+  <!-- 영수증/사진 첨부 모달 -->
   <div id="photo-modal" class="fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl border">
       <div class="flex justify-between items-center border-b pb-3">
@@ -402,7 +402,7 @@
       db = firebase.firestore();
     } catch(e) { console.error("Firebase Init Error:", e); }
 
-    // 연도별 대한민국 동적 법정 공휴일 연산 (대체공휴일 정확 적용)
+    // 한국 법정 공휴일 연산
     function getKoreanHolidays(targetYear) {
       const hList = [];
 
@@ -483,8 +483,8 @@
         winter_start: '', winter_end: ''
       },
 
-      budgetCategories: [], // data_basic 의 list_budget 데이터
-      budgetItems: [], // data_budget 컬렉션
+      budgetCategories: [], // data_basic 의 list_budget 동적 수집
+      budgetItems: [],      // data_budget 컬렉션
 
       listSub: [],
       listTime: [],
@@ -579,6 +579,7 @@
       await loadBudgetOverviewCards();
       await renderFullScheduleTable();
       navigateTo('home');
+      setTimeout(() => scrollToScheduleDate('today'), 300);
     });
 
     function initAppDates() {
@@ -591,9 +592,9 @@
       appState.activeMonth = now.getMonth() + 1;
     }
 
-    // 파이어베이스 data_basic 및 holiday 포함 모든 필드 정밀 동기화
+    // data_basic DB 및 휴일 필드 완전 동기화
     async function loadBasicSettings() {
-      appState.holidays = getKoreanHolidays(appState.currentYear);
+      appState.holidays = [];
 
       if (!db) return;
       try {
@@ -601,7 +602,6 @@
         snap.forEach(doc => {
           const d = doc.data();
           
-          // 학급 목록
           const clsList = getVal(d, 'list_class');
           if (clsList && Array.isArray(clsList)) {
             const filtered = clsList.filter(c => c !== '학년공통');
@@ -611,34 +611,30 @@
             }
           }
 
-          // 예산 종류 목록
+          // DB의 list_budget 연동
           const bList = getVal(d, 'list_budget');
           if (bList && Array.isArray(bList)) {
-            appState.budgetCategories = bList.map(b => typeof b === 'object' ? b : { name: String(b), allocated: Number(getVal(d, 'list_budget_amount', 'list_butget_amount')) || 1000000 });
+            appState.budgetCategories = bList.map(b => typeof b === 'object' ? b : { name: String(b), allocated: Number(getVal(d, 'list_budget_amount')) || 1000000 });
           }
 
-          // 과목 목록
           const subList = getVal(d, 'list_sub');
           if (subList && Array.isArray(subList)) appState.listSub = subList;
 
-          // 교시 목록
           const timeList = getVal(d, 'list_time');
           if (timeList && Array.isArray(timeList)) appState.listTime = timeList;
 
-          // 공간 목록
           const gymList = getVal(d, 'list_gym');
           if (gymList && Array.isArray(gymList)) appState.listGym = gymList;
 
           const roomList = getVal(d, 'list_room');
           if (roomList && Array.isArray(roomList)) appState.listRoom = roomList;
 
-          // 교사 목록
           const tList = getVal(d, 'list_t');
           if (tList && Array.isArray(tList)) appState.listTeachers = tList;
 
-          // 학기 및 방학 기간 연동
-          appState.semesters.s1_start = parseToIso(d.semester_start_date || d.s1_start);
-          appState.semesters.s1_end = parseToIso(d.semester_end_date || d.s1_end);
+          // DB에서 학기 및 방학 시작/종료일 로드
+          appState.semesters.s1_start = parseToIso(d.s1_start || d.semester_start_date);
+          appState.semesters.s1_end = parseToIso(d.s1_end || d.semester_end_date);
           appState.semesters.summer_start = parseToIso(d.summer_start);
           appState.semesters.summer_end = parseToIso(d.summer_end);
           appState.semesters.s2_start = parseToIso(d.s2_start);
@@ -646,14 +642,12 @@
           appState.semesters.winter_start = parseToIso(d.winter_start);
           appState.semesters.winter_end = parseToIso(d.winter_end);
 
-          // DB holiday 관련 모든 속성 자동 수집
+          // DB 내 holiday 관련 필드 자동 탐색 및 파싱
           Object.keys(d).forEach(k => {
             if (k.toLowerCase().includes('holiday')) {
               const val = d[k];
               const iso = parseToIso(val);
-              if (iso) {
-                appState.holidays.push({ name: '학교지정휴일', start: iso, end: iso });
-              }
+              if (iso) appState.holidays.push({ name: '학교지정휴일', start: iso, end: iso });
             }
           });
 
@@ -669,13 +663,18 @@
           }
         });
 
-        // 방학 기간 전체 휴일 자동 처리
+        // 학기 방학 기간 휴일 등록
         if (appState.semesters.summer_start && appState.semesters.summer_end) {
           appState.holidays.push({ name: '여름방학', start: appState.semesters.summer_start, end: appState.semesters.summer_end });
         }
         if (appState.semesters.winter_start && appState.semesters.winter_end) {
           appState.holidays.push({ name: '겨울방학', start: appState.semesters.winter_start, end: appState.semesters.winter_end });
         }
+
+        // 대한민국 법정공휴일 결합
+        const legalHolidays = getKoreanHolidays(appState.currentYear);
+        appState.holidays.push(...legalHolidays);
+
       } catch(e) { console.error("Basic Settings Load Error:", e); }
     }
 
@@ -717,13 +716,19 @@
       } catch(e) { console.error("Fetch DB Data Error:", e); }
     }
 
-    // 여름방학식 / 겨울방학식 task_school_name 연동 (없는 경우 절대 보완하지 않고 - 출력)
+    // 여름방학식 / 겨울방학식 data_task_school 완전 동기화 (없으면 - 표시)
     function updateVacationCeremonyDDay() {
-      const summerTask = appState.schoolTasks.find(t => getVal(t, 'task_school_name', 'name').includes('여름방학식'));
-      const winterTask = appState.schoolTasks.find(t => getVal(t, 'task_school_name', 'name').includes('겨울방학식'));
+      const summerTask = appState.schoolTasks.find(t => {
+        const name = getVal(t, 'task_school_name', 'name', 'task_name');
+        return name.includes('여름방학식');
+      });
+      const winterTask = appState.schoolTasks.find(t => {
+        const name = getVal(t, 'task_school_name', 'name', 'task_name');
+        return name.includes('겨울방학식');
+      });
 
-      const summerDate = summerTask ? getVal(summerTask, 'task_school_date_start', 'date') : null;
-      const winterDate = winterTask ? getVal(winterTask, 'task_school_date_start', 'date') : null;
+      const summerDate = summerTask ? getVal(summerTask, 'task_school_date_start', 'date', 'task_school_date') : null;
+      const winterDate = winterTask ? getVal(winterTask, 'task_school_date_start', 'date', 'task_school_date') : null;
 
       const summerText = summerDate ? calcDDay(summerDate) : '-';
       const winterText = winterDate ? calcDDay(winterDate) : '-';
@@ -765,7 +770,7 @@
       document.getElementById(id).classList.toggle('hidden');
     }
 
-    // [6학년 개요] 표 렌더링 (1반~10반 열 너비 균등 완전 고정)
+    // [6학년 개요] 표 (1반~10반 균일 열 너비)
     async function renderOverviewTable() {
       const thead = document.getElementById('overview-table-head');
       const tbody = document.getElementById('overview-table-body');
@@ -831,7 +836,7 @@
       renderOverviewTable();
     }
 
-    // [학년 예산 개요 카드] DB list_budget 데이터 완전 동기화
+    // [학년 예산 개요 카드] DB list_budget 완전 동기화
     async function loadBudgetOverviewCards() {
       const container = document.getElementById('budget-cards-container');
 
@@ -911,7 +916,7 @@
       }
     }
 
-    // [전체 일정 테이블] 스크롤 위치 이동 지원 (2월 1일부터)
+    // [전체 일정 테이블] 2월 1일 시작 및 스크롤 연동
     async function renderFullScheduleTable() {
       const tbody = document.getElementById('full-schedule-tbody');
       const homeSchedule = document.getElementById('home-upcoming-schedule');
@@ -1211,7 +1216,7 @@
         </div>`;
     }
 
-    // [예산 페이지] 실시간 스프레드시트 (하이퍼링크, 사진첨부, 행 이동 복원)
+    // [예산 페이지] 하이퍼링크 & 사진첨부 복원
     async function switchBudgetSub(type) {
       document.querySelectorAll('.subtab-btn').forEach(b => {
         if (b.id && b.id.startsWith('bg-subtab-')) {
@@ -1420,7 +1425,7 @@
     }
 
     function savePhotoModalFile() {
-      alert('사진/영수증 파일이 해당 항목에 성공적으로 첨부되었습니다.');
+      alert('사진/영수증 파일이 정상 첨부되었습니다.');
       closePhotoModal();
     }
 
@@ -1448,9 +1453,7 @@
       alert('저장되었습니다.');
     }
 
-    // ====================================================
-    // [학년 관리자] 전체 DB 필드 동기화 뷰
-    // ====================================================
+    // [학년 관리자]
     function switchAdminSub(type) {
       document.querySelectorAll('.subtab-btn').forEach(b => {
         if (b.id && b.id.startsWith('adm-subtab-')) {
@@ -1462,7 +1465,6 @@
 
       const container = document.getElementById('admin-subview-container');
 
-      // 1) 학년 기초 설정
       if (type === 'basic') {
         const yearStart = `${appState.currentYear}-02-01`;
         const leapYear = (appState.currentYear + 1) % 4 === 0;
@@ -1505,7 +1507,6 @@
 
         container.innerHTML = `
           <div class="space-y-5 border rounded-b-xl p-6 bg-white shadow-sm border-x border-b">
-            <!-- 1. 학년도 및 학기 기간 설정 -->
             <div class="p-5 border rounded-xl bg-slate-50 space-y-4">
               <h4 class="font-bold text-sm border-b pb-2 text-indigo-700">📅 학년도 및 학기 설정</h4>
               <div class="flex items-center gap-3">
@@ -1542,7 +1543,6 @@
               </div>
             </div>
 
-            <!-- 2. 기초 일정 -->
             <div class="p-5 border rounded-xl bg-slate-50 space-y-3">
               <div class="flex justify-between items-center border-b pb-2">
                 <h4 class="font-bold text-sm text-indigo-700">📌 기초 일정 관리</h4>
@@ -1560,7 +1560,6 @@
               </div>
             </div>
 
-            <!-- 3. 학급 및 교사 설정 -->
             <div class="p-5 border rounded-xl bg-slate-50 space-y-4">
               <h4 class="font-bold text-sm border-b pb-2 text-indigo-700">🏫 학급 및 교사 설정</h4>
               
@@ -1623,7 +1622,6 @@
             </div>
           </div>`;
       } 
-      // 2) 시간표 설정
       else if (type === 'timetable') {
         let subRowsHtml = appState.listSub.map((s, idx) => {
           const name = typeof s === 'object' ? s.name : String(s);
@@ -1672,7 +1670,6 @@
             </div>
           </div>`;
       }
-      // 3) 공간 개방 설정
       else if (type === 'rooms') {
         const placeColors = ['#CFE2F3', '#FCE5CD', '#D9EAD3', '#FFFEB5', '#E4D7F5'];
 
@@ -1745,7 +1742,6 @@
             </div>
           </div>`;
       } 
-      // 4) 비밀번호/데이터 관리
       else if (type === 'security') {
         container.innerHTML = `
           <div class="space-y-5 border rounded-b-xl p-6 bg-white shadow-sm border-x border-b text-sm">
