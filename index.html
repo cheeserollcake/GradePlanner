@@ -375,6 +375,33 @@
       db = firebase.firestore();
     } catch(e) { console.error("Firebase Init Error:", e); }
 
+    // 대한민국 법정 공휴일 (구글 캘린더 기본 공휴일 정보)
+    const googlePublicHolidays = [
+      { start: '2026-01-01', end: '2026-01-01', name: '신정' },
+      { start: '2026-02-16', end: '2026-02-18', name: '설날' },
+      { start: '2026-03-01', end: '2026-03-01', name: '삼일절' },
+      { start: '2026-05-05', end: '2026-05-05', name: '어린이날' },
+      { start: '2026-05-24', end: '2026-05-24', name: '부처님오신날' },
+      { start: '2026-06-06', end: '2026-06-06', name: '현충일' },
+      { start: '2026-08-15', end: '2026-08-15', name: '광복절' },
+      { start: '2026-09-24', end: '2026-09-26', name: '추석' },
+      { start: '2026-10-03', end: '2026-10-03', name: '개천절' },
+      { start: '2026-10-05', end: '2026-10-05', name: '개천절 대체휴일' },
+      { start: '2026-10-09', end: '2026-10-09', name: '한글날' },
+      { start: '2026-12-25', end: '2026-12-25', name: '성탄절' },
+      { start: '2027-01-01', end: '2027-01-01', name: '신정' },
+      { start: '2027-02-06', end: '2027-02-08', name: '설날' },
+      { start: '2027-03-01', end: '2027-03-01', name: '삼일절' },
+      { start: '2027-05-05', end: '2027-05-05', name: '어린이날' },
+      { start: '2027-05-13', end: '2027-05-13', name: '부처님오신날' },
+      { start: '2027-06-06', end: '2027-06-06', name: '현충일' },
+      { start: '2027-08-15', end: '2027-08-15', name: '광복절' },
+      { start: '2027-09-14', end: '2027-09-16', name: '추석' },
+      { start: '2027-10-03', end: '2027-10-03', name: '개천절' },
+      { start: '2027-10-09', end: '2027-10-09', name: '한글날' },
+      { start: '2027-12-25', end: '2027-12-25', name: '성탄절' }
+    ];
+
     const appState = {
       currentYear: 2026,
       classCount: 10,
@@ -390,7 +417,7 @@
       addTimetables: [],
       gymTimetables: [],
       roomTimetables: [],
-      holidays: []
+      holidays: [...googlePublicHolidays]
     };
 
     function getVal(doc, ...keys) {
@@ -464,12 +491,18 @@
           const hName = getVal(d, 'holiday');
           const hStart = getVal(d, 'holiday_start_date');
           const hEnd = getVal(d, 'holiday_end_date');
-          if (hStart) appState.holidays.push({ name: hName || '휴일', start: hStart, end: hEnd || hStart });
+          if (hStart) {
+            appState.holidays.push({ 
+              name: hName || '학교지정휴일', 
+              start: hStart.replace(/\./g, '-'), 
+              end: (hEnd || hStart).replace(/\./g, '-') 
+            });
+          }
         });
       } catch(e) {}
     }
 
-    // 파이어스토어 시간표 컬렉션 실시간 전체 로딩
+    // 파이어스토어 시간표 관련 4개 컬렉션 데이터 실시간 조회
     async function fetchTimetableData() {
       if (!db) return;
       try {
@@ -478,17 +511,22 @@
         appState.gymTimetables = [];
         appState.roomTimetables = [];
 
-        const subSnap = await db.collection('data_sub_timetable').get();
+        const [subSnap, addSnap, gymSnap, roomSnap] = await Promise.all([
+          db.collection('data_sub_timetable').get(),
+          db.collection('data_add_timetable').get(),
+          db.collection('data_gym_timetable').get(),
+          db.collection('data_room_timetable').get()
+        ]);
+
         subSnap.forEach(d => appState.subTimetables.push(d.data()));
-
-        const addSnap = await db.collection('data_add_timetable').get();
         addSnap.forEach(d => appState.addTimetables.push(d.data()));
-
-        const gymSnap = await db.collection('data_gym_timetable').get();
         gymSnap.forEach(d => appState.gymTimetables.push(d.data()));
-
-        const roomSnap = await db.collection('data_room_timetable').get();
         roomSnap.forEach(d => appState.roomTimetables.push(d.data()));
+
+        // 데이터 반영 후 활성화된 페이지 재렌더링
+        if (!document.getElementById('page-timetable').classList.contains('hidden')) {
+          renderMonthlyTimetable(appState.activeMonth);
+        }
       } catch(e) { console.error("Timetable Fetch Error:", e); }
     }
 
@@ -654,7 +692,7 @@
       }
     }
 
-    // [전체 일정] 필터링
+    // [전체 일정] 필터링 (구글 캘린더 공휴일 병합)
     async function filterSchedule(mode) {
       ['week', 'today', 'all'].forEach(m => {
         const btn = document.getElementById(`filter-btn-${m}`);
@@ -701,14 +739,20 @@
         const idx = appState.scheduleAscending ? i : -i;
         const d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + idx);
         const dateStr = `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}. (${days[d.getDay()]})`;
-        
-        let rowClass = "hover:bg-gray-50";
-        if (d.getDay() === 0) rowClass = "bg-holiday";
-        else if (d.getDay() === 6) rowClass = "bg-saturday";
+        const isoDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
-        const schoolText = schoolTasks
+        // 공휴일 확인
+        const holidayMatch = appState.holidays.find(h => isoDate >= h.start && isoDate <= h.end);
+        const isHoliday = (d.getDay() === 0 || d.getDay() === 6 || !!holidayMatch);
+
+        let rowClass = "hover:bg-gray-50";
+        if (isHoliday) rowClass = "bg-holiday";
+
+        let schoolText = schoolTasks
           .filter(t => getVal(t, 'task_school_date_start', 'task _school_date_start') === dateStr)
-          .map(t => getVal(t, 'task_school_name', 'task _school_name')).join(', ') || '-';
+          .map(t => getVal(t, 'task_school_name', 'task _school_name')).join(', ');
+
+        if (holidayMatch && !schoolText) schoolText = holidayMatch.name;
 
         const addText = addTimetables
           .filter(a => getVal(a, 'add_date') === dateStr)
@@ -720,7 +764,7 @@
 
         html += `<tr class="${rowClass}">
           <td class="p-2.5 text-center font-bold border-r whitespace-nowrap">${dateStr}</td>
-          <td class="p-2.5 border-r">${schoolText}</td>
+          <td class="p-2.5 border-r">${schoolText || '-'}</td>
           <td class="p-2.5 border-r">${addText}</td>
           <td class="p-2.5 whitespace-pre-wrap">${memoText}</td>
         </tr>`;
@@ -728,7 +772,7 @@
         if (i < 7) {
           homeHtml += `<div class="py-2.5 flex justify-between items-center border-b last:border-0">
             <span class="font-bold text-gray-800 w-28 sm:w-32 whitespace-nowrap">${dateStr}</span>
-            <span class="text-gray-700 flex-1 truncate ml-2">${schoolText !== '-' ? schoolText : (memoText !== '-' ? memoText : '일정 없음')}</span>
+            <span class="text-gray-700 flex-1 truncate ml-2">${schoolText ? schoolText : (memoText !== '-' ? memoText : '일정 없음')}</span>
           </div>`;
         }
       }
@@ -813,7 +857,7 @@
     }
 
     // ====================================================
-    // [월간 시간표] 파이어스토어 연동 & 교차 색상 & 중복 서식 완벽 구현
+    // [월간 시간표] 파이어베이스 연동 & 교차 색상 & 중복 서식
     // ====================================================
     function renderMonthlyTimetable(selectedMonth) {
       appState.activeMonth = selectedMonth;
@@ -827,7 +871,7 @@
         monthBtnsHtml += `<button onclick="renderMonthlyTimetable(${m})" class="px-3 py-1 border rounded font-bold text-xs sm:text-sm whitespace-nowrap shrink-0 transition-colors ${isCurrent ? 'bg-[#4a4085] text-white' : 'bg-white hover:bg-gray-100 text-gray-700'}">${m}월</button>`;
       });
 
-      // 2. 해당 월의 날짜 및 주차 계산 (월~금 5개 요일)
+      // 2. 해당 월의 날짜 및 주차 계산
       const year = (selectedMonth === 1 || selectedMonth === 2) ? appState.currentYear + 1 : appState.currentYear;
       const firstDayOfMonth = new Date(year, selectedMonth - 1, 1);
       const lastDayOfMonth = new Date(year, selectedMonth, 0);
@@ -887,11 +931,9 @@
             const dateStrFmt2 = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
             const dateStrFmt3 = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
-            // 휴일 판단
-            const isHoliday = (d.getDay() === 0 || d.getDay() === 6) || 
-                              appState.holidays.some(h => (dateStrFmt2 >= h.start && dateStrFmt2 <= h.end) || (dateStrFmt3 >= h.start && dateStrFmt3 <= h.end));
-            
-            const holidayObj = appState.holidays.find(h => (dateStrFmt2 >= h.start && dateStrFmt2 <= h.end) || (dateStrFmt3 >= h.start && dateStrFmt3 <= h.end));
+            // 휴일 조건 (구글 캘린더 법정 공휴일 + Firestore 휴일)
+            const holidayObj = appState.holidays.find(h => (dateStrFmt3 >= h.start && dateStrFmt3 <= h.end) || (dateStrFmt2 >= h.start && dateStrFmt2 <= h.end));
+            const isHoliday = (d.getDay() === 0 || d.getDay() === 6 || !!holidayObj);
             const holidayName = holidayObj ? holidayObj.name : '휴일';
 
             for (let p = 1; p <= 6; p++) {
@@ -903,7 +945,7 @@
                 // 교차 색상 규칙: 홀수 반(cIdx%2===0)은 요일 색상, 짝수 반(cIdx%2===1)은 흰색
                 let cellBgClass = (cIdx % 2 === 0) ? dayBgClasses[dIdx] : 'bg-white';
                 
-                // 파이어스토어 데이터베이스 항목 매칭
+                // 파이어스토어 데이터베이스 매칭
                 const items = [];
 
                 // 1) data_sub_timetable
