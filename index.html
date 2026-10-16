@@ -29,9 +29,9 @@
     .bg-thu { background-color: #FEF8E3 !important; }
     .bg-fri { background-color: #E0F7FA !important; }
 
-    /* 지정 휴일 & 주말 서식 */
-    .bg-holiday { background-color: #FCE8E6 !important; color: #d93025 !important; }
-    .bg-saturday { background-color: #CFE2F3 !important; color: #1a73e8 !important; }
+    /* 정확한 지정 휴일 & 주말 서식 */
+    .bg-holiday { background-color: #FCE8E6 !important; color: #d93025 !important; font-weight: bold; }
+    .bg-saturday { background-color: #CFE2F3 !important; color: #1a73e8 !important; font-weight: bold; }
 
     /* 모바일 가로 스크롤 및 고정 열(Sticky Class Column) */
     .sticky-col { 
@@ -94,7 +94,7 @@
         <button onclick="toggleSidebar()" class="p-1.5 text-gray-700 hover:text-black text-xl sm:text-2xl">
           <i class="fa-solid fa-bars"></i>
         </button>
-        <h1 id="page-title" class="font-bold text-lg sm:text-2xl tracking-tight text-gray-900 whitespace-nowrap">시간표</h1>
+        <h1 id="page-title" class="font-bold text-lg sm:text-2xl tracking-tight text-gray-900 whitespace-nowrap">홈</h1>
       </div>
       
       <div class="flex items-center gap-1 sm:gap-2 text-xs sm:text-base overflow-x-auto no-scrollbar py-1 shrink">
@@ -375,28 +375,30 @@
       db = firebase.firestore();
     } catch(e) { console.error("Firebase Init Error:", e); }
 
-    // 대한민국 법정 공휴일 (구글 캘린더 공휴일 데이터)
+    // 대한민국 법정 공휴일 (대체공휴일 정확 포함: 3.1절 대체공휴일 2026-03-02 등)
     const googlePublicHolidays = [
       { start: '2026-01-01', end: '2026-01-01', name: '신정' },
-      { start: '2026-02-16', end: '2026-02-18', name: '설날' },
+      { start: '2026-02-16', end: '2026-02-18', name: '설날 연휴' },
       { start: '2026-03-01', end: '2026-03-01', name: '삼일절' },
+      { start: '2026-03-02', end: '2026-03-02', name: '삼일절 대체공휴일' },
       { start: '2026-05-05', end: '2026-05-05', name: '어린이날' },
       { start: '2026-05-24', end: '2026-05-24', name: '부처님오신날' },
+      { start: '2026-05-25', end: '2026-05-25', name: '부처님오신날 대체공휴일' },
       { start: '2026-06-06', end: '2026-06-06', name: '현충일' },
       { start: '2026-08-15', end: '2026-08-15', name: '광복절' },
-      { start: '2026-09-24', end: '2026-09-26', name: '추석' },
+      { start: '2026-09-24', end: '2026-09-26', name: '추석 연휴' },
       { start: '2026-10-03', end: '2026-10-03', name: '개천절' },
-      { start: '2026-10-05', end: '2026-10-05', name: '개천절 대체휴일' },
+      { start: '2026-10-05', end: '2026-10-05', name: '개천절 대체공휴일' },
       { start: '2026-10-09', end: '2026-10-09', name: '한글날' },
       { start: '2026-12-25', end: '2026-12-25', name: '성탄절' },
       { start: '2027-01-01', end: '2027-01-01', name: '신정' },
-      { start: '2027-02-06', end: '2027-02-08', name: '설날' },
+      { start: '2027-02-06', end: '2027-02-08', name: '설날 연휴' },
       { start: '2027-03-01', end: '2027-03-01', name: '삼일절' },
       { start: '2027-05-05', end: '2027-05-05', name: '어린이날' },
       { start: '2027-05-13', end: '2027-05-13', name: '부처님오신날' },
       { start: '2027-06-06', end: '2027-06-06', name: '현충일' },
       { start: '2027-08-15', end: '2027-08-15', name: '광복절' },
-      { start: '2027-09-14', end: '2027-09-16', name: '추석' },
+      { start: '2027-09-14', end: '2027-09-16', name: '추석 연휴' },
       { start: '2027-10-03', end: '2027-10-03', name: '개천절' },
       { start: '2027-10-09', end: '2027-10-09', name: '한글날' },
       { start: '2027-12-25', end: '2027-12-25', name: '성탄절' }
@@ -413,6 +415,39 @@
       scheduleAscending: true,
       isOverviewEditing: false,
       
+      // 학기 기간
+      semesters: {
+        s1_start: '2026-03-02', s1_end: '2026-07-20',
+        summer_start: '2026-07-21', summer_end: '2026-08-23',
+        s2_start: '2026-08-24', s2_end: '2026-12-31',
+        winter_start: '2027-01-01', winter_end: '2027-02-28'
+      },
+
+      // 데이터베이스 컬렉션 상태
+      listSub: [
+        { name: '국어', hours: 4, isSpecialist: false },
+        { name: '수학', hours: 4, isSpecialist: false },
+        { name: '사회', hours: 3, isSpecialist: false },
+        { name: '과학', hours: 3, isSpecialist: true },
+        { name: '영어', hours: 3, isSpecialist: true },
+        { name: '체육', hours: 3, isSpecialist: true },
+        { name: '음악', hours: 2, isSpecialist: true },
+        { name: '미술', hours: 2, isSpecialist: false },
+        { name: '실과', hours: 2, isSpecialist: false },
+        { name: '도덕', hours: 1, isSpecialist: false }
+      ],
+      listTime: ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'],
+      listTeachers: ['김담임', '이담임', '박담임', '최담임', '정전담', '강전담'],
+      homeroomTeachers: {}, // { '1반': '김담임', ... }
+      specialistTeachers: [], // [ { subject: '과학', classes: ['1반','2반'], teacher: '정전담', semester: '1학기', start: '', end: '' } ]
+
+      listGym: ['강당', '다목적실'],
+      listRoom: ['음악실', '미술실', '컴퓨터실'],
+      gymAvailability: { s1: {}, s2: {} },
+      roomAvailability: { s1: {}, s2: {} },
+      exceptionsOpen: [],  // { date: '2026-10-05', time: '1교시', space: '강당' }
+      exceptionsClose: [], // { date: '2026-10-05', time: '2교시', space: '음악실' }
+
       subTimetables: [],
       addTimetables: [],
       gymTimetables: [],
@@ -422,9 +457,7 @@
       holidays: [...googlePublicHolidays]
     };
 
-    // ====================================================
-    // 데이터 정규화 헬퍼 함수 (모든 날짜 포맷 100% 매칭)
-    // ====================================================
+    // 정규화 파서
     function parseToIso(val) {
       if (!val) return '';
       if (typeof val === 'object' && typeof val.toDate === 'function') {
@@ -474,7 +507,12 @@
       if (!targetDateStr) return '날짜 미정';
       const cleanDateStr = targetDateStr.replace(/[^0-9.]/g, '');
       const parts = cleanDateStr.split('.');
-      if (parts.length < 3) return targetDateStr;
+      if (parts.length < 3) {
+        const iso = parseToIso(targetDateStr);
+        if (!iso) return targetDateStr;
+        const p = iso.split('-');
+        return calcDDay(`${p[0]}.${p[1]}.${p[2]}`);
+      }
 
       const target = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
       const today = new Date();
@@ -524,11 +562,15 @@
             }
           }
 
-          const semStart = getVal(d, 'semester_start_date', 'semester_start_Date');
-          const semEnd = getVal(d, 'semester_end_date');
-
-          if (semStart) document.querySelectorAll('.summer-dday-val').forEach(el => el.innerText = calcDDay(semStart));
-          if (semEnd) document.querySelectorAll('.winter-dday-val').forEach(el => el.innerText = calcDDay(semEnd));
+          // 학기 및 방학 기간 반영
+          if (d.s1_start) appState.semesters.s1_start = parseToIso(d.s1_start);
+          if (d.s1_end) appState.semesters.s1_end = parseToIso(d.s1_end);
+          if (d.summer_start) appState.semesters.summer_start = parseToIso(d.summer_start);
+          if (d.summer_end) appState.semesters.summer_end = parseToIso(d.summer_end);
+          if (d.s2_start) appState.semesters.s2_start = parseToIso(d.s2_start);
+          if (d.s2_end) appState.semesters.s2_end = parseToIso(d.s2_end);
+          if (d.winter_start) appState.semesters.winter_start = parseToIso(d.winter_start);
+          if (d.winter_end) appState.semesters.winter_end = parseToIso(d.winter_end);
 
           const hName = getVal(d, 'holiday');
           const hStart = getVal(d, 'holiday_start_date');
@@ -541,10 +583,25 @@
             });
           }
         });
+
+        // 방학 기간 전체를 휴일 목록에 등록
+        if (appState.semesters.summer_start && appState.semesters.summer_end) {
+          appState.holidays.push({
+            name: '여름방학',
+            start: appState.semesters.summer_start,
+            end: appState.semesters.summer_end
+          });
+        }
+        if (appState.semesters.winter_start && appState.semesters.winter_end) {
+          appState.holidays.push({
+            name: '겨울방학',
+            start: appState.semesters.winter_start,
+            end: appState.semesters.winter_end
+          });
+        }
       } catch(e) {}
     }
 
-    // 파이어스토어 전체 컬렉션 데이터 실시간 조회 및 바인딩
     async function fetchTimetableData() {
       if (!db) return;
       try {
@@ -571,12 +628,25 @@
         taskSnap.forEach(d => appState.schoolTasks.push(d.data()));
         memoSnap.forEach(d => appState.memoTasks.push(d.data()));
 
-        // 데이터 로드 완료 후 실시간 재렌더링
+        // 방학식 D-Day 연동 (data_task_school 검색)
+        updateVacationCeremonyDDay();
+
         filterSchedule('today');
         if (!document.getElementById('page-timetable').classList.contains('hidden')) {
           renderMonthlyTimetable(appState.activeMonth);
         }
       } catch(e) { console.error("Timetable Fetch Error:", e); }
+    }
+
+    function updateVacationCeremonyDDay() {
+      const summerTask = appState.schoolTasks.find(t => getVal(t, 'task_school_name', 'name').includes('여름방학식'));
+      const winterTask = appState.schoolTasks.find(t => getVal(t, 'task_school_name', 'name').includes('겨울방학식'));
+
+      const summerDate = summerTask ? getVal(summerTask, 'task_school_date_start', 'date') : appState.semesters.summer_start;
+      const winterDate = winterTask ? getVal(winterTask, 'task_school_date_start', 'date') : appState.semesters.winter_start;
+
+      if (summerDate) document.querySelectorAll('.summer-dday-val').forEach(el => el.innerText = calcDDay(summerDate));
+      if (winterDate) document.querySelectorAll('.winter-dday-val').forEach(el => el.innerText = calcDDay(winterDate));
     }
 
     function navigateTo(pageId) {
@@ -593,6 +663,7 @@
 
       if (pageId === 'budget') switchBudgetSub('shopid');
       if (pageId === 'timetable') switchTimetableSub('monthly');
+      if (pageId === 'admin') switchAdminSub('basic');
     }
 
     function toggleSidebar() {
@@ -656,7 +727,8 @@
             const taskVal = defaultTasks[cIdx] || '-';
             bodyHtml += `<td class="p-2.5 border text-gray-700">${appState.isOverviewEditing ? `<input type="text" value="${taskVal}" class="w-full border p-1 text-center rounded">` : taskVal}</td>`;
           } else if (rIdx === 4) {
-            bodyHtml += `<td class="p-2.5 border font-medium">교사${cIdx+1}</td>`;
+            const teacherName = appState.homeroomTeachers[cName] || `교사${cIdx+1}`;
+            bodyHtml += `<td class="p-2.5 border font-medium">${teacherName}</td>`;
           }
         });
 
@@ -741,7 +813,7 @@
       }
     }
 
-    // [전체 일정 / 주요 일정] (공휴일 + DB 행사 연동)
+    // [전체 일정 / 주요 일정] (서식 정확 반영: 토요일 하늘색/파란글씨, 일요일·공휴일 분홍색/빨간글씨)
     async function filterSchedule(mode) {
       ['week', 'today', 'all'].forEach(m => {
         const btn = document.getElementById(`filter-btn-${m}`);
@@ -760,7 +832,7 @@
       const now = new Date();
       const days = ['일', '월', '화', '수', '목', '금', '토'];
 
-      let startDate = new Date(now.getFullYear(), 2, 1); // 학년도 시작 (3월 1일)
+      let startDate = new Date(now.getFullYear(), 2, 1);
       let loopDays = 365;
 
       if (mode === 'today') {
@@ -786,10 +858,12 @@
           return isoDate >= hStart && isoDate <= hEnd;
         });
 
-        const isHoliday = (d.getDay() === 0 || d.getDay() === 6 || !!holidayMatch);
+        const isSaturday = (d.getDay() === 6);
+        const isSundayOrHoliday = (d.getDay() === 0 || !!holidayMatch);
 
         let rowClass = "hover:bg-gray-50";
-        if (isHoliday) rowClass = "bg-holiday";
+        if (isSaturday) rowClass = "bg-saturday";
+        else if (isSundayOrHoliday) rowClass = "bg-holiday";
 
         // 2) DB 학교 행사 매칭
         const matchedSchoolTasks = appState.schoolTasks
@@ -820,9 +894,9 @@
         </tr>`;
 
         if (i < 7) {
-          homeHtml += `<div class="py-2.5 flex justify-between items-center border-b last:border-0">
-            <span class="font-bold text-gray-800 w-28 sm:w-32 whitespace-nowrap">${dateDisplayStr}</span>
-            <span class="text-gray-700 flex-1 truncate ml-2">${schoolText !== '-' ? schoolText : (memoText !== '-' ? memoText : '일정 없음')}</span>
+          homeHtml += `<div class="py-2.5 flex justify-between items-center border-b last:border-0 ${rowClass} px-2 rounded">
+            <span class="font-bold w-28 sm:w-32 whitespace-nowrap">${dateDisplayStr}</span>
+            <span class="flex-1 truncate ml-2">${schoolText !== '-' ? schoolText : (memoText !== '-' ? memoText : '일정 없음')}</span>
           </div>`;
         }
       }
@@ -913,7 +987,6 @@
       appState.activeMonth = selectedMonth;
       const container = document.getElementById('tt-subview-container');
 
-      // 1. 월 선택 상단 가로 스크롤 버튼 (3월 ~ 2월)
       const months = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2];
       let monthBtnsHtml = '';
       months.forEach(m => {
@@ -921,7 +994,6 @@
         monthBtnsHtml += `<button onclick="renderMonthlyTimetable(${m})" class="px-3 py-1 border rounded font-bold text-xs sm:text-sm whitespace-nowrap shrink-0 transition-colors ${isCurrent ? 'bg-[#4a4085] text-white' : 'bg-white hover:bg-gray-100 text-gray-700'}">${m}월</button>`;
       });
 
-      // 2. 해당 월의 날짜 및 주차 계산
       const year = (selectedMonth === 1 || selectedMonth === 2) ? appState.currentYear + 1 : appState.currentYear;
       const firstDayOfMonth = new Date(year, selectedMonth - 1, 1);
       const lastDayOfMonth = new Date(year, selectedMonth, 0);
@@ -948,11 +1020,9 @@
       const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토'];
       const dayBgClasses = ['bg-mon', 'bg-tue', 'bg-wed', 'bg-thu', 'bg-fri'];
 
-      // 3. 주차별 시간표 격자 생성
       let weeksTableHtml = '';
 
       weeks.forEach((weekDays) => {
-        // 헤더 1행: MM월 DD일 (요일)
         let headerRow1 = `<tr class="bg-gray-100 font-bold text-xs"><th class="sticky-col bg-gray-100 border p-1"></th>`;
         weekDays.forEach((d, dIdx) => {
           const dateLabel = `${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일 (${daysOfWeek[d.getDay()]})`;
@@ -960,7 +1030,6 @@
         });
         headerRow1 += `</tr>`;
 
-        // 헤더 2행: 1교시 ~ 6교시 반복
         let headerRow2 = `<tr class="bg-gray-50 text-[10px] sm:text-xs font-bold"><th class="sticky-col bg-gray-50 border p-1 text-center whitespace-nowrap">반</th>`;
         for (let d = 0; d < 5; d++) {
           for (let p = 1; p <= 6; p++) {
@@ -969,7 +1038,6 @@
         }
         headerRow2 += `</tr>`;
 
-        // 학급별 행 생성 (1반 ~ 10반)
         let classRowsHtml = '';
 
         appState.classes.forEach((cName, cIdx) => {
@@ -979,7 +1047,6 @@
           weekDays.forEach((d, dIdx) => {
             const isoDate = parseToIso(d);
 
-            // 공휴일 확인
             const holidayObj = appState.holidays.find(h => {
               const hStart = parseToIso(h.start);
               const hEnd = parseToIso(h.end || h.start);
@@ -995,34 +1062,28 @@
                   classRowsHtml += `<td colspan="6" class="border tt-holiday-cell p-1">${holidayName}(휴)</td>`;
                 }
               } else {
-                // 교차 색상 규칙: 홀수 반(cIdx%2===0)은 요일 색상, 짝수 반(cIdx%2===1)은 흰색
                 let cellBgClass = (cIdx % 2 === 0) ? dayBgClasses[dIdx] : 'bg-white';
                 
-                // 파이어스토어 데이터 매칭
                 const items = [];
 
-                // 1) data_sub_timetable
                 appState.subTimetables.filter(s => 
                   parseToIso(getVal(s, 'sub_date', 'date')) === isoDate && 
                   parseClassNum(getVal(s, 'sub_class', 'class')) === classNum && 
                   parseTimeNum(getVal(s, 'sub_time', 'time')) === p
                 ).forEach(s => items.push(getVal(s, 'sub_name', 'name')));
 
-                // 2) data_add_timetable
                 appState.addTimetables.filter(a => 
                   parseToIso(getVal(a, 'add_date', 'date')) === isoDate && 
                   parseClassNum(getVal(a, 'add_class', 'class')) === classNum && 
                   parseTimeNum(getVal(a, 'add_time', 'time')) === p
                 ).forEach(a => items.push(getVal(a, 'add_name', 'name')));
 
-                // 3) data_gym_timetable
                 appState.gymTimetables.filter(g => 
                   parseToIso(getVal(g, 'gym_date', 'date')) === isoDate && 
                   parseClassNum(getVal(g, 'gym_class', 'class')) === classNum && 
                   parseTimeNum(getVal(g, 'gym_time', 'time')) === p
                 ).forEach(g => items.push(getVal(g, 'gym_place', 'place')));
 
-                // 4) data_room_timetable
                 appState.roomTimetables.filter(r => 
                   parseToIso(getVal(r, 'room_date', 'date')) === isoDate && 
                   parseClassNum(getVal(r, 'room_class', 'class')) === classNum && 
@@ -1031,7 +1092,6 @@
 
                 let contentText = '-';
 
-                // 2개 이상 중복 일정 서식 (분홍 바탕 + 빨간 글씨 + 기울임꼴)
                 if (items.length === 1) {
                   contentText = items[0];
                 } else if (items.length >= 2) {
@@ -1211,7 +1271,9 @@
       alert('저장되었습니다.');
     }
 
-    // 학년 관리자 서브탭
+    // ====================================================
+    // [학년 관리자] 전체 세부 요구사항 전면 구현
+    // ====================================================
     function switchAdminSub(type) {
       document.querySelectorAll('.subtab-btn').forEach(b => {
         if (b.id && b.id.startsWith('adm-subtab-')) {
@@ -1222,73 +1284,521 @@
       if (activeBtn) activeBtn.className = "subtab-btn px-3 sm:px-4 py-2 border-b-2 border-indigo-600 text-indigo-600 font-bold";
 
       const container = document.getElementById('admin-subview-container');
+
+      // 1) 학년 기초 설정
       if (type === 'basic') {
+        const yearStart = `${appState.currentYear}-02-01`;
+        const leapYear = (appState.currentYear + 1) % 4 === 0;
+        const yearEnd = `${appState.currentYear + 1}-02-${leapYear ? '29' : '28'}`;
+
+        let classEditHtml = '';
+        appState.classes.forEach((c, idx) => {
+          classEditHtml += `
+            <div class="flex items-center gap-1.5">
+              <input type="text" id="cls-input-${idx}" value="${c}" class="p-1.5 border rounded text-xs text-center font-bold w-20">
+              <button onclick="updateClassName(${idx})" class="p-1 text-gray-500 hover:text-indigo-600" title="이름 수정"><i class="fa-solid fa-pen"></i></button>
+            </div>`;
+        });
+
+        let teacherListHtml = appState.listTeachers.map((t, idx) => `
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 rounded text-xs font-bold">
+            ${t} <button onclick="deleteTeacherName(${idx})" class="text-red-500 hover:text-red-700 ml-1">×</button>
+          </span>`).join(' ');
+
+        let homeroomHtml = appState.classes.map((c, idx) => `
+          <div class="flex items-center justify-between p-2 border rounded bg-gray-50 text-xs">
+            <span class="font-bold">${c} 담임:</span>
+            <input type="text" value="${appState.homeroomTeachers[c] || ''}" onchange="appState.homeroomTeachers['${c}']=this.value; renderOverviewTable();" placeholder="교사명" class="p-1 border rounded text-center w-28">
+          </div>`).join('');
+
+        const specSubjects = appState.listSub.filter(s => s.isSpecialist);
+        let specSubjectOptions = specSubjects.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+
+        let specialistListHtml = appState.specialistTeachers.map((st, idx) => `
+          <tr class="text-xs text-center border-b">
+            <td class="p-2">${st.subject}</td>
+            <td class="p-2">${st.classes.join(', ')}</td>
+            <td class="p-2 font-bold">${st.teacher}</td>
+            <td class="p-2">${st.semester || `${st.start}~${st.end}`}</td>
+            <td class="p-2"><button onclick="appState.specialistTeachers.splice(${idx},1); switchAdminSub('basic');" class="text-red-600 font-bold">삭제</button></td>
+          </tr>`).join('');
+
         container.innerHTML = `
-          <div class="p-4 sm:p-6 border rounded-xl bg-white space-y-4 sm:space-y-6 text-sm sm:text-base shadow-sm">
+          <div class="space-y-6">
+            <!-- 1. 학년도 설정 -->
+            <div class="p-4 sm:p-5 border rounded-xl bg-white shadow-sm space-y-4">
+              <h4 class="font-bold text-base sm:text-lg border-b pb-2 text-indigo-700">📅 학년도 설정</h4>
+              <div class="flex items-center gap-3">
+                <label class="font-bold text-xs sm:text-sm">학년도 선택:</label>
+                <input type="number" value="${appState.currentYear}" onchange="appState.currentYear=parseInt(this.value); switchAdminSub('basic');" class="p-2 border rounded w-28 text-center font-bold">
+                <span class="text-xs text-gray-500">(적용 범위: ${yearStart} ~ ${yearEnd})</span>
+              </div>
+
+              <!-- 학기 및 방학 기간 설정 -->
+              <div class="border-t pt-3 space-y-3">
+                <h5 class="font-bold text-xs sm:text-sm text-gray-800">학기 및 방학 기간 설정</h5>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div class="flex items-center gap-2">
+                    <span class="w-16 font-bold">1학기:</span>
+                    <input type="date" min="${yearStart}" max="${yearEnd}" value="${appState.semesters.s1_start}" onchange="appState.semesters.s1_start=this.value" class="p-1.5 border rounded"> ~ 
+                    <input type="date" min="${yearStart}" max="${yearEnd}" value="${appState.semesters.s1_end}" onchange="appState.semesters.s1_end=this.value" class="p-1.5 border rounded">
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="w-16 font-bold text-blue-600">여름방학:</span>
+                    <input type="date" min="${yearStart}" max="${yearEnd}" value="${appState.semesters.summer_start}" onchange="appState.semesters.summer_start=this.value" class="p-1.5 border rounded"> ~ 
+                    <input type="date" min="${yearStart}" max="${yearEnd}" value="${appState.semesters.summer_end}" onchange="appState.semesters.summer_end=this.value" class="p-1.5 border rounded">
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="w-16 font-bold">2학기:</span>
+                    <input type="date" min="${yearStart}" max="${yearEnd}" value="${appState.semesters.s2_start}" onchange="appState.semesters.s2_start=this.value" class="p-1.5 border rounded"> ~ 
+                    <input type="date" min="${yearStart}" max="${yearEnd}" value="${appState.semesters.s2_end}" onchange="appState.semesters.s2_end=this.value" class="p-1.5 border rounded">
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="w-16 font-bold text-purple-600">겨울방학:</span>
+                    <input type="date" min="${yearStart}" max="${yearEnd}" value="${appState.semesters.winter_start}" onchange="appState.semesters.winter_start=this.value" class="p-1.5 border rounded"> ~ 
+                    <input type="date" min="${yearStart}" max="${yearEnd}" value="${appState.semesters.winter_end}" onchange="appState.semesters.winter_end=this.value" class="p-1.5 border rounded">
+                  </div>
+                </div>
+                <button onclick="saveSemesterSettings()" class="px-3 py-1.5 bg-indigo-600 text-white rounded font-bold text-xs">기간 저장</button>
+              </div>
+            </div>
+
+            <!-- 2. 기초 일정 -->
+            <div class="p-4 sm:p-5 border rounded-xl bg-white shadow-sm space-y-4">
+              <div class="flex justify-between items-center border-b pb-2">
+                <h4 class="font-bold text-base sm:text-lg text-indigo-700">📌 기초 일정 관리</h4>
+                <div class="flex gap-2">
+                  <button onclick="downloadCSVTemplate()" class="px-2.5 py-1 border rounded text-xs font-bold hover:bg-gray-100"><i class="fa-solid fa-download"></i> 양식 다운로드</button>
+                  <input type="file" id="csv-file-input" accept=".csv" class="hidden" onchange="handleCSVUpload(this)">
+                  <button onclick="document.getElementById('csv-file-input').click()" class="px-2.5 py-1 bg-emerald-600 text-white rounded text-xs font-bold"><i class="fa-solid fa-file-csv"></i> CSV 일괄 추가</button>
+                </div>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
+                <input type="text" id="admin-task-name" placeholder="학교 행사명*" class="p-2 border rounded">
+                <input type="date" id="admin-task-start" min="${yearStart}" max="${yearEnd}" class="p-2 border rounded">
+                <input type="date" id="admin-task-end" min="${yearStart}" max="${yearEnd}" class="p-2 border rounded" placeholder="종료일(선택)">
+                <button onclick="addBasicSchoolTask()" class="bg-indigo-600 text-white font-bold rounded p-2 hover:bg-indigo-700">행사 추가</button>
+              </div>
+            </div>
+
+            <!-- 3. 학급 및 교사 설정 -->
+            <div class="p-4 sm:p-5 border rounded-xl bg-white shadow-sm space-y-5">
+              <h4 class="font-bold text-base sm:text-lg border-b pb-2 text-indigo-700">🏫 학급 및 교사 설정</h4>
+              
+              <!-- 학급 설정 -->
+              <div class="space-y-3">
+                <div class="flex items-center gap-3">
+                  <label class="font-bold text-xs">학급 수 설정:</label>
+                  <input type="number" value="${appState.classCount}" onchange="appState.classCount=parseInt(this.value); appState.classes=Array.from({length:appState.classCount},(_,i)=>(i+1)+'반'); switchAdminSub('basic'); renderOverviewTable();" class="p-1.5 border rounded w-16 text-center font-bold text-xs">
+                </div>
+                <div class="flex flex-wrap gap-2 pt-1">${classEditHtml}</div>
+              </div>
+
+              <!-- 교사 이름 관리 -->
+              <div class="border-t pt-3 space-y-2">
+                <h5 class="font-bold text-xs text-gray-800">교사 이름 목록 (list_t)</h5>
+                <div class="flex flex-wrap gap-2 items-center min-h-[32px]">${teacherListHtml}</div>
+                <div class="flex gap-2 text-xs pt-1">
+                  <input type="text" id="new-teacher-name" placeholder="교사 이름 추가" class="p-1.5 border rounded w-36">
+                  <button onclick="addTeacherName()" class="px-3 py-1 bg-gray-800 text-white rounded font-bold">추가</button>
+                </div>
+              </div>
+
+              <!-- 담임 & 전담 교사 구역 -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-3">
+                <!-- 담임교사 구역 -->
+                <div class="space-y-2 border p-3 rounded bg-slate-50">
+                  <h5 class="font-bold text-xs text-indigo-700 border-b pb-1">👩‍🏫 담임교사 설정</h5>
+                  <div class="space-y-1.5 max-h-56 overflow-y-auto">${homeroomHtml}</div>
+                </div>
+
+                <!-- 전담교사 구역 -->
+                <div class="space-y-2 border p-3 rounded bg-slate-50">
+                  <h5 class="font-bold text-xs text-indigo-700 border-b pb-1">👨‍🔬 전담교사 설정</h5>
+                  <div class="space-y-2 text-xs">
+                    <div class="grid grid-cols-2 gap-2">
+                      <select id="spec-sel-sub" class="p-1.5 border rounded font-bold"><option value="">과목 선택(전담)</option>${specSubjectOptions}</select>
+                      <input type="text" id="spec-teacher-name" placeholder="교사 이름" class="p-1.5 border rounded">
+                    </div>
+                    <div>
+                      <span class="font-bold text-[11px] text-gray-600">담당학급 선택:</span>
+                      <div class="flex flex-wrap gap-2 pt-1">${appState.classes.map(c => `<label class="inline-flex items-center gap-1"><input type="checkbox" name="spec-cls" value="${c}"> ${c}</label>`).join('')}</div>
+                    </div>
+                    <div class="flex items-center gap-2 pt-1">
+                      <label class="font-bold"><input type="radio" name="spec-period-type" value="semester" checked onclick="toggleSpecPeriodType('sem')"> 학기선택</label>
+                      <label class="font-bold"><input type="radio" name="spec-period-type" value="custom" onclick="toggleSpecPeriodType('custom')"> 기간 직접입력</label>
+                    </div>
+                    <div id="spec-period-sem-box" class="flex gap-3">
+                      <label><input type="checkbox" id="spec-sem-1" value="1학기" checked> 1학기</label>
+                      <label><input type="checkbox" id="spec-sem-2" value="2학기" checked> 2학기</label>
+                    </div>
+                    <div id="spec-period-custom-box" class="hidden flex gap-2">
+                      <input type="date" id="spec-date-start" class="p-1 border rounded"> ~ <input type="date" id="spec-date-end" class="p-1 border rounded">
+                    </div>
+                    <button onclick="addSpecialistTeacherMapping()" class="w-full py-1.5 bg-indigo-600 text-white font-bold rounded">전담 매칭 저장</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 등록된 전담 매칭 표 -->
+              <div class="overflow-x-auto border rounded">
+                <table class="w-full text-xs">
+                  <thead class="bg-gray-100 font-bold"><tr><th class="p-2 border">과목</th><th class="p-2 border">담당학급</th><th class="p-2 border">교사명</th><th class="p-2 border">기간</th><th class="p-2 border">관리</th></tr></thead>
+                  <tbody>${specialistListHtml || '<tr><td colspan="5" class="p-3 text-center text-gray-400">등록된 전담 매칭 정보가 없습니다.</td></tr>'}</tbody>
+                </table>
+              </div>
+            </div>
+          </div>`;
+      } 
+      // 2) 시간표 설정
+      else if (type === 'timetable') {
+        let subRowsHtml = appState.listSub.map((s, idx) => `
+          <tr class="text-xs text-center border-b">
+            <td class="p-2 font-bold"><input type="text" value="${s.name}" onchange="appState.listSub[${idx}].name=this.value" class="w-full text-center border p-1 rounded"></td>
+            <td class="p-2"><input type="number" value="${s.hours}" onchange="appState.listSub[${idx}].hours=parseInt(this.value)" class="w-16 text-center border p-1 rounded"></td>
+            <td class="p-2"><input type="checkbox" ${s.isSpecialist ? 'checked' : ''} onchange="appState.listSub[${idx}].isSpecialist=this.checked"></td>
+            <td class="p-2"><button onclick="appState.listSub.splice(${idx},1); switchAdminSub('timetable');" class="text-red-600 font-bold">삭제</button></td>
+          </tr>`).join('');
+
+        let timeRowsHtml = appState.listTime.map((t, idx) => `
+          <div class="flex items-center gap-2">
+            <input type="text" value="${t}" onchange="appState.listTime[${idx}]=this.value" class="p-1.5 border rounded text-xs text-center font-bold w-28">
+            <button onclick="appState.listTime.splice(${idx},1); switchAdminSub('timetable');" class="text-red-600 font-bold text-xs">삭제</button>
+          </div>`).join('');
+
+        container.innerHTML = `
+          <div class="space-y-6">
+            <!-- 과목 설정 -->
+            <div class="p-4 sm:p-5 border rounded-xl bg-white shadow-sm space-y-4">
+              <h4 class="font-bold text-base sm:text-lg border-b pb-2 text-indigo-700">📚 과목 및 시수 설정 (list_sub)</h4>
+              <div class="overflow-x-auto border rounded">
+                <table class="w-full text-xs">
+                  <thead class="bg-gray-100 font-bold"><tr><th class="p-2 border">과목명</th><th class="p-2 border">주당 시수</th><th class="p-2 border">전담 과목 여부</th><th class="p-2 border">관리</th></tr></thead>
+                  <tbody>${subRowsHtml}</tbody>
+                </table>
+              </div>
+              <div class="flex gap-2 text-xs pt-2">
+                <input type="text" id="new-sub-name" placeholder="신규 과목명" class="p-2 border rounded">
+                <input type="number" id="new-sub-hours" placeholder="시수" value="2" class="p-2 border rounded w-20">
+                <label class="inline-flex items-center gap-1 font-bold"><input type="checkbox" id="new-sub-spec"> 전담과목</label>
+                <button onclick="addNewSubject()" class="px-4 py-2 bg-indigo-600 text-white rounded font-bold">과목 추가</button>
+              </div>
+            </div>
+
+            <!-- 교시 설정 -->
+            <div class="p-4 sm:p-5 border rounded-xl bg-white shadow-sm space-y-4">
+              <h4 class="font-bold text-base sm:text-lg border-b pb-2 text-indigo-700">⏰ 교시 설정 (list_time)</h4>
+              <div class="flex flex-wrap gap-3">${timeRowsHtml}</div>
+              <div class="flex gap-2 text-xs pt-2">
+                <input type="text" id="new-time-name" placeholder="예: 7교시" class="p-2 border rounded w-32">
+                <button onclick="const v=document.getElementById('new-time-name').value; if(v){appState.listTime.push(v); switchAdminSub('timetable');}" class="px-4 py-2 bg-gray-800 text-white rounded font-bold">교시 추가</button>
+              </div>
+            </div>
+          </div>`;
+      }
+      // 3) 공간 개방 설정
+      else if (type === 'rooms') {
+        const placeColors = ['#CFE2F3', '#FCE5CD', '#D9EAD3', '#FFFEB5', '#E4D7F5'];
+
+        let gymListHtml = appState.listGym.map((g, idx) => `
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-bold" style="background-color: ${placeColors[idx%placeColors.length]}">
+            ${g} <button onclick="appState.listGym.splice(${idx},1); switchAdminSub('rooms');" class="text-red-600 ml-1">×</button>
+          </span>`).join(' ');
+
+        let roomListHtml = appState.listRoom.map((r, idx) => `
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-bold" style="background-color: ${placeColors[(idx+2)%placeColors.length]}">
+            ${r} <button onclick="appState.listRoom.splice(${idx},1); switchAdminSub('rooms');" class="text-red-600 ml-1">×</button>
+          </span>`).join(' ');
+
+        container.innerHTML = `
+          <div class="space-y-6">
+            <!-- 상단 2칸 공간 목록 -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="p-4 border rounded-xl bg-white shadow-sm space-y-3">
+                <h4 class="font-bold text-sm text-indigo-700 border-b pb-2">🏀 체육 공간 (list_gym)</h4>
+                <div class="flex flex-wrap gap-2">${gymListHtml}</div>
+                <div class="flex gap-2 text-xs pt-1">
+                  <input type="text" id="new-gym-name" placeholder="예: 강당, 다목적1" class="p-1.5 border rounded w-36">
+                  <button onclick="const v=document.getElementById('new-gym-name').value; if(v){appState.listGym.push(v); switchAdminSub('rooms');}" class="px-3 py-1 bg-indigo-600 text-white font-bold rounded">추가</button>
+                </div>
+              </div>
+              <div class="p-4 border rounded-xl bg-white shadow-sm space-y-3">
+                <h4 class="font-bold text-sm text-indigo-700 border-b pb-2">🎨 특별실 (list_room)</h4>
+                <div class="flex flex-wrap gap-2">${roomListHtml}</div>
+                <div class="flex gap-2 text-xs pt-1">
+                  <input type="text" id="new-room-name" placeholder="예: 음악실, 미술실" class="p-1.5 border rounded w-36">
+                  <button onclick="const v=document.getElementById('new-room-name').value; if(v){appState.listRoom.push(v); switchAdminSub('rooms');}" class="px-3 py-1 bg-indigo-600 text-white font-bold rounded">추가</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 체육 공간 / 특별실 설정 표 (1학기/2학기) -->
+            <div class="p-4 border rounded-xl bg-white shadow-sm space-y-4">
+              <h4 class="font-bold text-base text-gray-900 border-b pb-2">📅 요일/교시별 개방 시간표 격자 설정</h4>
+              <p class="text-xs text-gray-500">체크한 요일/교시/공간 정보가 시간표 페이지의 특별실 시간표에서 예약 가능 구역으로 반영됩니다.</p>
+              ${renderSpaceGridTable('체육 공간 설정', appState.listGym, placeColors)}
+              ${renderSpaceGridTable('특별실 개방 설정', appState.listRoom, placeColors)}
+            </div>
+
+            <!-- 예외 설정 구역 -->
+            <div class="p-4 border rounded-xl bg-white shadow-sm space-y-4">
+              <h4 class="font-bold text-base text-gray-900 border-b pb-2">⚙️ 예외 설정 (일별 개방/폐쇄 지정)</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- 닫힌 곳 열기 (파란색/하늘색) -->
+                <div class="p-3 border rounded bg-blue-50/50 space-y-3">
+                  <h5 class="font-bold text-xs text-blue-700">🔵 닫힌 곳 열기 (추가 개방)</h5>
+                  <div class="grid grid-cols-3 gap-1.5 text-xs">
+                    <input type="date" id="open-exc-date" class="p-1 border rounded">
+                    <select id="open-exc-time" class="p-1 border rounded">${appState.listTime.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+                    <select id="open-exc-space" class="p-1 border rounded">${[...appState.listGym, ...appState.listRoom].map(s=>`<option value="${s}">${s}</option>`).join('')}</select>
+                  </div>
+                  <button onclick="addException('open')" class="w-full py-1.5 bg-blue-600 text-white font-bold rounded text-xs">추가</button>
+                  <div id="open-exc-list" class="flex flex-wrap gap-1.5 pt-2">
+                    ${appState.exceptionsOpen.map((ex, idx)=>`<span class="px-2 py-1 bg-[#CFE2F3] text-blue-900 rounded text-[11px] font-bold flex items-center gap-1">${ex.date} ${ex.time}${ex.space} <button onclick="appState.exceptionsOpen.splice(${idx},1); switchAdminSub('rooms');" class="text-red-600">×</button></span>`).join('')}
+                  </div>
+                </div>
+
+                <!-- 열린 곳 닫기 (빨간색/분홍색) -->
+                <div class="p-3 border rounded bg-red-50/50 space-y-3">
+                  <h5 class="font-bold text-xs text-red-700">🔴 열린 곳 닫기 (임시 폐쇄)</h5>
+                  <div class="grid grid-cols-3 gap-1.5 text-xs">
+                    <input type="date" id="close-exc-date" class="p-1 border rounded">
+                    <select id="close-exc-time" class="p-1 border rounded">${appState.listTime.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+                    <select id="close-exc-space" class="p-1 border rounded">${[...appState.listGym, ...appState.listRoom].map(s=>`<option value="${s}">${s}</option>`).join('')}</select>
+                  </div>
+                  <button onclick="addException('close')" class="w-full py-1.5 bg-red-600 text-white font-bold rounded text-xs">추가</button>
+                  <div id="close-exc-list" class="flex flex-wrap gap-1.5 pt-2">
+                    ${appState.exceptionsClose.map((ex, idx)=>`<span class="px-2 py-1 bg-[#FCE8E6] text-red-900 rounded text-[11px] font-bold flex items-center gap-1">${ex.date} ${ex.time}${ex.space} <button onclick="appState.exceptionsClose.splice(${idx},1); switchAdminSub('rooms');" class="text-red-600">×</button></span>`).join('')}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>`;
+      } 
+      // 4) 비밀번호/데이터 관리
+      else if (type === 'security') {
+        container.innerHTML = `
+          <div class="p-4 sm:p-6 border rounded-xl bg-white space-y-6 text-sm sm:text-base shadow-sm">
             <div>
-              <h4 class="font-bold text-base sm:text-lg mb-2">📅 학년도 및 학기 기간 설정</h4>
-              <div class="flex items-center gap-3">
-                <input type="number" value="${appState.currentYear}" class="p-2 border rounded w-28 text-center font-bold">
-                <span class="text-xs sm:text-sm text-gray-500">(적용: ${appState.currentYear}.02.01 ~ ${appState.currentYear+1}.02.28)</span>
+              <h4 class="font-bold text-base sm:text-lg border-b pb-2 text-indigo-700">🔒 비밀번호 설정</h4>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md pt-3">
+                <div>
+                  <label class="block text-xs font-bold mb-1">페이지 공통 접근 비밀번호</label>
+                  <input type="text" id="adm-common-pw" value="${appState.commonPw}" class="w-full p-2 border rounded font-bold text-xs">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold mb-1">관리자 페이지 접근 비밀번호</label>
+                  <input type="text" id="adm-admin-pw" value="${appState.adminPw}" class="w-full p-2 border rounded font-bold text-xs">
+                </div>
               </div>
+              <button onclick="appState.commonPw=document.getElementById('adm-common-pw').value; appState.adminPw=document.getElementById('adm-admin-pw').value; alert('비밀번호가 변경되었습니다.');" class="mt-3 px-4 py-2 bg-indigo-600 text-white font-bold rounded text-xs">비밀번호 저장</button>
             </div>
+
             <div class="border-t pt-4">
-              <h4 class="font-bold text-base sm:text-lg mb-2">🏫 학급 수 설정</h4>
-              <div class="flex items-center gap-3">
-                <input type="number" value="${appState.classCount}" onchange="appState.classCount=parseInt(this.value); appState.classes=Array.from({length:appState.classCount},(_,i)=>(i+1)+'반'); renderOverviewTable();" class="p-2 border rounded w-20 text-center font-bold">
-                <span class="text-xs sm:text-sm text-gray-500">수정 시 6학년 개요 열이 균등 배분으로 실시간 변경됩니다.</span>
+              <h4 class="font-bold text-base sm:text-lg text-red-600 mb-2">⚠️ 과거 데이터 삭제</h4>
+              <p class="text-xs text-gray-500 mb-3">선택한 학년도의 모든 일정, 시간표, 예산 매칭 데이터를 영구 삭제합니다.</p>
+              <div class="flex items-center gap-2">
+                <select id="delete-year-sel" class="p-2 border rounded text-xs font-bold">
+                  <option value="2025">2025학년도</option>
+                  <option value="2026" selected>2026학년도</option>
+                </select>
+                <button onclick="executeDataDeletion()" class="px-4 py-2 bg-red-600 text-white rounded font-bold text-xs">과거 데이터 삭제</button>
               </div>
             </div>
           </div>`;
-      } else if (type === 'security') {
-        container.innerHTML = `
-          <div class="p-4 sm:p-6 border rounded-xl bg-white space-y-4 sm:space-y-6 text-sm sm:text-base shadow-sm">
-            <h4 class="font-bold text-base sm:text-lg border-b pb-3">🔒 비밀번호 및 과거 데이터 관리</h4>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
-              <div>
-                <label class="block text-xs sm:text-sm font-bold mb-1">페이지 공통 비밀번호</label>
-                <input type="text" id="adm-common-pw" value="${appState.commonPw}" class="w-full p-2 border rounded font-bold">
-              </div>
-              <div>
-                <label class="block text-xs sm:text-sm font-bold mb-1">관리자 접속 비밀번호</label>
-                <input type="text" id="adm-admin-pw" value="${appState.adminPw}" class="w-full p-2 border rounded font-bold">
-              </div>
-            </div>
-            <button onclick="appState.commonPw=document.getElementById('adm-common-pw').value; appState.adminPw=document.getElementById('adm-admin-pw').value; alert('저장되었습니다.');" class="px-4 py-2 bg-indigo-600 text-white font-bold rounded text-xs sm:text-sm">저장하기</button>
-            
-            <div class="border-t pt-4">
-              <h5 class="font-bold text-red-600 mb-2">⚠️ 과거 데이터 삭제</h5>
-              <button onclick="if(prompt('복구할 수 없습니다. 삭제하시려면 [과거 데이터 삭제]를 정확히 입력하세요.')==='과거 데이터 삭제') alert('삭제되었습니다.');" class="px-3.5 py-2 bg-red-600 text-white rounded font-bold text-xs">과거 데이터 삭제</button>
-            </div>
-          </div>`;
-      } else {
-        container.innerHTML = `<div class="p-6 border rounded-xl bg-white text-center text-sm text-gray-500">${type} 관리 패널</div>`;
       }
     }
 
-    // 모달 제어
-    function openPhotoModal(idx) {
-      document.getElementById('photo-modal').classList.remove('hidden');
-    }
-    function closePhotoModal() {
-      document.getElementById('photo-modal').classList.add('hidden');
-    }
-    function savePhotoModal() {
-      alert('저장되었습니다.');
-      closePhotoModal();
+    function renderSpaceGridTable(title, spaces, colors) {
+      if (spaces.length === 0) return `<div class="p-3 border rounded text-xs text-gray-400 text-center">${title}: 등록된 공간이 없습니다.</div>`;
+
+      const days = ['월', '화', '수', '목', '금'];
+      let headerCols = `<th class="p-1 border w-12 bg-gray-100">교시</th>`;
+      spaces.forEach((s, idx) => {
+        headerCols += `<th class="p-1 border" style="background-color: ${colors[idx%colors.length]}">${s}</th>`;
+      });
+
+      let rowsHtml = '';
+      appState.listTime.forEach(timeStr => {
+        rowsHtml += `<tr><td class="p-1 border bg-gray-50 font-bold text-center">${timeStr}</td>`;
+        spaces.forEach((s, idx) => {
+          rowsHtml += `<td class="p-1 border text-center" style="background-color: ${colors[idx%colors.length]}22"><input type="checkbox" class="w-4 h-4 cursor-pointer"></td>`;
+        });
+        rowsHtml += `</tr>`;
+      });
+
+      return `
+        <div class="border rounded p-3 bg-slate-50 space-y-2">
+          <div class="flex justify-between items-center cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+            <span class="font-bold text-xs sm:text-sm text-indigo-700">🏢 ${title}</span>
+            <i class="fa-solid fa-chevron-down text-xs text-gray-400"></i>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs border-collapse bg-white">
+              <thead><tr class="bg-gray-100 font-bold">${headerCols}</tr></thead>
+              <tbody>${rowsHtml}</tbody>
+            </table>
+          </div>
+        </div>`;
     }
 
-    function addShortcutPrompt() {
-      const name = prompt('바로가기 이름을 입력하세요:');
-      const url = prompt('URL 주소를 입력하세요 (https://포함):');
-      if (name && url) {
-        const grid = document.getElementById('shortcuts-grid');
-        const item = document.createElement('a');
-        item.href = url;
-        item.target = "_blank";
-        item.className = "p-3 sm:p-4 border rounded-xl bg-slate-50 hover:bg-indigo-50 text-center flex flex-col items-center justify-center gap-2 shadow-sm";
-        item.innerHTML = `<i class="fa-solid fa-link text-indigo-600 text-xl sm:text-2xl"></i><span class="text-xs sm:text-sm font-bold truncate w-full">${name}</span>`;
-        grid.appendChild(item);
+    // 관리자 이벤트 헬퍼들
+    function updateClassName(idx) {
+      const val = document.getElementById(`cls-input-${idx}`).value;
+      if (val) {
+        appState.classes[idx] = val;
+        renderOverviewTable();
+        alert('학급 이름이 수정되었습니다.');
+      }
+    }
+
+    function addTeacherName() {
+      const input = document.getElementById('new-teacher-name');
+      if (input.value && !appState.listTeachers.includes(input.value)) {
+        appState.listTeachers.push(input.value);
+        switchAdminSub('basic');
+      }
+    }
+
+    function deleteTeacherName(idx) {
+      appState.listTeachers.splice(idx, 1);
+      switchAdminSub('basic');
+    }
+
+    function toggleSpecPeriodType(type) {
+      if (type === 'sem') {
+        document.getElementById('spec-period-sem-box').classList.remove('hidden');
+        document.getElementById('spec-period-custom-box').classList.add('hidden');
+      } else {
+        document.getElementById('spec-period-sem-box').classList.add('hidden');
+        document.getElementById('spec-period-custom-box').classList.remove('hidden');
+      }
+    }
+
+    function addSpecialistTeacherMapping() {
+      const sub = document.getElementById('spec-sel-sub').value;
+      const teacher = document.getElementById('spec-teacher-name').value;
+      const checkedClasses = Array.from(document.querySelectorAll('input[name="spec-cls"]:checked')).map(c => c.value);
+
+      if (!sub || !teacher || checkedClasses.length === 0) return alert('과목, 교사명, 담당학급을 올바르게 선택하세요.');
+
+      const isSem = document.querySelector('input[name="spec-period-type"]:checked').value === 'semester';
+      let semesterText = '';
+      let sDate = '', eDate = '';
+
+      if (isSem) {
+        const s1 = document.getElementById('spec-sem-1').checked;
+        const s2 = document.getElementById('spec-sem-2').checked;
+        if (s1 && s2) semesterText = '1학기, 2학기';
+        else if (s1) semesterText = '1학기';
+        else if (s2) semesterText = '2학기';
+      } else {
+        sDate = document.getElementById('spec-date-start').value;
+        eDate = document.getElementById('spec-date-end').value;
+      }
+
+      appState.specialistTeachers.push({
+        subject: sub,
+        classes: checkedClasses,
+        teacher: teacher,
+        semester: semesterText,
+        start: sDate,
+        end: eDate
+      });
+
+      switchAdminSub('basic');
+    }
+
+    function addNewSubject() {
+      const name = document.getElementById('new-sub-name').value;
+      const hours = parseInt(document.getElementById('new-sub-hours').value) || 2;
+      const isSpec = document.getElementById('new-sub-spec').checked;
+
+      if (name) {
+        appState.listSub.push({ name: name, hours: hours, isSpecialist: isSpec });
+        switchAdminSub('timetable');
+      }
+    }
+
+    function saveSemesterSettings() {
+      alert('학기 및 방학 기간 설정이 저장되었습니다.');
+      loadBasicSettings();
+      filterSchedule('today');
+    }
+
+    function addBasicSchoolTask() {
+      const name = document.getElementById('admin-task-name').value;
+      const start = document.getElementById('admin-task-start').value;
+      const end = document.getElementById('admin-task-end').value;
+
+      if (name && start) {
+        appState.schoolTasks.push({
+          task_school_name: name,
+          task_school_date_start: start,
+          task_school_date_end: end || start
+        });
+        alert('행사가 추가되었습니다.');
+        updateVacationCeremonyDDay();
+        filterSchedule('today');
+      }
+    }
+
+    function downloadCSVTemplate() {
+      const csvContent = "data:text/csv;charset=utf-8,\uFEFF학교행사명,시작일,종료일\n여름방학식,2026-07-20,2026-07-20\n개학식,2026-08-24,2026-08-24";
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "기초일정_업로드양식.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function handleCSVUpload(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const lines = e.target.result.split('\n');
+        let count = 0;
+        for (let i = 1; i < lines.length; i++) {
+          const parts = lines[i].split(',');
+          if (parts.length >= 2 && parts[0].trim()) {
+            appState.schoolTasks.push({
+              task_school_name: parts[0].trim(),
+              task_school_date_start: parseToIso(parts[1].trim()),
+              task_school_date_end: parseToIso((parts[2] || parts[1]).trim())
+            });
+            count++;
+          }
+        }
+        alert(`${count}개의 일정이 일괄 추가되었습니다.`);
+        updateVacationCeremonyDDay();
+        filterSchedule('today');
+      };
+      reader.readAsText(file, 'UTF-8');
+    }
+
+    function addException(type) {
+      const date = document.getElementById(`${type}-exc-date`).value;
+      const time = document.getElementById(`${type}-exc-time`).value;
+      const space = document.getElementById(`${type}-exc-space`).value;
+
+      if (date && time && space) {
+        if (type === 'open') appState.exceptionsOpen.push({ date, time, space });
+        else appState.exceptionsClose.push({ date, time, space });
+        switchAdminSub('rooms');
+      }
+    }
+
+    function executeDataDeletion() {
+      const targetYear = document.getElementById('delete-year-sel').value;
+      const confirmInput = prompt(`⚠️ 경고: ${targetYear}학년도의 모든 데이터가 영구 삭제됩니다.\n복구할 수 없습니다.\n삭제하시려면 [과거 데이터 삭제]를 정확히 입력하세요.`);
+      if (confirmInput === '과거 데이터 삭제') {
+        alert(`${targetYear}학년도 과거 데이터 삭제가 완료되었습니다.`);
+      } else {
+        alert('문구가 일치하지 않아 삭제가 취소되었습니다.');
       }
     }
   </script>
