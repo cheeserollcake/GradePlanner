@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>예산</title>
+  <script>window.__GP_PAGE__ = 'budget';</script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+  <script src="../assets/js/firebase-config.js"></script>
+  <script src="../assets/js/gas-shim.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body { font-family: 'Pretendard', sans-serif; background:#f8fafc; }
+    th, td { border:1px solid #e2e8f0; padding:6px 8px; font-size:14px; }
+    th { background:#f1f5f9; white-space:nowrap; }
+  </style>
+</head>
+<body class="p-4 md:p-6 text-slate-800">
+  <div class="max-w-7xl mx-auto space-y-5">
+    <div class="flex items-center justify-between">
+      <h1 class="text-2xl font-bold">예산</h1>
+      <div class="flex gap-2">
+        <button id="tab-budget" class="px-4 py-1.5 rounded-full text-sm font-bold bg-indigo-600 text-white">예산 내역</button>
+        <button id="tab-supply" class="px-4 py-1.5 rounded-full text-sm font-bold bg-slate-100 text-slate-600">학습준비물</button>
+      </div>
+    </div>
+    <div id="cards" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"></div>
+    <div class="flex flex-wrap items-center gap-2" id="filters"></div>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto"><table class="w-full" id="tbl"></table></div>
+    <div id="msg" class="text-slate-400 text-center py-6 hidden">데이터가 없습니다.</div>
+  </div>
+<script>
+const { getCol, getLists, num, str, natural } = GP;
+const fmt = (n) => Number(n).toLocaleString();
+const link = (u) => u ? '<a class="text-blue-600 underline" target="_blank" rel="noopener" href="' + encodeURI(u) + '">링크</a>' : '';
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let mode = 'budget', budgetRows = [], supplyRows = [], filters = {};
+
+function setMode(m) {
+  mode = m; filters = {};
+  document.getElementById('tab-budget').className = 'px-4 py-1.5 rounded-full text-sm font-bold ' + (m === 'budget' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600');
+  document.getElementById('tab-supply').className = 'px-4 py-1.5 rounded-full text-sm font-bold ' + (m === 'supply' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600');
+  render();
+}
+function select(label, key, values) {
+  const opts = ['<option value="">' + label + ' 전체</option>'].concat(values.map((v) => '<option ' + (filters[key] === v ? 'selected' : '') + ' value="' + esc(v) + '">' + esc(v) + '</option>')).join('');
+  return '<select data-k="' + key + '" class="border rounded-lg px-3 py-1.5 bg-white text-sm">' + opts + '</select>';
+}
+function render() {
+  const tbl = document.getElementById('tbl'), f = document.getElementById('filters'), msg = document.getElementById('msg');
+  const uniq = (rows, k) => [...new Set(rows.map((r) => str(r[k]).trim()).filter(Boolean))].sort(natural);
+  let html = '', rows;
+  if (mode === 'budget') {
+    f.innerHTML = select('예산종류', 'name', uniq(budgetRows, 'budget_name')) + select('품의상태', 'pumui', uniq(budgetRows, 'budget_pumui'));
+    rows = budgetRows.filter((r) => (!filters.name || str(r.budget_name) === filters.name) && (!filters.pumui || str(r.budget_pumui) === filters.pumui));
+    html = '<thead><tr><th>예산종류</th><th>품명</th><th>규격/구입처</th><th>수량</th><th>단가</th><th>금액</th><th>링크</th><th>품의상태</th><th>완료상태</th><th>비고</th></tr></thead><tbody>';
+    let sum = 0;
+    rows.forEach((r) => { const amt = num(r.budget_num) * num(r.budget_price); sum += amt;
+      html += '<tr><td>' + esc(r.budget_name) + '</td><td>' + esc(r.budget_product) + '</td><td>' + esc(r.budget_spec) + '</td><td class="text-right">' + fmt(num(r.budget_num)) + '</td><td class="text-right">' + fmt(num(r.budget_price)) + '</td><td class="text-right font-semibold">' + fmt(amt) + '</td><td>' + link(r.budget_link) + '</td><td>' + esc(r.budget_pumui) + '</td><td>' + esc(r.budget_progress) + '</td><td>' + esc(r.budget_memo) + '</td></tr>'; });
+    html += '</tbody><tfoot><tr><th colspan="5" class="text-right">합계</th><th class="text-right">' + fmt(sum) + '</th><th colspan="4"></th></tr></tfoot>';
+  } else {
+    f.innerHTML = select('연도', 'year', uniq(supplyRows, 'supply_year')) + select('학기', 'sem', uniq(supplyRows, 'supply_semester')) + select('교과', 'sub', uniq(supplyRows, 'supply_sub')) + select('대상', 'cls', uniq(supplyRows, 'supply_class'));
+    rows = supplyRows.filter((r) => (!filters.year || str(r.supply_year) === filters.year) && (!filters.sem || str(r.supply_semester) === filters.sem) && (!filters.sub || str(r.supply_sub) === filters.sub) && (!filters.cls || str(r.supply_class) === filters.cls));
+    html = '<thead><tr><th>연도</th><th>학기</th><th>교과</th><th>대상</th><th>품명</th><th>규격</th><th>단위</th><th>단가</th><th>수량</th><th>금액</th><th>링크</th></tr></thead><tbody>';
+    let sum = 0;
+    rows.forEach((r) => { const amt = num(r.supply_price) * num(r.supply_class_num); sum += amt;
+      html += '<tr><td>' + esc(r.supply_year) + '</td><td>' + esc(r.supply_semester) + '</td><td>' + esc(r.supply_sub) + '</td><td>' + esc(r.supply_class) + '</td><td>' + esc(r.supply_product) + '</td><td>' + esc(r.supply_spec) + '</td><td>' + esc(r.supply_unit) + '</td><td class="text-right">' + fmt(num(r.supply_price)) + '</td><td class="text-right">' + fmt(num(r.supply_class_num)) + '</td><td class="text-right font-semibold">' + fmt(amt) + '</td><td>' + link(r.supply_link) + '</td></tr>'; });
+    html += '</tbody><tfoot><tr><th colspan="9" class="text-right">합계</th><th class="text-right">' + fmt(sum) + '</th><th></th></tr></tfoot>';
+  }
+  tbl.innerHTML = html; msg.classList.toggle('hidden', rows.length > 0);
+  f.querySelectorAll('select').forEach((s) => s.addEventListener('change', () => { filters[s.dataset.k] = s.value; render(); }));
+  document.getElementById('cards').style.display = mode === 'budget' ? '' : 'none';
+}
+(async function init() {
+  document.getElementById('tab-budget').onclick = () => setMode('budget');
+  document.getElementById('tab-supply').onclick = () => setMode('supply');
+  try {
+    [budgetRows, supplyRows] = await Promise.all([getCol('data_budget'), getCol('data_supply')]);
+    window.__GP_PAGE__ = 'p02'; const full = JSON.parse(await GP.SERVER.getInitialData()); window.__GP_PAGE__ = 'budget';
+    document.getElementById('cards').innerHTML = (full.budget || []).filter((c) => !String(c.name).includes('친목회비')).map((c) =>
+      '<div class="bg-white border border-slate-200 rounded-xl p-3 shadow-sm"><div class="font-bold text-sm border-b pb-1 mb-1">' + esc(c.name) + '</div>' +
+      '<div class="flex justify-between text-xs"><span>배정액</span><b>' + fmt(c.assigned) + '</b></div>' +
+      '<div class="flex justify-between text-xs"><span>사용액</span><b>' + fmt(c.used) + '</b></div>' +
+      '<div class="flex justify-between text-sm mt-1 pt-1 border-t"><span>잔액</span><b class="' + (c.balance < 0 ? 'text-red-600' : 'text-blue-700') + '">' + fmt(c.balance) + '</b></div></div>').join('');
+  } catch (e) { console.error(e); document.getElementById('msg').textContent = '데이터를 불러오지 못했습니다: ' + e.message; document.getElementById('msg').classList.remove('hidden'); }
+  render();
+})();
+</script>
+</body>
+</html>

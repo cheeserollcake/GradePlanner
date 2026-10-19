@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <script>window.__GP_PAGE__ = 'p03';</script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+  <script src="../assets/js/firebase-config.js"></script>
+  <script src="../assets/js/gas-shim.js"></script>
+
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- React 및 라이브러리 (unpkg 차단 및 Babel 호환성 문제로 cdnjs 및 Babel 7로 변경) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 스타일 정의 -->
+    <style>
+      @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+      
+      /* [기본 레이아웃 및 탭 메뉴] */
+      body { margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; background-color: #f8fafc; }
+      
+      #navbar {
+        display: none; /* 로그인 전 숨김 */
+        background-color: #ffffff;
+        border-bottom: 1px solid #e2e8f0;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        padding: 0.75rem 1rem;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        display: flex; /* Flexbox로 변경 */
+        gap: 0.5rem;
+        overflow-x: auto; /* 메뉴 많을 경우 스크롤 */
+      }
+      #navbar button {
+        display: block;
+        color: #334155;
+        text-align: center;
+        padding: 0.75rem 1.25rem;
+        text-decoration: none;
+        font-size: 1rem;
+        font-weight: 600;
+        background-color: #dbe3ff; /* 요청하신 배경색 */
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+        border-radius: 0.5rem; /* 버튼 둥글게 */
+        white-space: nowrap;
+      }
+      #navbar button:hover { background-color: #c7d2fe; color: #1e293b; }
+      #navbar button.active { background-color: #4f46e5; color: white; box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3); }
+      #navbar button.admin-btn { margin-left: auto; /* 관리자 버튼 우측 정렬 */ background-color: #f1f5f9; color: #64748b; }
+      #navbar button.admin-btn.active { background-color: #475569; color: white; }
+      
+      /* [페이지 섹션] */
+      .page-section { display: none; min-height: calc(100vh - 72px); }
+      .page-section.active { display: block; }
+
+      /* [로그인 화면] */
+      #login-container {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        height: 100vh; background-color: #f1f5f9;
+      }
+      .login-box {
+        background: white; padding: 2.5rem; border-radius: 1rem; 
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); text-align: center; width: 90%; max-width: 400px;
+      }
+      .login-box h2 { margin: 0 0 1rem 0; color: #1e293b; font-size: 1.5rem; }
+      .login-box input { 
+        padding: 0.75rem; margin: 1rem 0; width: 100%; box-sizing: border-box;
+        border: 1px solid #cbd5e1; border-radius: 0.5rem; font-size: 1rem;
+      }
+      .login-box button { 
+        width: 100%; padding: 0.75rem; background: #3b82f6; color: white; border: none; 
+        cursor: pointer; font-size: 1rem; border-radius: 0.5rem; font-weight: 600;
+        transition: background 0.2s;
+      }
+      .login-box button:hover { background: #2563eb; }
+
+      /* [관리자 페이지] */
+      .admin-container { max-width: 500px; margin: 2rem auto; padding: 2rem; background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+      .form-group { margin-bottom: 1.5rem; }
+      .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: #475569; }
+      .form-group input { width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 0.5rem; box-sizing: border-box; }
+      .btn-save { width: 100%; padding: 0.75rem; background: #0f172a; color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 600; }
+
+      /* [앱 공통 스타일 (스크롤바, 로더 등)] */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      .loader { border: 3px solid #f3f3f3; border-top: 3px solid #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+      .bg-male { background-color: #cfe2f3 !important; }
+      .bg-female { background-color: #fce5cd !important; }
+      
+      @media print {
+        @page { size: A4; margin: 10mm; }
+        body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .print-area { display: block !important; width: 100%; margin: 0 auto; }
+        table { width: 100% !important; border-collapse: collapse !important; font-size: 11pt; }
+        th, td { border: 1px solid black !important; padding: 4px !important; }
+        .bg-male { background-color: #cfe2f3 !important; }
+        .bg-female { background-color: #fce5cd !important; }
+      }
+      
+      @keyframes loading-bar { 0% { width: 0%; } 50% { width: 70%; } 100% { width: 100%; } }
+      .loading-progress { position: absolute; bottom: 0; left: 0; height: 3px; background-color: #3b82f6; animation: loading-bar 1s infinite; }
+    </style>
+  </head>
+  <body>
+
+    <!-- 1. 로그인 화면 -->
+    <div id="login-container">
+      <div class="login-box">
+        <h2>명렬표 페이지입니다.</h2>
+        <p style="color:#64748b; margin-bottom:1.5rem;">비밀번호를 입력해주세요.</p>
+        <input type="password" id="login-password" placeholder="비밀번호" onkeyup="if(window.event.keyCode==13){tryLogin()}">
+        <button onclick="tryLogin()">입장하기</button>
+        <p id="login-msg" style="color: #ef4444; font-size: 14px; margin-top: 1rem;"></p>
+      </div>
+    </div>
+
+    <!-- 2. 상단 메뉴바 (초기에는 숨김, 로그인 후 JS로 display:flex 처리) -->
+    <div id="navbar" style="display:none;">
+      <button class="tab-link active" onclick="openPage('grade-section', this)">학년 전체 명렬표</button>
+      <button class="tab-link" onclick="openPage('class-section', this)">반별 명렬표</button>
+      <button class="tab-link admin-btn" onclick="checkAdminAccess('admin-section', this)">관리자</button>
+    </div>
+
+    <!-- 3. 콘텐츠 영역 -->
+    
+    <!-- (A) 학년 전체 명렬표 섹션 -->
+    <div id="grade-section" class="page-section">
+      <div id="root-grade"></div>
+    </div>
+
+    <!-- (B) 반별 명렬표 섹션 -->
+    <div id="class-section" class="page-section">
+      <div id="root-class"></div>
+    </div>
+
+    <!-- (C) 관리자 섹션 -->
+    <div id="admin-section" class="page-section">
+      <div class="admin-container">
+        <h3 style="margin-top:0; font-size:1.5rem; color:#1e293b;">관리자 설정</h3>
+        <!-- 요청에 따라 초기 비밀번호 텍스트 삭제함 -->
+        <p style="font-size:13px; color:#64748b; margin-bottom:2rem;"></p> 
+        
+        <div class="form-group">
+          <label>현재 관리자 비밀번호</label>
+          <input type="password" id="current-admin-pw">
+        </div>
+        <hr style="border:0; border-top:1px solid #e2e8f0; margin: 2rem 0;">
+        <div class="form-group">
+          <label>새 접속 비밀번호 (명렬표 접근용)</label>
+          <input type="password" id="new-access-pw" placeholder="변경하지 않으려면 비워두세요">
+        </div>
+        <div class="form-group">
+          <label>새 관리자 비밀번호</label>
+          <input type="password" id="new-admin-pw" placeholder="변경하지 않으려면 비워두세요">
+        </div>
+        <button class="btn-save" onclick="saveAdminSettings()">설정 저장</button>
+      </div>
+    </div>
+
+    <!-- 4. 스크립트 (기능 로직 + React 코드) -->
+    <script>
+      // 탭 전환 및 로그인 관련 바닐라 JS 로직
+      function openPage(pageName, elmnt) {
+        var i, tabcontent, tablinks;
+        tabcontent = document.getElementsByClassName("page-section");
+        for (i = 0; i < tabcontent.length; i++) {
+          tabcontent[i].style.display = "none";
+          tabcontent[i].classList.remove('active');
+        }
+        tablinks = document.getElementsByClassName("tab-link");
+        for (i = 0; i < tablinks.length; i++) {
+          tablinks[i].classList.remove("active");
+        }
+        document.getElementById(pageName).style.display = "block";
+        document.getElementById(pageName).classList.add('active');
+        if(elmnt) elmnt.classList.add("active");
+      }
+
+      // 관리자 접근 체크 (서버 검증으로 변경)
+      function checkAdminAccess(pageName, elmnt) {
+        var input = prompt("관리자 비밀번호를 입력하세요:", "");
+        if (input === null) return; // 취소 시 중단
+
+        // 클라이언트 하드코딩 검증이 아닌 서버 검증 호출
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (res.success) {
+              openPage(pageName, elmnt);
+            } else {
+              alert("비밀번호가 일치하지 않습니다.");
+            }
+          })
+          .verifyAdminPassword(input);
+      }
+
+      function tryLogin() {
+        var pw = document.getElementById('login-password').value;
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (res.success) {
+              document.getElementById('login-container').style.display = 'none';
+              // 로그인 성공 시 navbar를 flex로 표시 (기존 display:block은 flex 속성 무시함)
+              document.getElementById('navbar').style.display = 'flex';
+              // 로그인 성공 시 학년 전체 명렬표 탭 먼저 열기
+              openPage('grade-section', document.querySelector('.tab-link'));
+            } else {
+              document.getElementById('login-msg').innerText = res.message;
+            }
+          })
+          .verifyPassword(pw);
+      }
+
+      function saveAdminSettings() {
+        var adminPw = document.getElementById('current-admin-pw').value;
+        var newAccess = document.getElementById('new-access-pw').value;
+        var newAdmin = document.getElementById('new-admin-pw').value;
+
+        if (!adminPw) {
+          alert('설정을 변경하려면 현재 관리자 비밀번호를 입력해야 합니다.');
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler(function(res) {
+            alert(res.message);
+            if(res.success) {
+              document.getElementById('current-admin-pw').value = '';
+              document.getElementById('new-access-pw').value = '';
+              document.getElementById('new-admin-pw').value = '';
+            }
+          })
+          .changePasswords(adminPw, newAccess, newAdmin);
+      }
+    </script>
+
+    <!-- React 컴포넌트 통합 -->
+    <script type="text/babel">
+      const { useState, useEffect, useMemo, useRef } = React;
+
+      // [공통 아이콘 컴포넌트]
+      const Icons = {
+        RotateCw: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>,
+        ChevronLeft: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>,
+        ChevronRightSimple: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>,
+        Trash: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+      };
+
+      // -----------------------------------------------------------
+      // [APP 1] 학년 전체 명렬표 컴포넌트
+      // -----------------------------------------------------------
+      const HorizontalNamelistPage = ({ data }) => {
+        if (!data || !data.horizontal) return <div className="p-10 text-center">데이터 없음</div>;
+
+        const { group1, group2 } = data.horizontal;
+        
+        const getClassBlocks = () => {
+          const classes = [];
+          const extract = (rawGroup, startClass) => {
+            if(!rawGroup) return;
+            for(let c=0; c<5; c++) {
+              const block = [];
+              let m=0, f=0;
+              for(let i=0; i<30; i++) { 
+                 if (i >= rawGroup.length) break;
+                 const slice = rawGroup[i].slice(c*4, c*4+4);
+                 if (slice[1]) {
+                   if (slice[2] === '남성') m++;
+                   if (slice[2] === '여성') f++;
+                 }
+                 block.push(slice);
+              }
+              classes.push({ num: startClass+c, data: block, m, f, t: m+f });
+            }
+          };
+          extract(group1, 1);
+          extract(group2, 6);
+          return classes;
+        };
+        
+        const classBlocks = getClassBlocks();
+
+        return (
+          <div className="space-y-6 fade-in print-area">
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+               {classBlocks.map((cls, idx) => (
+                 <div key={idx} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                   <div className="bg-slate-100 p-2 text-center border-b border-slate-200">
+                     <div className="font-bold text-slate-700 text-lg">{cls.num}반</div>
+                     <div className="text-slate-600 font-bold text-lg mt-1 scale-110">
+                       재적: {cls.t} (남{cls.m}/여{cls.f})
+                     </div>
+                   </div>
+                   <div className="overflow-x-auto flex-1">
+                      <table className="w-full text-base text-center border-collapse table-fixed" style={{minWidth: '280px'}}>
+                        <colgroup>
+                          <col style={{width: '15%'}} /> {/* 2글자 너비 + @ */}
+                          <col style={{width: '35%'}} /> {/* 7글자 너비 + @ */}
+                          <col style={{width: '15%'}} /> {/* 3글자 너비 + @ */}
+                          <col style={{width: '35%'}} /> {/* 7글자 너비 + @ */}
+                        </colgroup>
+                        <tbody>
+                          {cls.data.map((row, rIdx) => {
+                            const gender = row[2]; 
+                            let rowClass = "";
+                            if (gender === '남성') rowClass = "bg-male";
+                            if (gender === '여성') rowClass = "bg-female";
+                            return (
+                              <tr key={rIdx} className={`h-8 border-b border-slate-100 last:border-0 ${rowClass}`}>
+                                {row.map((cell, cIdx) => (
+                                  <td key={cIdx} className="border-r border-slate-100 last:border-0 p-1 truncate" title={cell}>{cell}</td>
+                                ))}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                   </div>
+                 </div>
+               ))}
+             </div>
+          </div>
+        );
+      };
+
+      const GradeApp = () => {
+        const [data, setData] = useState(null);
+        const [isRefreshing, setIsRefreshing] = useState(false);
+
+        const fetchData = () => {
+          setIsRefreshing(true);
+          google.script.run.withSuccessHandler(res => {
+            const parsed = JSON.parse(res);
+            if (parsed.type === 'horizontal_namelist') {
+               setData(prev => ({ ...prev, horizontal: parsed.data }));
+            } else if (parsed.horizontal) {
+               setData(parsed);
+            }
+            setIsRefreshing(false);
+          }).refreshGradeData({ sub: '가로 명렬표' });
+        };
+
+        useEffect(() => {
+          google.script.run.withSuccessHandler(res => setData(JSON.parse(res))).getGradeData();
+        }, []);
+
+        if (!data) return <div className="h-full flex items-center justify-center bg-slate-50 p-10"><div className="loader"/></div>;
+
+        return (
+          <div className="flex flex-col h-full">
+            <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shadow-sm z-10 sticky top-0 relative overflow-hidden shrink-0">
+                {isRefreshing && <div className="loading-progress"></div>}
+                <div className="flex items-center gap-4">
+                  {/* 상단 제목 삭제됨 */}
+                </div>
+                <button onClick={fetchData} className={`p-2 text-slate-500 hover:text-indigo-600 transition-colors ${isRefreshing ? 'animate-spin' : ''}`}>
+                  <Icons.RotateCw size={20} />
+                </button>
+            </header>
+
+            <main className="flex-1 overflow-y-auto p-4 lg:p-8">
+              <div className="max-w-[1920px] mx-auto pb-10">
+                <HorizontalNamelistPage data={data} />
+              </div>
+            </main>
+          </div>
+        );
+      };
+
+      // -----------------------------------------------------------
+      // [APP 2] 반별 명렬표 컴포넌트
+      // -----------------------------------------------------------
+      const ClassNamelistApp = () => {
+        const [classNum, setClassNum] = useState(1);
+        const [localData, setLocalData] = useState([]);
+        const [loading, setLoading] = useState(true);
+        const [isRefreshing, setIsRefreshing] = useState(false);
+
+        const fetchData = (targetClass) => {
+          setLoading(true);
+          setIsRefreshing(true);
+          google.script.run
+            .withSuccessHandler(res => {
+              const parsed = JSON.parse(res);
+              if (parsed.success) {
+                setLocalData(parsed.data);
+              } else {
+                alert('데이터 로드 실패: ' + parsed.error);
+              }
+              setLoading(false);
+              setIsRefreshing(false);
+            })
+            .withFailureHandler(err => {
+              alert('서버 오류: ' + err);
+              setLoading(false);
+              setIsRefreshing(false);
+            })
+            .getClassData(targetClass);
+        };
+
+        useEffect(() => {
+          fetchData(classNum);
+        }, [classNum]);
+
+        const updateLocalRow = (rowIndex, field, val) => {
+          const newData = [...localData];
+          let colIdx = -1;
+          if (field === 'name') colIdx = 1;
+          if (field === 'gender') colIdx = 2;
+          if (field === 'note') colIdx = 3;
+          if (field === 'birth') colIdx = 4;
+          
+          if(colIdx > 0) {
+            newData[rowIndex][colIdx] = val;
+            setLocalData(newData);
+          }
+        };
+
+        const handleStudentEdit = (rowIndex, field, value) => {
+           updateLocalRow(rowIndex, field, value);
+           google.script.run.updateStudent({ classNum, rowIndex, field, value });
+        };
+
+        const handleDelete = (rowIndex) => {
+          if(confirm("정말 삭제하시겠습니까?")) {
+            const newData = [...localData];
+            newData[rowIndex][1] = ""; 
+            newData[rowIndex][2] = ""; 
+            newData[rowIndex][3] = ""; 
+            newData[rowIndex][4] = ""; 
+            setLocalData(newData);
+            google.script.run.deleteStudent({ classNum, rowIndex });
+          }
+        };
+
+        const goToPrevClass = () => {
+          const prevNum = classNum === 1 ? 10 : classNum - 1;
+          setClassNum(prevNum);
+        };
+        const goToNextClass = () => {
+          const nextNum = classNum === 10 ? 1 : classNum + 1;
+          setClassNum(nextNum);
+        };
+
+        return (
+          <div className="flex flex-col h-full">
+            <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shadow-sm z-10 sticky top-0 shrink-0">
+              <div className="flex items-center gap-4">
+                <h1 className="text-xl font-bold text-slate-800 tracking-tight">{classNum}반 명렬표</h1>
+              </div>
+              <button onClick={() => fetchData(classNum)} className={`p-2 text-slate-500 hover:text-indigo-600 transition-colors ${isRefreshing ? 'animate-spin' : ''}`}>
+                <Icons.RotateCw size={20} />
+              </button>
+            </header>
+
+            <main className="flex-1 overflow-y-auto p-4 lg:p-8">
+              {/* 좌측 여백 수정: max-w-7xl 제거, w-full 사용, px-4로 통일 */}
+              <div className="w-full px-4 lg:px-8 pb-10">
+                {/* 1~10반 메뉴 가로 스크롤 적용 */}
+                <div className="mb-6 flex flex-nowrap overflow-x-auto gap-2 pb-2 scrollbar-hide">
+                  {Array.from({length: 10}, (_, i) => i + 1).map(num => (
+                    <button
+                      key={num}
+                      onClick={() => setClassNum(num)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-sm whitespace-nowrap flex-shrink-0 ${
+                        classNum === num 
+                          ? 'bg-indigo-600 text-white ring-2 ring-indigo-300 ring-offset-1' 
+                          : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {num}반
+                    </button>
+                  ))}
+                </div>
+
+                {loading ? (
+                   <div className="p-10 text-center"><div className="loader mx-auto mb-2"/>데이터 불러오는 중...</div>
+                ) : (
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 fade-in">
+                    <div className="flex justify-between items-center mb-4 px-2">
+                      <button onClick={goToPrevClass} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500">
+                        <Icons.ChevronLeft size={24} />
+                      </button>
+                      <h2 className="font-bold text-xl text-slate-800">{classNum}반 명렬표</h2>
+                      <button onClick={goToNextClass} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500">
+                        <Icons.ChevronRightSimple size={24} />
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-center border-collapse text-base table-fixed" style={{minWidth: '600px'}}>
+                         {/* 반별 명렬표도 최소 너비 설정하여 모바일에서 찌그러짐 방지 */}
+                        <colgroup>
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '23%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '23%' }} />
+                          <col style={{ width: '29%' }} />
+                          <col style={{ width: '5%' }} />
+                        </colgroup>
+                        <thead className="bg-slate-100 text-slate-600">
+                          <tr>
+                            {['번호','이름','성별','기타','생년월일',''].map((h, i) => <th key={i} className="border p-3">{h}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Array.isArray(localData) && localData.slice(1).map((row, i) => {
+                             const realRowIndex = i + 1; 
+                             const no = row[0]; 
+                             const gender = row[2];
+                             let rowClass = "";
+                             if (gender === '남성') rowClass = "bg-male";
+                             if (gender === '여성') rowClass = "bg-female";
+                             
+                             return (
+                              <tr key={i} className={`${rowClass} hover:opacity-90 h-12 border-b border-slate-200`}>
+                                <td className="border p-0 font-medium">{no}</td>
+                                <td className="border p-0">
+                                   <input type="text" value={row[1]} onChange={(e)=>updateLocalRow(realRowIndex, 'name', e.target.value)} onBlur={(e)=>handleStudentEdit(realRowIndex, 'name', e.target.value)} className="w-full h-full p-2 text-center outline-none bg-white/40 focus:bg-white/70 transition-colors shadow-sm"/>
+                                </td>
+                                <td className="border p-0">
+                                   <input type="text" value={row[2]} onChange={(e)=>updateLocalRow(realRowIndex, 'gender', e.target.value)} onBlur={(e)=>handleStudentEdit(realRowIndex, 'gender', e.target.value)} className="w-full h-full p-2 text-center outline-none bg-white/40 focus:bg-white/70 transition-colors shadow-sm"/>
+                                </td>
+                                <td className="border p-0">
+                                   <input type="text" value={row[3]} onChange={(e)=>updateLocalRow(realRowIndex, 'note', e.target.value)} onBlur={(e)=>handleStudentEdit(realRowIndex, 'note', e.target.value)} className="w-full h-full p-2 text-center outline-none bg-white/40 focus:bg-white/70 transition-colors shadow-sm"/>
+                                </td>
+                                <td className="border p-0">
+                                   <input type="text" value={row[4]} onChange={(e)=>updateLocalRow(realRowIndex, 'birth', e.target.value)} onBlur={(e)=>handleStudentEdit(realRowIndex, 'birth', e.target.value)} className="w-full h-full p-2 text-center outline-none bg-white/40 focus:bg-white/70 transition-colors shadow-sm"/>
+                                </td>
+                                <td className="border p-0">
+                                   <button onClick={()=>handleDelete(realRowIndex)} className="w-full h-full flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors">
+                                     <Icons.Trash size={18}/>
+                                   </button>
+                                </td>
+                              </tr>
+                             );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </main>
+          </div>
+        );
+      };
+
+      // [랜더링] 각 앱을 해당 ID의 div에 마운트
+      const rootGrade = ReactDOM.createRoot(document.getElementById('root-grade'));
+      rootGrade.render(<GradeApp />);
+
+      const rootClass = ReactDOM.createRoot(document.getElementById('root-class'));
+      rootClass.render(<ClassNamelistApp />);
+    </script>
+  </body>
+</html>

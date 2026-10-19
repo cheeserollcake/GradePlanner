@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <script>window.__GP_PAGE__ = 'p05';</script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+  <script src="../assets/js/firebase-config.js"></script>
+  <script src="../assets/js/gas-shim.js"></script>
+
+    
+    <!-- unpkg 대신 가장 안정적인 cdnjs로 변경 및 Babel 7 버전 고정 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* 1. 폰트 Arial 고정 */
+      body { font-family: Arial, sans-serif; background-color: #f8fafc; }
+      
+      .loader-bar {
+        height: 4px;
+        width: 100%;
+        background-color: #e2e8f0;
+        overflow: hidden;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 50;
+      }
+      .loader-bar-value {
+        width: 100%;
+        height: 100%;
+        background-color: #3b82f6;
+        animation: indeterminate 1.5s infinite linear;
+        transform-origin: 0% 50%;
+      }
+      @keyframes indeterminate {
+        0% { transform:  translateX(0) scaleX(0); }
+        40% { transform:  translateX(0) scaleX(0.4); }
+        100% { transform:  translateX(100%) scaleX(0.5); }
+      }
+      
+      /* 테이블 스타일 */
+      .spreadsheet-table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 10px; 
+        table-layout: fixed; 
+        background-color: white;
+        /* 테이블 자체 테두리는 셀 단위 제어를 위해 제거 */
+        border: none; 
+      }
+      
+      .spreadsheet-table td {
+        padding: 0px;
+        text-align: center;
+        vertical-align: middle;
+        overflow: hidden; 
+        white-space: pre-wrap; 
+        word-break: break-all;
+        line-height: 1.1;
+        /* 기본 내부 테두리 */
+        border-right: 1px solid #e2e8f0;
+        border-bottom: 1px solid #e2e8f0;
+        height: 28px; 
+      }
+      
+      /* 텍스트 수직 중앙 정렬 보조 */
+      .cell-content {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel">
+      const { useState, useEffect } = React;
+
+      const MonthlyTimetableApp = () => {
+        const [activeMonth, setActiveMonth] = useState(null);
+        const [tableData, setTableData] = useState([]);
+        const [mergedCells, setMergedCells] = useState([]);
+        const [loading, setLoading] = useState(false);
+
+        const months = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2];
+
+        // --- 데이터 생성 로직 (클라이언트 사이드 - 주단위 구조 유지) ---
+        const generateTableData = (month, dbData) => {
+          if (!dbData) return;
+
+          // 데이터 객체가 누락되거나 비어있는 경우를 대비한 방어 코드
+          dbData.holidays = dbData.holidays || [];
+          dbData.auditorium = dbData.auditorium || [];
+          dbData.subject = dbData.subject || [];
+          dbData.added = dbData.added || [];
+
+          // 학년도 기준 연도 설정 (2026학년도)
+          const baseYear = 2026;
+          const targetYear = (month === 1 || month === 2) ? baseYear + 1 : baseYear;
+
+          const getDateKey = (date) => `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+
+          // 1. 데이터 매핑 준비
+          const holidayMap = {};
+          dbData.holidays.forEach(row => {
+            if (row[0]) {
+              const d = new Date(row[0]);
+              // 유효한 날짜일 때만 처리하여 화이트스크린 방지
+              if (!isNaN(d.getTime())) {
+                holidayMap[getDateKey(d)] = row[1];
+              }
+            }
+          });
+
+          const scheduleMap = {};
+          const addSchedule = (dateStr, classVal, periodVal, content) => {
+            if (!dateStr || !content) return;
+            const d = new Date(dateStr);
+            // 다른 웹앱에서 잘못된 텍스트/날짜가 입력되어도 화면이 죽지 않게 방어
+            if (isNaN(d.getTime())) return; 
+            const k = getDateKey(d);
+            
+            // 쉼표(,)를 기준으로 나누어 배열로 만든 뒤 각각 숫자만 추출
+            const classes = String(classVal).split(',').map(s => parseInt(s.replace(/[^0-9]/g, ''))).filter(n => !isNaN(n) && n > 0);
+            const periods = String(periodVal).split(',').map(s => parseInt(s.replace(/[^0-9]/g, ''))).filter(n => !isNaN(n) && n > 0);
+            
+            // 추출된 숫자가 하나도 없으면 중단
+            if (classes.length === 0 || periods.length === 0) return;
+            
+            // 모든 반과 교시 조합에 대해 내용 추가
+            classes.forEach(c => {
+              periods.forEach(p => {
+                const key = `${k}_${c}_${p}`;
+                if (scheduleMap[key]) {
+                   scheduleMap[key] += '\n' + content; 
+                } else {
+                   scheduleMap[key] = content;
+                }
+              });
+            });
+          };
+
+          // [수정 완료] 강당 데이터 매핑: row[3] = J열 (G,H,I,J)
+          dbData.auditorium.forEach(row => addSchedule(row[0], row[1], row[2], row[3]));
+          
+          dbData.subject.forEach(row => addSchedule(row[0], row[1], row[2], row[3]));
+          dbData.added.forEach(row => addSchedule(row[0], row[1], row[2], row[3]));
+
+          // 2. 주(Week) 단위 날짜 생성
+          const weeks = [];
+          const firstDayOfMonth = new Date(targetYear, month - 1, 1);
+          const lastDayOfMonth = new Date(targetYear, month, 0);
+          
+          let currentDay = new Date(firstDayOfMonth);
+          const day = currentDay.getDay(); 
+          // 월요일(1) 기준 정렬
+          const diff = currentDay.getDate() - day + (day === 0 ? -6 : 1); 
+          currentDay.setDate(diff);
+
+          while (true) {
+            const weekDays = [];
+            
+            // 월~금 (5일)
+            for (let i = 0; i < 5; i++) {
+              const d = new Date(currentDay);
+              weekDays.push(d);
+              currentDay.setDate(currentDay.getDate() + 1);
+            }
+            // 토,일 건너뛰기
+            currentDay.setDate(currentDay.getDate() + 2);
+
+            // 범위 체크
+            if (weekDays[0] > lastDayOfMonth) break;
+            
+            weeks.push(weekDays);
+            if (weeks.length >= 6) break; 
+          }
+
+          // 3. 테이블 행 생성
+          let newTableData = [];
+          let newMerges = [];
+
+          weeks.forEach((weekDays) => {
+            const startRowIdx = newTableData.length;
+
+            // [Row 1] 날짜 행 (Merged)
+            const dateRow = new Array(31).fill("");
+            dateRow[0] = ""; 
+            
+            weekDays.forEach((d, i) => {
+              const mm = d.getMonth() + 1;
+              const dd = d.getDate();
+              const dayNames = ['(일)', '(월)', '(화)', '(수)', '(목)', '(금)', '(토)'];
+              const dateText = `${mm < 10 ? '0'+mm : mm}월 ${dd < 10 ? '0'+dd : dd}일 ${dayNames[d.getDay()]}`;
+              
+              const colIdx = 1 + (i * 6); // 1, 7, 13...
+              dateRow[colIdx] = dateText;
+              
+              newMerges.push({ row: startRowIdx, col: colIdx, numRows: 1, numCols: 6 });
+            });
+            newTableData.push(dateRow);
+
+            // [Row 2] 교시 행 (1~6 반복) -> "1교시" ~ "6교시"로 수정됨
+            const periodRow = new Array(31).fill("");
+            periodRow[0] = ""; 
+            for (let i = 0; i < 5; i++) { 
+              for (let p = 1; p <= 6; p++) { 
+                periodRow[1 + (i * 6) + (p - 1)] = p + "교시";
+              }
+            }
+            newTableData.push(periodRow);
+
+            // [Row 3~12] 1반 ~ 10반 데이터 행
+            for (let cNum = 1; cNum <= 10; cNum++) {
+              const classRow = new Array(31).fill("");
+              classRow[0] = `${cNum}반`; 
+
+              weekDays.forEach((d, dIdx) => {
+                const dateKey = getDateKey(d);
+                const isHoliday = holidayMap[dateKey];
+                const holidayText = isHoliday ? isHoliday + "(휴)" : "";
+
+                for (let p = 1; p <= 6; p++) {
+                  const colIdx = 1 + (dIdx * 6) + (p - 1);
+                  if (isHoliday) {
+                    classRow[colIdx] = holidayText;
+                  } else {
+                    const key = `${dateKey}_${cNum}_${p}`;
+                    classRow[colIdx] = scheduleMap[key] || "";
+                  }
+                }
+              });
+              newTableData.push(classRow);
+            }
+          });
+          
+          setTableData(newTableData);
+          setMergedCells(newMerges); 
+        };
+
+        const fetchMonthData = (month) => {
+          setLoading(true);
+          setActiveMonth(month);
+          setTableData([]); 
+
+          google.script.run
+            .withSuccessHandler(res => {
+              const parsed = JSON.parse(res);
+              if (parsed.success) {
+                generateTableData(month, parsed.data);
+              } else {
+                alert('오류: ' + parsed.error);
+              }
+              setLoading(false);
+            })
+            .withFailureHandler(err => {
+              alert('서버 오류: ' + err);
+              setLoading(false);
+            })
+            .changeMonthAndGetData(month);
+        };
+
+        const isMergedCell = (r, c) => {
+          return mergedCells.some(m => 
+            r >= m.row && r < m.row + m.numRows &&
+            c >= m.col && c < m.col + m.numCols &&
+            !(r === m.row && c === m.col)
+          );
+        };
+
+        const getMergeProps = (r, c) => {
+          const merge = mergedCells.find(m => m.row === r && m.col === c);
+          if (merge) {
+            return { rowSpan: merge.numRows, colSpan: merge.numCols };
+          }
+          return {};
+        };
+
+        // --- 서식 및 스타일 (디자인 유지) ---
+        const getCellStyle = (r, c, text) => {
+          let style = { 
+            backgroundColor: '#ffffff', 
+            color: '#000000', 
+            fontWeight: 'normal', 
+            fontStyle: 'normal',
+            borderRight: '1px solid #e2e8f0', 
+            borderBottom: '1px solid #e2e8f0', 
+            borderTop: 'none',
+            borderLeft: 'none'
+          };
+          
+          let fontSize = '10px';
+
+          const isDateRow = (r % 12 === 0);
+          const isPeriodRow = (r % 12 === 1); 
+
+          if (!isDateRow && !isPeriodRow && c > 0) {
+            const len = text ? text.length : 0;
+            if (len > 8) fontSize = '9px';
+            if (len > 15) fontSize = '8px';
+            if (len > 25) fontSize = '7px';
+            if (len > 35) fontSize = '5px';
+          }
+
+          // 테두리 설정
+          if (c === 0) style.borderRight = '1px solid black';
+          if ([6, 12, 18, 24].includes(c)) style.borderRight = '1px solid black';
+          if (c === 30) style.borderRight = '1px solid black';
+          if (c === 0) style.borderLeft = '1px solid black';
+          if (r === tableData.length - 1) style.borderBottom = '1px solid black';
+
+          if (isDateRow) {
+            if (c > 0) {
+               style.borderRight = '1px solid black';
+               style.borderLeft = '1px solid black';
+               style.borderBottom = '1px solid black';
+               style.borderTop = '1px solid black';
+            } else {
+               style.borderBottom = '1px solid black';
+               style.borderTop = '1px solid black';
+            }
+            if (r === 0) style.borderTop = '1px solid black';
+          }
+          
+          if (r % 12 === 11) {
+            style.borderTop = '1px solid black';
+            style.borderBottom = '1px solid black';
+          }
+
+          if (isPeriodRow) { 
+            style.borderBottom = '1px solid black';
+          }
+
+          // 배경색 및 폰트
+          if (isDateRow || isPeriodRow) { 
+            style.fontWeight = 'bold';
+            style.backgroundColor = '#e5e5e5';
+          }
+
+          if (c === 0) {
+            style.backgroundColor = '#cccccc';
+            style.fontWeight = 'bold';
+          }
+
+          if (!isDateRow && !isPeriodRow && c > 0) {
+            if (r % 2 === 0) { 
+              if (c >= 1 && c <= 6) style.backgroundColor = '#e0f7fa';
+              if (c >= 7 && c <= 12) style.backgroundColor = '#f8f2eb';
+              if (c >= 13 && c <= 18) style.backgroundColor = '#f3eefe';
+              if (c >= 19 && c <= 24) style.backgroundColor = '#fef8e3';
+              if (c >= 25 && c <= 30) style.backgroundColor = '#e0f7fa';
+            }
+          }
+
+          // 조건부 서식
+          if (text && text.includes('(휴)')) {
+            style.backgroundColor = '#666666';
+            style.color = '#d9d9d9'; 
+          } else if (text && text.includes('\n')) {
+            style.backgroundColor = '#fce7f3'; 
+            style.fontStyle = 'italic';
+            style.color = 'red'; 
+          }
+
+          return { ...style, fontSize };
+        };
+
+        const getRowHeight = (r) => {
+           if (r % 12 === 0 || r % 12 === 1) return '20px';
+           return '32px'; 
+        };
+
+        return (
+          <div className="min-h-screen flex flex-col font-sans">
+            {loading && (
+              <div className="loader-bar">
+                <div className="loader-bar-value"></div>
+              </div>
+            )}
+            
+            <header className="bg-white border-b border-slate-200 p-3 sticky top-0 z-20 shadow-sm flex flex-col items-center">
+              <h1 className="text-lg font-bold text-slate-800 mb-2 text-center">월별 시간표</h1>
+              <div className="flex flex-wrap gap-1 justify-center">
+                {months.map(m => (
+                  <button
+                    key={m}
+                    onClick={() => fetchMonthData(m)}
+                    disabled={loading}
+                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                      activeMonth === m 
+                        ? 'bg-indigo-600 text-white shadow-md transform scale-105' 
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {m}월
+                  </button>
+                ))}
+              </div>
+            </header>
+
+            <main className="flex-1 p-2 overflow-auto bg-white flex items-start justify-center">
+              {!activeMonth ? (
+                <div className="text-center text-slate-500 mt-20 animate-fade-in">
+                  <h2 className="text-xl font-bold mb-2">월간 학년 전체 시간표 페이지입니다.</h2>
+                  <p className="text-sm">상단의 달을 선택하세요.</p>
+                </div>
+              ) : (
+                tableData.length > 0 ? (
+                  <div className="w-full overflow-x-auto">
+                    <div style={{ minWidth: '1500px', paddingBottom: '20px' }}> 
+                      <table className="spreadsheet-table">
+                        <colgroup>
+                          <col style={{ width: '40px' }} />
+                          {Array.from({ length: 30 }).map((_, i) => (
+                            <col key={i} style={{ width: 'calc((100% - 40px) / 30)' }} />
+                          ))}
+                        </colgroup>
+                        <tbody>
+                          {tableData.map((row, rIdx) => {
+                            return (
+                              <tr key={rIdx} style={{ height: getRowHeight(rIdx) }}>
+                                {row.map((cell, cIdx) => {
+                                  if (isMergedCell(rIdx, cIdx)) return null;
+                                  const mergeProps = getMergeProps(rIdx, cIdx);
+                                  const style = getCellStyle(rIdx, cIdx, cell);
+
+                                  return (
+                                    <td 
+                                      key={cIdx} 
+                                      {...mergeProps}
+                                      style={style}
+                                    >
+                                      <div className="cell-content">
+                                        {cell}
+                                      </div>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  !loading && <div className="text-center p-10 text-gray-400">데이터를 불러오는 중입니다...</div>
+                )
+              )}
+            </main>
+          </div>
+        );
+      };
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<MonthlyTimetableApp />);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script>window.__GP_PAGE__ = 'p07';</script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+  <script src="../assets/js/firebase-config.js"></script>
+  <script src="../assets/js/gas-shim.js"></script>
+
+  
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- unpkg 대신 가장 안정적인 cdnjs로 변경 및 Babel 7 버전 고정 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js"></script>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body { font-family: 'Pretendard', sans-serif; background-color: #f8fafc; color: #1e293b; }
+    
+    .loading-indicator { position: fixed; bottom: 20px; right: 20px; background: rgba(255,255,255,0.95); padding: 12px 24px; border-radius: 50px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 12px; z-index: 9999; font-size: 14px; font-weight: bold; color: #4f46e5; border: 1px solid #e2e8f0; animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .spinner { width: 18px; height: 18px; border: 3px solid #e2e8f0; border-top-color: #4f46e5; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; display: flex; justify-content: center; align-items: center; overflow: auto; padding: 20px; }
+    .image-modal-content { max-width: none; max-height: none; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); margin: auto; }
+    
+    .bg-auditorium { background-color: #cfe2f3; }
+    .bg-multi { background-color: #fce5cd; }
+    .bg-play { background-color: #d9ead3; }
+    .bg-narae { background-color: #FFFEB5; }
+    .bg-vr { background-color: #e4d7f5; }
+    .bg-holiday { background-color: #fce8e6 !important; }
+    .text-holiday { color: #dc2626; font-weight: 800; }
+    
+    .cell-select { width: 100%; height: 100%; background: transparent; text-align: center; font-size: 11pt; border: none; outline: none; cursor: pointer; padding: 0; appearance: none; -webkit-appearance: none; font-weight: 600; line-height: 1; }
+    .cell-select:focus { background-color: rgba(255,255,255,0.9); box-shadow: inset 0 0 0 1px #4f46e5; }
+    
+    .cell-multi-text { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 11pt; font-weight: 600; cursor: pointer; text-align: center; padding: 0 2px; line-height: 1.1; white-space: normal; word-break: keep-all; }
+    .cell-multi-text:hover { background-color: rgba(255,255,255,0.4); }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    .scroll-container { flex: 1; overflow-x: auto; overflow-y: auto; padding: 1rem; display: block; text-align: center; }
+    .table-wrapper { display: inline-table; text-align: left; }
+
+    .td-sports { width: 320px; min-width: 320px; max-width: 320px; }
+    .table-fixed-sports { width: 310px; min-width: 310px; max-width: 310px; }
+    .grid-row-sports { display: grid; grid-template-columns: repeat(6, 1fr); width: 100%; }
+    
+    .td-com { width: 220px; min-width: 220px; max-width: 220px; }
+    .table-fixed-com { width: 210px; min-width: 210px; max-width: 210px; }
+    .grid-row-com { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; }
+
+    .grid-col { overflow: hidden; white-space: nowrap; display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1.2; height: 100%; }
+    
+    th.sticky-header-sports { position: sticky; top: 0; z-index: 20; background-color: #f1f5f9; box-shadow: 0 1px 2px rgba(0,0,0,0.1); width: 320px; min-width: 320px; }
+    th.sticky-header-com { position: sticky; top: 0; z-index: 20; background-color: #f1f5f9; box-shadow: 0 1px 2px rgba(0,0,0,0.1); width: 220px; min-width: 220px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const Icons = {
+      Sports: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 22a10 10 0 100-20 10 10 0 000 20z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 12a3 3 0 100-6 3 3 0 000 6z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.5 10.5L19 7m-9.5 3.5L5 7m4 7.5L5 19m9.5-4.5l4.5 4.5" /></svg>,
+      Computer: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2-2v10a2 2 0 002 2z" /></svg>,
+      Photo: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+      Shield: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
+      Key: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>,
+      Save: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>,
+      Refresh: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>,
+      Upload: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
+      Trash: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+      Edit: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>,
+      Check: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>,
+      X: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>,
+      Close: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>,
+      Gear: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+    };
+
+    const classOptions = ["1반","2반","3반","4반","5반","6반","7반","8반","9반","10반","불가"];
+    
+    const allSpaces = ['강당', '다목(2층)', '운동장', '나래', 'VR', '컴1', '컴2', '음악', '다목(3층)'];
+    const spaceBgColors = ['bg-auditorium', 'bg-multi', 'bg-play', 'bg-narae', 'bg-vr', 'bg-auditorium', 'bg-multi', 'bg-play', 'bg-multi'];
+
+    const getKoreanDateStr = (dateObj) => {
+      const days = ['일', '월', '화', '수', '목', '금', '토'];
+      return `${dateObj.getFullYear()}년 ${String(dateObj.getMonth() + 1).padStart(2, '0')}월 ${String(dateObj.getDate()).padStart(2, '0')}일 (${days[dateObj.getDay()]})`;
+    };
+
+    const getLocalISODate = (date) => {
+        const offset = date.getTimezoneOffset() * 60000;
+        return new Date(date.getTime() - offset).toISOString().split('T')[0];
+    };
+
+    const ScheduleTable = ({ title, spaces, spaceIndices, tableType, holidays, schedule, settings, onSave, onRefresh, onLoading }) => {
+      const [selectedMonth, setSelectedMonth] = useState(3);
+      const [unsavedChanges, setUnsavedChanges] = useState({});
+      const [multiSelectModal, setMultiSelectModal] = useState(null);
+      const [damokModal, setDamokModal] = useState(null);
+
+      const handleCellChange = (key, val) => {
+        setUnsavedChanges(prev => ({ ...prev, [key]: val }));
+      };
+
+      const handleSave = () => {
+        if (Object.keys(unsavedChanges).length === 0) return alert("변경사항이 없습니다.");
+        onLoading(true);
+        onSave(unsavedChanges, () => {
+          setUnsavedChanges({});
+          onLoading(false);
+        });
+      };
+
+      const handleRefresh = () => {
+        setUnsavedChanges({});
+        onRefresh();
+      };
+
+      const year = (selectedMonth === 1 || selectedMonth === 2) ? 2027 : 2026;
+      const startDate = new Date(year, selectedMonth - 1, 1);
+      const daysInMonth = [];
+      let d = new Date(startDate);
+      while (d.getMonth() === selectedMonth - 1) {
+        if (d.getDay() >= 1 && d.getDay() <= 5) daysInMonth.push(new Date(d));
+        d.setDate(d.getDate() + 1);
+      }
+
+      const weekDays = ['월', '화', '수', '목', '금'];
+      const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+      const semester = (selectedMonth >= 3 && selectedMonth <= 7) ? 'sem1' : 'sem2';
+
+      const weeks = [];
+      let currentWeek = [];
+      daysInMonth.forEach(day => {
+        if (currentWeek.length > 0 && day.getDay() === 1) {
+          weeks.push(currentWeek);
+          currentWeek = [];
+        }
+        currentWeek.push(day);
+      });
+      if (currentWeek.length > 0) weeks.push(currentWeek);
+
+      const tdWidthClass = tableType === 'sports' ? 'td-sports' : 'td-com';
+      const tableWidthClass = tableType === 'sports' ? 'table-fixed-sports' : 'table-fixed-com';
+      const gridRowClass = tableType === 'sports' ? 'grid-row-sports' : 'grid-row-com';
+      const headerClass = tableType === 'sports' ? 'sticky-header-sports' : 'sticky-header-com';
+
+      const saveMultiSelect = () => {
+        if (!multiSelectModal) return;
+        const { cellKey, selected } = multiSelectModal;
+        handleCellChange(cellKey, selected.join(', '));
+        setMultiSelectModal(null);
+      };
+
+      return (
+        <div className="flex flex-col h-full bg-slate-50 relative">
+          <div className="relative flex items-center justify-center p-4 bg-white border-b shrink-0 min-h-[64px]">
+            <div className="flex gap-1 overflow-x-auto no-scrollbar mr-32">
+              {[3,4,5,6,7,8,9,10,11,12,1].map(m => (
+                <button 
+                  key={m} 
+                  onClick={() => setSelectedMonth(m)}
+                  className={`px-4 py-2 rounded-full font-bold whitespace-nowrap transition-colors text-sm ${selectedMonth===m ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                >
+                  {m}월
+                </button>
+              ))}
+            </div>
+            <div className="absolute right-4 flex items-center gap-2">
+              <button onClick={handleRefresh} className="flex items-center gap-1 bg-slate-500 text-white px-4 py-2 rounded-full font-bold hover:bg-slate-600 shadow-md transition-all whitespace-nowrap">
+                <Icons.Refresh /> 
+              </button>
+              <button onClick={handleSave} className="flex items-center gap-1 bg-green-600 text-white px-5 py-2 rounded-full font-bold hover:bg-green-700 shadow-md transition-all whitespace-nowrap">
+                <Icons.Save /> 저장
+              </button>
+            </div>
+          </div>
+          
+          <div className="scroll-container">
+            <table className="border-collapse bg-white shadow-sm rounded-lg mx-auto inline-table text-left" style={{tableLayout: 'fixed'}}>
+              <thead className="text-slate-700 border-b-2 border-slate-200 shadow-sm">
+                <tr>
+                  {weekDays.map(wd => <th key={wd} className={`${headerClass} p-3 text-center font-extrabold`}>{wd}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {weeks.map((week, wIdx) => (
+                  <tr key={wIdx} className="align-top border-b last:border-0">
+                    {weekDays.map((wd, dIdx) => {
+                      const dayObj = week.find(d => d.getDay() === dIdx + 1);
+                      if (!dayObj) return <td key={dIdx} className={`border-r bg-slate-50 ${tdWidthClass}`}></td>;
+                      const dateStr = getKoreanDateStr(dayObj);
+                      const isHoliday = holidays.includes(dateStr);
+                      const isoDate = getLocalISODate(dayObj);
+                      
+                      return (
+                        <td key={dIdx} className={`border-r p-1 align-top ${tdWidthClass} ${isHoliday ? 'bg-holiday' : ''}`}>
+                          <div className={`text-center font-bold mb-1 rounded py-1 ${isHoliday ? 'text-holiday' : 'text-slate-600 bg-slate-100'}`}>
+                            {dayObj.getMonth()+1}/{dayObj.getDate()} {isHoliday && "(휴)"}
+                          </div>
+                          {isHoliday ? (
+                            <div className="h-40 flex items-center justify-center text-red-400 font-bold opacity-50 text-lg">휴일</div>
+                          ) : (
+                            <div className={`${tableWidthClass} flex flex-col border border-slate-300 rounded overflow-hidden mx-auto`}>
+                              <div className={`${gridRowClass} bg-slate-200 text-center text-[10pt] font-bold border-b border-slate-300`}>
+                                <div className="grid-col border-r border-slate-300">교시</div>
+                                {spaces.map((sp, i) => (
+                                  <div key={i} className={`grid-col ${i < spaces.length - 1 ? 'border-r border-slate-300' : ''}`}>{sp}</div>
+                                ))}
+                              </div>
+                              {[1,2,3,4,5,6].map(period => (
+                                <div key={period} className={`${gridRowClass} border-b last:border-0 border-slate-200 h-8`}>
+                                  <div className="grid-col bg-white text-center text-[11pt] font-bold border-r border-slate-200">{period}교시</div>
+                                  {spaces.map((spName, localIdx) => {
+                                    const borderClass = localIdx < spaces.length - 1 ? "border-r border-slate-200" : "";
+
+                                    // 다목의 경우 팝업 및 병합 표시 특별 처리
+                                    if (spName === '다목') {
+                                      const idx1 = 1; // 다목(2층)
+                                      const idx2 = 8; // 다목(3층)
+                                      
+                                      const isOpen1_base = (settings?.[semester]?.[`${dayKeys[dIdx]}_${period}_${idx1}`] === true) || 
+                                                      (settings?.exceptions || []).some(ex => ex.date === isoDate && parseInt(ex.period) === period && parseInt(ex.spaceIdx) === idx1);
+                                      const isClose1 = (settings?.closeExceptions || []).some(ex => ex.date === isoDate && parseInt(ex.period) === period && parseInt(ex.spaceIdx) === idx1);
+                                      const isOpen1 = isOpen1_base && !isClose1;
+
+                                      const isOpen2_base = (settings?.[semester]?.[`${dayKeys[dIdx]}_${period}_${idx2}`] === true) || 
+                                                      (settings?.exceptions || []).some(ex => ex.date === isoDate && parseInt(ex.period) === period && parseInt(ex.spaceIdx) === idx2);
+                                      const isClose2 = (settings?.closeExceptions || []).some(ex => ex.date === isoDate && parseInt(ex.period) === period && parseInt(ex.spaceIdx) === idx2);
+                                      const isOpen2 = isOpen2_base && !isClose2;
+
+                                      const isOpen = isOpen1 || isOpen2;
+
+                                      const cellKey1 = `${dateStr}_${period}교시_다목(2층)`;
+                                      const cellKey2 = `${dateStr}_${period}교시_다목(3층)`;
+                                      const value1 = unsavedChanges[cellKey1] !== undefined ? unsavedChanges[cellKey1] : (schedule[cellKey1] || "");
+                                      const value2 = unsavedChanges[cellKey2] !== undefined ? unsavedChanges[cellKey2] : (schedule[cellKey2] || "");
+
+                                      let displayTexts = [];
+                                      if (value1 && value1 !== "") displayTexts.push(`${value1}(2층)`);
+                                      if (value2 && value2 !== "") displayTexts.push(`${value2}(3층)`);
+
+                                      const bgColorClass = spaceBgColors[1];
+
+                                      if (!isOpen) {
+                                          return (
+                                            <div key={localIdx} className={`grid-col bg-slate-50 flex-col items-center justify-center text-[8pt] text-slate-300 ${borderClass} leading-tight`}>
+                                                {displayTexts.length === 0 ? <span className="text-transparent">.</span> : 
+                                                    displayTexts.map((text, idx) => <span key={idx} className="block">{text}{idx < displayTexts.length - 1 ? ',' : ''}</span>)
+                                                }
+                                            </div>
+                                          );
+                                      }
+
+                                      return (
+                                        <div key={localIdx} className={`grid-col ${bgColorClass} relative ${borderClass}`} onClick={() => setDamokModal({ cellKey1, cellKey2, isOpen1, isOpen2, val1: value1, val2: value2 })}>
+                                          <div className="cell-multi-text text-slate-800 text-[8pt] flex-col leading-tight pt-0.5">
+                                            {displayTexts.length === 0 ? <span className="text-transparent">.</span> : 
+                                                displayTexts.map((text, idx) => (
+                                                  <span key={idx} className="block whitespace-nowrap">
+                                                    {text}{idx < displayTexts.length - 1 ? ',' : ''}
+                                                  </span>
+                                                ))
+                                            }
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+
+                                    // 일반 공간 처리
+                                    const globalSpaceIdx = spaceIndices[localIdx];
+                                    const weekKey = `${dayKeys[dIdx]}_${period}_${globalSpaceIdx}`;
+                                    const isWeeklyOpen = settings?.[semester]?.[weekKey] === true;
+                                    const isException = (settings?.exceptions || []).some(ex => 
+                                      ex.date === isoDate && parseInt(ex.period) === period && parseInt(ex.spaceIdx) === globalSpaceIdx
+                                    );
+                                    const isCloseException = (settings?.closeExceptions || []).some(ex => 
+                                      ex.date === isoDate && parseInt(ex.period) === period && parseInt(ex.spaceIdx) === globalSpaceIdx
+                                    );
+                                    const isOpen = (isWeeklyOpen || isException) && !isCloseException;
+
+                                    const spNameMapping = allSpaces[globalSpaceIdx]; // 실제 저장될 이름
+                                    const cellKey = `${dateStr}_${period}교시_${spNameMapping}`;
+                                    const value = unsavedChanges[cellKey] !== undefined ? unsavedChanges[cellKey] : (schedule[cellKey] || "");
+                                    const bgColorClass = spaceBgColors[globalSpaceIdx];
+                                    
+                                    if (!isOpen) return <div key={localIdx} className={`grid-col bg-slate-50 flex items-center justify-center text-[11pt] text-slate-300 ${borderClass}`}>{value}</div>;
+                                    
+                                    if (spName === '운동장') {
+                                      return (
+                                        <div key={localIdx} className={`grid-col ${bgColorClass} relative ${borderClass}`} onClick={() => setMultiSelectModal({ cellKey, selected: value ? value.split(', ') : [] })}>
+                                          <div className="cell-multi-text text-slate-800 text-[10pt]">{value || <span className="text-transparent">.</span>}</div>
+                                        </div>
+                                      );
+                                    }
+                                    return (
+                                      <div key={localIdx} className={`grid-col ${bgColorClass} relative ${borderClass}`}>
+                                        <select className="cell-select font-medium text-slate-800 w-full h-full" value={value} onChange={(e) => handleCellChange(cellKey, e.target.value)}>
+                                          <option value=""></option>
+                                          {classOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                          {value && !classOptions.includes(value) && <option value={value}>{value}</option>}
+                                        </select>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 수정된 다목 단일 선택 체크박스 모달 */}
+          {damokModal && (
+            <div className="modal-backdrop z-50">
+              <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+                <h3 className="text-lg font-bold mb-4 text-center text-slate-800">다목 공간 선택</h3>
+                <div className="space-y-4 mb-6 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+                  
+                  {/* 다목(2층) 구역 */}
+                  <div className={`p-4 rounded-lg border ${damokModal.isOpen1 ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50 opacity-60'}`}>
+                    <div className="flex justify-between items-center mb-3">
+                      <label className="block text-sm font-bold text-slate-700">다목(2층)</label>
+                      {!damokModal.isOpen1 && <span className="text-xs text-red-500 font-bold">닫힘</span>}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {classOptions.map(opt => {
+                        const isChecked = damokModal.val1 === opt;
+                        return (
+                          <label key={opt} className={`flex items-center gap-2 p-2 rounded-md border transition ${damokModal.isOpen1 ? (isChecked ? 'bg-indigo-100 border-indigo-400 cursor-pointer' : 'bg-white border-slate-200 hover:bg-slate-50 cursor-pointer') : 'bg-slate-100 border-slate-200 cursor-not-allowed opacity-70'}`}>
+                            <input type="checkbox" disabled={!damokModal.isOpen1} checked={isChecked} onChange={(e) => {
+                                if (e.target.checked) setDamokModal({...damokModal, val1: opt});
+                                else setDamokModal({...damokModal, val1: ""});
+                              }} className="w-4 h-4 accent-indigo-600 disabled:cursor-not-allowed" style={{cursor: damokModal.isOpen1 ? 'pointer' : 'not-allowed'}} />
+                            <span className="font-medium text-slate-700 text-[10pt]">{opt}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 다목(3층) 구역 */}
+                  <div className={`p-4 rounded-lg border ${damokModal.isOpen2 ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50 opacity-60'}`}>
+                    <div className="flex justify-between items-center mb-3">
+                      <label className="block text-sm font-bold text-slate-700">다목(3층)</label>
+                      {!damokModal.isOpen2 && <span className="text-xs text-red-500 font-bold">닫힘</span>}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {classOptions.map(opt => {
+                        const isChecked = damokModal.val2 === opt;
+                        return (
+                          <label key={opt} className={`flex items-center gap-2 p-2 rounded-md border transition ${damokModal.isOpen2 ? (isChecked ? 'bg-indigo-100 border-indigo-400 cursor-pointer' : 'bg-white border-slate-200 hover:bg-slate-50 cursor-pointer') : 'bg-slate-100 border-slate-200 cursor-not-allowed opacity-70'}`}>
+                            <input type="checkbox" disabled={!damokModal.isOpen2} checked={isChecked} onChange={(e) => {
+                                if (e.target.checked) setDamokModal({...damokModal, val2: opt});
+                                else setDamokModal({...damokModal, val2: ""});
+                              }} className="w-4 h-4 accent-indigo-600 disabled:cursor-not-allowed" style={{cursor: damokModal.isOpen2 ? 'pointer' : 'not-allowed'}} />
+                            <span className="font-medium text-slate-700 text-[10pt]">{opt}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => setDamokModal(null)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition">취소</button>
+                  <button onClick={() => {
+                      handleCellChange(damokModal.cellKey1, damokModal.val1);
+                      handleCellChange(damokModal.cellKey2, damokModal.val2);
+                      setDamokModal(null);
+                  }} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md transition">적용</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {multiSelectModal && (
+            <div className="modal-backdrop z-50">
+              <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+                <h3 className="text-lg font-bold mb-4 text-center text-slate-800">운동장 다중 선택</h3>
+                <div className="grid grid-cols-2 gap-2 mb-6 max-h-60 overflow-y-auto p-1 custom-scrollbar">
+                  {classOptions.map(opt => {
+                    const isChecked = multiSelectModal.selected.includes(opt);
+                    return (
+                      <label key={opt} className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition ${isChecked ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
+                        <input type="checkbox" checked={isChecked} onChange={(e) => {
+                            let newSelected = [...multiSelectModal.selected];
+                            if (e.target.checked) newSelected.push(opt);
+                            else newSelected = newSelected.filter(v => v !== opt);
+                            setMultiSelectModal({...multiSelectModal, selected: newSelected});
+                          }} className="w-5 h-5 accent-indigo-600 cursor-pointer" />
+                        <span className="font-medium text-slate-700">{opt}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => setMultiSelectModal(null)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition">취소</button>
+                  <button onClick={saveMultiSelect} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md transition">적용</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    const SpecialPwdRoom = ({ passwords, onSave, onExit, onLoading }) => {
+      const [pwdList, setPwdList] = useState(() => {
+        return passwords.map((p, index) => ({
+          id: p.id || Date.now() + index,
+          name: p.name || '',
+          pwd: p.pwd || '',
+          note: p.note || ''
+        }));
+      });
+      
+      const [form, setForm] = useState({ id: null, name: '', pwd: '', note: '' });
+
+      const handleAddOrUpdate = () => {
+        if (!form.name.trim() || !form.pwd.trim()) {
+          alert('특별실 이름과 비밀번호는 필수 입력 항목입니다.');
+          return;
+        }
+
+        if (form.id) {
+          setPwdList(pwdList.map(item => item.id === form.id ? { ...form } : item));
+        } else {
+          setPwdList([...pwdList, { ...form, id: Date.now() }]);
+        }
+        
+        setForm({ id: null, name: '', pwd: '', note: '' });
+      };
+
+      const handleEdit = (item) => {
+        setForm({ ...item });
+      };
+
+      const handleDelete = (id) => {
+        if (confirm('정말로 삭제하시겠습니까?')) {
+          setPwdList(pwdList.filter(item => item.id !== id));
+        }
+      };
+
+      const handleSave = () => {
+        onLoading(true);
+        onSave(pwdList, () => onLoading(false));
+      };
+
+      return (
+        <div className="max-w-5xl mx-auto p-6 h-full overflow-y-auto w-full custom-scrollbar">
+          <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-0 z-20 mb-6">
+            <h2 className="text-xl font-bold flex items-center gap-2 text-indigo-900"><Icons.Shield /> 특별실 비밀번호</h2>
+            <div className="space-x-3 flex">
+              <button onClick={handleSave} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-bold shadow transition whitespace-nowrap">저장하기</button>
+              <button onClick={onExit} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 py-2.5 rounded-lg font-bold transition whitespace-nowrap">닫기</button>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8">
+            <h3 className="font-bold mb-4 text-slate-800 border-b border-slate-100 pb-3">{form.id ? '비밀번호 정보 수정' : '새 특별실 비밀번호 추가'}</h3>
+            <div className="flex flex-col md:flex-row gap-4 items-end">
+              <div className="flex-1 w-full">
+                <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">특별실 이름 (필수)</label>
+                <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="bg-slate-50 border border-slate-200 p-3 rounded-lg w-full outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 ring-indigo-500/20 transition" placeholder="예: 과학실" />
+              </div>
+              <div className="flex-1 w-full">
+                <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">비밀번호 (필수)</label>
+                <input type="text" value={form.pwd} onChange={e => setForm({...form, pwd: e.target.value})} className="bg-slate-50 border border-slate-200 p-3 rounded-lg w-full outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 ring-indigo-500/20 transition font-mono tracking-wider" placeholder="예: 1234*" />
+              </div>
+              <div className="flex-[1.5] w-full">
+                <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">비고란 (선택)</label>
+                <input type="text" value={form.note} onChange={e => setForm({...form, note: e.target.value})} className="bg-slate-50 border border-slate-200 p-3 rounded-lg w-full outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 ring-indigo-500/20 transition" placeholder="자물쇠 위치, 관리자 정보 등" />
+              </div>
+              <div className="flex gap-2 w-full md:w-auto mt-4 md:mt-0">
+                <button onClick={handleAddOrUpdate} className={`${form.id ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-800 hover:bg-slate-900'} text-white px-6 py-3 rounded-lg font-bold transition shadow-sm w-full md:w-auto shrink-0`}>
+                  {form.id ? '수정완료' : '목록에 추가'}
+                </button>
+                {form.id && (
+                  <button onClick={() => setForm({id:null, name:'', pwd:'', note:''})} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-3 rounded-lg font-bold transition w-full md:w-auto shrink-0">취소</button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-10">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[600px]">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-sm">
+                    <th className="p-4 font-bold text-slate-600 w-[20%]">특별실 이름</th>
+                    <th className="p-4 font-bold text-slate-600 w-[25%]">비밀번호</th>
+                    <th className="p-4 font-bold text-slate-600 w-[40%]">비고</th>
+                    <th className="p-4 font-bold text-slate-600 text-center w-[15%]">관리</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pwdList.length === 0 ? (
+                    <tr><td colSpan="4" className="p-12 text-center text-slate-400 font-medium bg-white">등록된 특별실 비밀번호가 없습니다.<br/>위에서 추가해주세요.</td></tr>
+                  ) : (
+                    pwdList.map(item => (
+                      <tr key={item.id} className="border-b border-slate-100 hover:bg-indigo-50/30 transition group bg-white">
+                        <td className="p-4 font-bold text-slate-800 align-middle"><span className="inline-block px-3 py-1 bg-slate-100 rounded-md text-sm">{item.name}</span></td>
+                        <td className="p-4 font-mono text-indigo-600 font-extrabold text-lg align-middle tracking-widest">{item.pwd}</td>
+                        <td className="p-4 text-slate-600 align-middle break-keep">{item.note}</td>
+                        <td className="p-4 align-middle">
+                          <div className="flex justify-center gap-2 opacity-100 md:opacity-50 md:group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEdit(item)} className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="수정하기"><Icons.Edit /></button>
+                            <button onClick={() => handleDelete(item.id)} className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="삭제하기"><Icons.Trash /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const Admin = ({ settings, onSave, onExit, updateSettings, onLoading }) => {
+      const [exDate, setExDate] = useState('');
+      const [exPeriod, setExPeriod] = useState('1');
+      const [exSpace, setExSpace] = useState('0');
+
+      const [cxDate, setCxDate] = useState('');
+      const [cxPeriod, setCxPeriod] = useState('1');
+      const [cxSpace, setCxSpace] = useState('0');
+
+      const [activeTab, setActiveTab] = useState('sports');
+
+      if (!settings) return <div className="p-10 text-center">설정 로딩 중...</div>;
+
+      const toggleWeeklySettings = (sem, day, period, spaceIdx, checked) => {
+        const key = `${day}_${period}_${spaceIdx}`;
+        const currentSem = settings[sem] || {};
+        updateSettings({ [sem]: { ...currentSem, [key]: checked } });
+      };
+
+      const addException = () => {
+        if(!exDate) return;
+        updateSettings({ exceptions: [...(settings.exceptions || []), { date: exDate, period: parseInt(exPeriod), spaceIdx: parseInt(exSpace) }] });
+        setExDate('');
+      };
+
+      const removeException = (idx) => {
+        const next = [...(settings.exceptions || [])];
+        next.splice(idx, 1);
+        updateSettings({ exceptions: next });
+      };
+
+      const addCloseException = () => {
+        if(!cxDate) return;
+        updateSettings({ closeExceptions: [...(settings.closeExceptions || []), { date: cxDate, period: parseInt(cxPeriod), spaceIdx: parseInt(cxSpace) }] });
+        setCxDate('');
+      };
+
+      const removeCloseException = (idx) => {
+        const next = [...(settings.closeExceptions || [])];
+        next.splice(idx, 1);
+        updateSettings({ closeExceptions: next });
+      };
+
+      const renderSettingsTable = (sem, title, type) => {
+        const spaces = type === 'sports' ? ['강당', '다목(2층)', '다목(3층)', '운동장', '나래', 'VR'] : ['컴1', '컴2', '음악'];
+        const spaceIndices = type === 'sports' ? [0, 1, 8, 2, 3, 4] : [5, 6, 7];
+        const colSpan = spaces.length;
+
+        return (
+          <div className="mb-8 p-6 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <h3 className="font-bold text-lg mb-4 text-slate-800 border-b pb-2">{title}</h3>
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-center border-collapse text-sm min-w-max table-fixed">
+                <thead>
+                  <tr>{['월','화','수','목','금'].map(d => <th key={d} colSpan={colSpan + 1} className="border p-2 bg-slate-100 font-bold">{d}</th>)}</tr>
+                  <tr>{['월','화','수','목','금'].map(d => (
+                      <React.Fragment key={d}>
+                        <th className="border p-1 bg-slate-50 text-xs w-[50px]">교시</th>
+                        {spaces.map((sp, i) => <th key={i} className={`border p-1 ${spaceBgColors[spaceIndices[i]]} text-xs w-[60px]`}>{sp}</th>)}
+                      </React.Fragment>
+                    ))}</tr>
+                </thead>
+                <tbody>
+                  {[1,2,3,4,5,6].map(p => (
+                    <tr key={p}>
+                      {['Mon','Tue','Wed','Thu','Fri'].map(day => (
+                        <React.Fragment key={day}>
+                          <td className="border font-bold bg-slate-50 py-2 text-xs">{p}교시</td>
+                          {spaceIndices.map((sIdx) => {
+                            const isChecked = (settings[sem] && settings[sem][`${day}_${p}_${sIdx}`]) || false;
+                            return (
+                              <td key={sIdx} className={`border p-1 ${isChecked ? spaceBgColors[sIdx] : ''}`}>
+                                <input type="checkbox" className="w-4 h-4 cursor-pointer" checked={isChecked} onChange={e => toggleWeeklySettings(sem, day, p, sIdx, e.target.checked)} />
+                              </td>
+                            );
+                          })}
+                        </React.Fragment>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      };
+
+      return (
+        <div className="max-w-6xl mx-auto p-6 space-y-6 overflow-y-auto h-full w-full custom-scrollbar">
+          <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-0 z-20">
+            <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800"><Icons.Gear /> 관리자 설정</h2>
+            <div className="space-x-3 flex">
+              <button onClick={() => { onLoading(true); onSave(() => onLoading(false)); }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-bold shadow transition whitespace-nowrap">설정 저장</button>
+              <button onClick={onExit} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 py-2.5 rounded-lg font-bold transition whitespace-nowrap">나가기</button>
+            </div>
+          </div>
+          
+          <div className="space-y-6">
+            
+            {/* 1. 비밀번호 변경 섹션 분리 및 가로 배치 */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+              <h3 className="font-bold mb-4 text-slate-800 border-b pb-2">비밀번호 변경</h3>
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <div className="text-xs font-bold text-slate-500 mb-1">비밀번호 관리 접속 PW</div>
+                  <input type="text" value={settings.specialPwd || ''} onChange={e => updateSettings({ specialPwd: e.target.value })} className="border p-2 rounded-lg w-full outline-none focus:ring-2 ring-indigo-500/20" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-slate-500 mb-1">관리자 PW</div>
+                  <input type="text" value={settings.adminPwd || ''} onChange={e => updateSettings({ adminPwd: e.target.value })} className="border p-2 rounded-lg w-full outline-none focus:ring-2 ring-indigo-500/20" />
+                </div>
+              </div>
+            </div>
+            
+            {/* 2. 예외 설정 섹션 나란히 배치 */}
+            <div className="grid lg:grid-cols-2 gap-6">
+                {/* 예외 개방 설정 */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                  <h3 className="font-bold mb-4 text-blue-700 border-b pb-2">예외 개방 설정 (닫힌 곳 열기)</h3>
+                  <div className="flex gap-2 mb-4 flex-wrap sm:flex-nowrap">
+                    <input type="date" value={exDate} onChange={e => setExDate(e.target.value)} className="border p-2 rounded-lg text-sm flex-1 min-w-[130px]" />
+                    <select value={exPeriod} onChange={e => setExPeriod(e.target.value)} className="border p-2 rounded-lg text-sm w-24 shrink-0">
+                      {[1,2,3,4,5,6].map(p => <option key={p} value={p}>{p}교시</option>)}
+                    </select>
+                    <select value={exSpace} onChange={e => setExSpace(e.target.value)} className="border p-2 rounded-lg text-sm w-28 shrink-0">
+                      {allSpaces.map((sp, idx) => <option key={idx} value={idx}>{sp}</option>)}
+                    </select>
+                    <button onClick={addException} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition shrink-0 whitespace-nowrap">추가</button>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                    {(settings.exceptions || []).map((ex, i) => (
+                      <div key={i} className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm border border-slate-200 ${spaceBgColors[ex.spaceIdx]}`}>
+                        <span className="text-slate-800 font-medium">{ex.date} / {ex.period}교시 / {allSpaces[ex.spaceIdx]}</span>
+                        <button onClick={() => removeException(i)} className="text-red-500 hover:text-red-700 font-bold p-1">&times;</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 예외 불가 설정 */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                  <h3 className="font-bold mb-4 text-red-600 border-b pb-2">예외 불가 설정 (열린 곳 닫기)</h3>
+                  <div className="flex gap-2 mb-4 flex-wrap sm:flex-nowrap">
+                    <input type="date" value={cxDate} onChange={e => setCxDate(e.target.value)} className="border p-2 rounded-lg text-sm flex-1 min-w-[130px]" />
+                    <select value={cxPeriod} onChange={e => setCxPeriod(e.target.value)} className="border p-2 rounded-lg text-sm w-24 shrink-0">
+                      {[1,2,3,4,5,6].map(p => <option key={p} value={p}>{p}교시</option>)}
+                    </select>
+                    <select value={cxSpace} onChange={e => setCxSpace(e.target.value)} className="border p-2 rounded-lg text-sm w-28 shrink-0">
+                      {allSpaces.map((sp, idx) => <option key={idx} value={idx}>{sp}</option>)}
+                    </select>
+                    <button onClick={addCloseException} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition shrink-0 whitespace-nowrap">추가</button>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                    {(settings.closeExceptions || []).map((ex, i) => (
+                      <div key={i} className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm border border-slate-200 ${spaceBgColors[ex.spaceIdx]}`}>
+                        <span className="text-slate-800 font-medium">{ex.date} / {ex.period}교시 / {allSpaces[ex.spaceIdx]}</span>
+                        <button onClick={() => removeCloseException(i)} className="text-red-500 hover:text-red-700 font-bold p-1">&times;</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+            </div>
+
+          </div>
+
+          <div className="flex gap-2 border-b border-slate-300 px-2 mt-4">
+            <button onClick={() => setActiveTab('sports')} className={`px-6 py-3 font-bold text-sm ${activeTab === 'sports' ? 'border-b-2 border-indigo-600 text-indigo-700' : 'text-slate-500'}`}>체육 공간 설정</button>
+            <button onClick={() => setActiveTab('com')} className={`px-6 py-3 font-bold text-sm ${activeTab === 'com' ? 'border-b-2 border-indigo-600 text-indigo-700' : 'text-slate-500'}`}>컴실 등 설정</button>
+          </div>
+          {activeTab === 'sports' ? (
+            <>{renderSettingsTable('sem1', '1학기', 'sports')}{renderSettingsTable('sem2', '2학기', 'sports')}</>
+          ) : (
+            <>{renderSettingsTable('sem1', '1학기', 'com')}{renderSettingsTable('sem2', '2학기', 'com')}</>
+          )}
+        </div>
+      );
+    };
+
+    const SpecialRoom = ({ images, onUpload, onDelete, onLoading }) => {
+      const [fullImage, setFullImage] = useState(null);
+      return (
+        <div className="max-w-7xl mx-auto p-4 h-full flex flex-col w-full">
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between shrink-0 mb-4">
+            <h3 className="font-bold text-lg flex items-center gap-2 text-indigo-900"><Icons.Photo /> 시간표 이미지 관리</h3>
+            <label className="cursor-pointer flex items-center gap-2 bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg font-bold hover:bg-indigo-100 transition shadow-sm border border-indigo-100">
+              <Icons.Upload /> <span>이미지 추가</span>
+              <input type="file" className="hidden" accept="image/*" onChange={async (e) => {
+                onLoading(true);
+                const reader = new FileReader();
+                reader.readAsDataURL(e.target.files[0]);
+                reader.onload = (ev) => {
+                  const img = new Image();
+                  img.src = ev.target.result;
+                  img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    let { width, height } = img;
+                    if (width > 1024) { height *= 1024 / width; width = 1024; }
+                    canvas.width = width; canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+                    const base64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+                    onUpload(base64, e.target.files[0].name, e.target.files[0].type, () => onLoading(false));
+                  };
+                };
+              }} />
+            </label>
+          </div>
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="flex flex-wrap gap-6 pb-10 justify-center md:justify-start">
+              {images.map(img => (
+                <div key={img.id} className="relative group border rounded-xl bg-white shadow-sm hover:shadow-md transition overflow-hidden w-full md:w-[380px] shrink-0">
+                  <div className="w-full bg-slate-50 flex items-center justify-center cursor-pointer" onClick={() => setFullImage(img.url.replace('=s800', '=s0'))}>
+                    <img src={img.url} className="w-full h-auto object-contain" />
+                  </div>
+                  <button onClick={() => { if(confirm("삭제하시겠습니까?")) onDelete(img.id); }} className="absolute top-4 right-4 bg-red-500 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition shadow-lg"><Icons.Trash /></button>
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-2 text-center opacity-0 group-hover:opacity-100 transition">{img.name}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {fullImage && (
+            <div className="modal-backdrop z-[110]" onClick={() => setFullImage(null)}>
+              <div className="relative"><button className="fixed top-5 right-5 text-white bg-black/50 rounded-full p-2 z-[120]" onClick={() => setFullImage(null)}><Icons.Close /></button>
+              <img src={fullImage} className="image-modal-content" onClick={e => e.stopPropagation()} /></div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    const App = () => {
+      const [loading, setLoading] = useState(false);
+      const [view, setView] = useState('sports');
+      const [holidays, setHolidays] = useState([]);
+      const [schedule, setSchedule] = useState({});
+      const [settings, setSettings] = useState({ sem1: {}, sem2: {}, exceptions: [], closeExceptions: [], adminPwd: '0000', specialPwd: '1111' });
+      const [passwords, setPasswords] = useState([]);
+      const [images, setImages] = useState([]);
+      const [authModal, setAuthModal] = useState(null);
+      const [inputPwd, setInputPwd] = useState('');
+      const [isAdmin, setIsAdmin] = useState(false);
+      const [isSpecialAuth, setIsSpecialAuth] = useState(false);
+
+      const fetchData = () => {
+        setLoading(true);
+        google.script.run.withSuccessHandler(res => {
+          if (res.success) {
+            setHolidays(res.holidays);
+            const schMap = {};
+            res.schedule.forEach(item => { schMap[`${item.date}_${item.period}_${item.space}`] = item.className; });
+            setSchedule(schMap);
+            setSettings(prev => ({ ...prev, ...(res.settings || {}) }));
+            setPasswords(res.roomPasswords || []);
+          }
+          setLoading(false);
+        }).getInitialData();
+      };
+
+      const fetchImages = () => {
+        google.script.run.withSuccessHandler(setImages).getImages();
+      };
+
+      useEffect(() => {
+        fetchData();
+        fetchImages();
+      }, []);
+
+      return (
+        <div className="flex flex-col h-screen bg-slate-50">
+          {loading && <div className="loading-indicator"><div className="spinner"></div>데이터 처리중...</div>}
+          {authModal && (
+            <div className="modal-backdrop z-[200]">
+              <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm">
+                <h3 className="text-xl font-bold mb-6 text-center text-slate-800">{authModal === 'admin' ? '관리자 접속' : '특별실 비밀번호 인증'}</h3>
+                <input type="password" className="w-full border p-4 rounded-xl mb-6 outline-none focus:ring-4 ring-indigo-100 text-center text-lg tracking-widest" placeholder="비밀번호" value={inputPwd} onChange={e => setInputPwd(e.target.value)} onKeyUp={e => {
+                  if (e.key === 'Enter') {
+                    if (authModal === 'admin' && inputPwd === settings.adminPwd) { setIsAdmin(true); setAuthModal(null); setView('admin'); }
+                    else if (authModal === 'special' && inputPwd === settings.specialPwd) { setIsSpecialAuth(true); setAuthModal(null); setView('password'); }
+                    else alert("비밀번호 불일치");
+                    setInputPwd('');
+                  }
+                }} autoFocus />
+                <div className="flex gap-3">
+                  <button onClick={() => { setAuthModal(null); setInputPwd(''); }} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold">취소</button>
+                  <button onClick={() => {
+                    if (authModal === 'admin' && inputPwd === settings.adminPwd) { setIsAdmin(true); setAuthModal(null); setView('admin'); }
+                    else if (authModal === 'special' && inputPwd === settings.specialPwd) { setIsSpecialAuth(true); setAuthModal(null); setView('password'); }
+                    else alert("비밀번호 불일치");
+                    setInputPwd('');
+                  }} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold">확인</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <header className="bg-white border-b h-16 flex items-center justify-between px-4 sm:px-6 shadow-sm shrink-0 z-30 sticky top-0 overflow-hidden">
+            <div className="flex items-center gap-4 sm:gap-6 overflow-hidden w-full">
+              <h1 className="text-lg sm:text-xl font-extrabold text-indigo-900 tracking-tight whitespace-nowrap hidden sm:block">특별실 시간표</h1>
+              <nav className="flex bg-slate-100 rounded-lg p-1 gap-1 overflow-x-auto no-scrollbar flex-1 max-w-full">
+                <button onClick={() => setView('sports')} className={`px-3 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 ${view === 'sports' ? 'bg-white shadow text-orange-600' : 'text-slate-500'}`}><Icons.Sports /> <span className="hidden sm:inline">체육 공간</span></button>
+                <button onClick={() => setView('com')} className={`px-3 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 ${view === 'com' ? 'bg-white shadow text-blue-600' : 'text-slate-500'}`}><Icons.Computer /> <span className="hidden sm:inline">컴실 등</span></button>
+                <button onClick={() => setView('special')} className={`px-3 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 ${view === 'special' ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}><Icons.Photo /> <span className="hidden sm:inline">특별실 시간표</span></button>
+                <button onClick={() => isSpecialAuth ? setView('password') : setAuthModal('special')} className={`px-3 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 ${view === 'password' ? 'bg-white shadow text-indigo-900' : 'text-slate-500'}`}><Icons.Shield /> <span className="hidden sm:inline">특별실 비밀번호</span></button>
+              </nav>
+            </div>
+            <div className="shrink-0 ml-2">
+              <button onClick={() => isAdmin ? setView('admin') : setAuthModal('admin')} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${isAdmin ? 'bg-slate-800 text-white' : 'bg-indigo-50 text-indigo-600 border border-indigo-100'}`}>
+                {isAdmin ? <Icons.Gear /> : <Icons.Key />}
+              </button>
+            </div>
+          </header>
+
+          <main className="flex-1 overflow-hidden relative">
+            {view === 'sports' && <ScheduleTable 
+              spaces={['강당', '다목', '운동장', '나래', 'VR']} 
+              spaceIndices={[0, -1, 2, 3, 4]} 
+              tableType="sports" 
+              holidays={holidays} 
+              schedule={schedule} 
+              settings={settings} 
+              onRefresh={fetchData} 
+              onSave={(unsaved, cb) => {
+                const updates = Object.keys(unsaved).map(key => { const parts = key.split('_'); return { date: parts[0], period: parts[1], space: parts[2], className: unsaved[key] }; });
+                google.script.run.withSuccessHandler(res => { if(res.success){ alert("저장되었습니다."); setSchedule(p => { const next={...p}; Object.keys(unsaved).forEach(k => { if(unsaved[k]==="") delete next[k]; else next[k]=unsaved[k]; }); return next; }); cb(); } else alert(res.error); }).saveScheduleData(updates);
+              }} 
+              onLoading={setLoading} 
+            />}
+            {view === 'com' && <ScheduleTable 
+              spaces={['컴1', '컴2', '음악']} 
+              spaceIndices={[5, 6, 7]} 
+              tableType="com" 
+              holidays={holidays} 
+              schedule={schedule} 
+              settings={settings} 
+              onRefresh={fetchData} 
+              onSave={(unsaved, cb) => {
+                const updates = Object.keys(unsaved).map(key => { const parts = key.split('_'); return { date: parts[0], period: parts[1], space: parts[2], className: unsaved[key] }; });
+                google.script.run.withSuccessHandler(res => { if(res.success){ alert("저장되었습니다."); setSchedule(p => { const next={...p}; Object.keys(unsaved).forEach(k => { if(unsaved[k]==="") delete next[k]; else next[k]=unsaved[k]; }); return next; }); cb(); } else alert(res.error); }).saveScheduleData(updates);
+              }} 
+              onLoading={setLoading} 
+            />}
+            {view === 'admin' && <Admin settings={settings} onSave={(cb) => { google.script.run.withSuccessHandler(()=>{alert('설정이 저장되었습니다.'); cb();}).saveSettings(settings); }} onExit={() => setView('sports')} updateSettings={updates => setSettings(prev => ({...prev, ...updates}))} onLoading={setLoading} />}
+            {view === 'special' && <SpecialRoom images={images} onUpload={(base64, name, type, cb) => { google.script.run.withSuccessHandler(()=>{fetchImages(); cb();}).uploadImage(base64, name, type); }} onDelete={(id) => { google.script.run.withSuccessHandler(()=>{fetchImages();}).deleteImage(id); }} onLoading={setLoading} />}
+            {view === 'password' && <SpecialPwdRoom passwords={passwords} onSave={(newPwds, cb) => { google.script.run.withSuccessHandler(() => { setPasswords(newPwds); alert('특별실 비밀번호가 저장되었습니다.'); cb(); }).saveRoomPasswords(newPwds); }} onExit={() => setView('sports')} onLoading={setLoading} />}
+          </main>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <script>window.__GP_PAGE__ = 'p10';</script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+  <script src="../assets/js/firebase-config.js"></script>
+  <script src="../assets/js/gas-shim.js"></script>
+
+  
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <title>내선번호</title>
+  <style>
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    #zoom-zone { touch-action: none; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center relative font-sans m-0 p-0 overflow-hidden">
+
+  <!-- 관리자 기어 버튼 -->
+  <button id="admin-gear-btn" onclick="showAdminLogin()" class="absolute top-5 right-5 text-gray-400 hover:text-gray-800 transition-colors p-2 z-50" title="관리자 페이지">
+    <i class="fa-solid fa-gear text-2xl drop-shadow-md"></i>
+  </button>
+
+  <!-- 메인 폼 카드 컨테이너 -->
+  <div id="form-container" class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center mx-4 z-10 flex flex-col justify-between">
+    
+    <!-- 사용자 비밀번호 확인 화면 -->
+    <div id="user-login-view">
+      <h2 class="text-2xl font-bold mb-6 text-gray-800">내선번호</h2>
+      <input type="password" id="user-pwd" onkeypress="if(event.key === 'Enter') checkUserPwd()" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4 text-center tracking-widest" placeholder="비밀번호 입력">
+      <button id="user-login-btn" onclick="checkUserPwd()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors shadow-md">확인</button>
+      <p id="user-error" class="text-red-500 mt-3 text-sm hidden font-medium whitespace-pre-line"></p>
+    </div>
+
+    <!-- 관리자 로그인 화면 -->
+    <div id="admin-login-view" class="hidden">
+      <h2 class="text-2xl font-bold mb-6 text-gray-800">관리자 접속</h2>
+      <input type="password" id="admin-pwd" onkeypress="if(event.key === 'Enter') checkAdminPwd()" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 mb-4 text-center tracking-widest" placeholder="관리자 비밀번호">
+      <button id="admin-login-btn" onclick="checkAdminPwd()" class="w-full bg-purple-600 text-white font-bold py-3 rounded-lg hover:bg-purple-700 transition-colors shadow-md">관리자 로그인</button>
+      <button onclick="showUserLogin()" class="mt-3 w-full text-gray-500 hover:text-gray-700 font-bold py-2">뒤로</button>
+      <p id="admin-error" class="text-red-500 mt-3 text-sm hidden font-medium whitespace-pre-line"></p>
+    </div>
+
+    <!-- 관리자 통합 설정 패널 (비밀번호 변경 & 파일 교체) -->
+    <div id="admin-panel-view" class="hidden">
+      <h2 class="text-2xl font-bold mb-6 text-gray-800">관리자 설정</h2>
+      
+      <!-- 1. 파일 교체 영역 (이미지, PDF, 엑셀 모두 대응) -->
+      <div class="text-left mb-6 pb-6 border-b border-gray-200">
+        <label class="block text-sm font-semibold text-gray-700 mb-2">
+          <i class="fa-solid fa-file-invoice mr-1"></i> 파일 등록/교체 (1개만 탑재)
+        </label>
+        <p class="text-xs text-gray-500 mb-3">엑셀, 이미지, PDF 파일 중 딱 1개만 업로드할 수 있습니다. 새 파일 등록 시 기존에 사용하던 파일은 자동으로 완전히 삭제 교체됩니다.</p>
+        
+        <div class="flex items-center justify-center w-full">
+          <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+            <div class="flex flex-col items-center justify-center pt-5 pb-6">
+              <i id="upload-icon" class="fa-solid fa-cloud-arrow-up text-3xl text-gray-400 mb-2"></i>
+              <p class="text-xs text-gray-500" id="file-display-name">파일 선택 (EXCEL, PDF, JPG, PNG)</p>
+            </div>
+            <input type="file" id="file-uploader" accept=".xlsx, .xls, .pdf, image/*" class="hidden" onchange="displaySelectedFileName(this)">
+          </label>
+        </div>
+        
+        <button onclick="triggerFileUpload()" class="w-full mt-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg transition-colors text-sm shadow">
+          선택한 파일로 교체 등록
+        </button>
+      </div>
+
+      <!-- 2. 비밀번호 변경 영역 -->
+      <div class="text-left mb-6">
+        <label class="block text-sm font-semibold text-gray-700 mb-2">
+          <i class="fa-solid fa-key mr-1"></i> 새로운 열람 비밀번호 설정
+        </label>
+        <input type="text" id="new-user-pwd" onkeypress="if(event.key === 'Enter') changePassword()" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 text-center tracking-widest" placeholder="새 비밀번호 입력">
+      </div>
+
+      <div class="flex gap-2.5">
+        <button onclick="changePassword()" class="flex-1 bg-green-500 text-white font-bold py-3 rounded-lg hover:bg-green-600 transition-colors shadow-md">저장</button>
+        <button onclick="showUserLogin()" class="flex-1 bg-gray-100 text-gray-600 font-bold py-3 rounded-lg hover:bg-gray-200 transition-colors">뒤로</button>
+      </div>
+      
+      <p id="admin-panel-msg" class="mt-4 text-sm hidden font-medium"></p>
+    </div>
+  </div>
+
+  <!-- 이미지, PDF, 엑셀 통합 풀스크린 뷰어 -->
+  <div id="image-view" class="hidden absolute inset-0 bg-stone-900 z-40 overflow-hidden no-scrollbar select-none">
+    
+    <!-- 이미지일 경우 띄울 확대/축소 제스처 레이어 -->
+    <div id="zoom-zone" class="w-full h-full flex items-center justify-center origin-center transition-transform duration-75 easy-out">
+      <img id="pdf-image" src="" alt="내선번호 내역" class="max-w-full max-h-full object-contain pointer-events-none drop-shadow-2xl">
+    </div>
+
+    <!-- 엑셀 및 PDF 일 경우 띄울 내장 구글 도큐먼트 뷰어 (Iframe) -->
+    <div id="document-viewer-zone" class="w-full h-full hidden bg-white">
+      <iframe id="document-iframe" class="w-full h-full border-0 animate-fade-in" src=""></iframe>
+    </div>
+
+    <!-- 하단 제어 및 종료 플로팅 버튼 -->
+    <div class="absolute bottom-6 right-6 flex flex-col gap-3 z-50">
+      <button id="img-reset-btn" onclick="resetZoom()" class="w-12 h-12 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center transition-colors shadow-lg" title="크기 초기화">
+        <i class="fa-solid fa-arrows-to-dot text-lg"></i>
+      </button>
+      <button onclick="showUserLogin()" class="w-12 h-12 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center transition-colors shadow-lg" title="닫기">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- 전체화면 블러 로딩 지시자 -->
+  <div id="global-spinner" class="hidden absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white">
+    <div class="animate-spin rounded-full h-14 w-14 border-t-4 border-b-4 border-white mb-4"></div>
+    <p class="text-lg font-bold" id="spinner-text">파일 처리 중...</p>
+  </div>
+
+  <script>
+    // 전역 관리자 패스워드 캐시
+    let currentAdminPwd = '';
+
+    // ==========================================
+    // 1. 단순 명료한 화면(View) 전환 함수들
+    // ==========================================
+    function showView(viewId) {
+      document.getElementById('user-login-view').classList.add('hidden');
+      document.getElementById('admin-login-view').classList.add('hidden');
+      document.getElementById('admin-panel-view').classList.add('hidden');
+      document.getElementById('image-view').classList.add('hidden');
+      document.getElementById('form-container').classList.add('hidden');
+      document.getElementById('admin-gear-btn').classList.add('hidden');
+
+      if (viewId === 'user') {
+        document.getElementById('form-container').classList.remove('hidden');
+        document.getElementById('user-login-view').classList.remove('hidden');
+        document.getElementById('admin-gear-btn').classList.remove('hidden');
+        document.getElementById('user-pwd').value = '';
+        document.getElementById('user-error').classList.add('hidden');
+      } 
+      else if (viewId === 'admin') {
+        document.getElementById('form-container').classList.remove('hidden');
+        document.getElementById('admin-login-view').classList.remove('hidden');
+        document.getElementById('admin-pwd').value = '';
+        document.getElementById('admin-error').classList.add('hidden');
+      } 
+      else if (viewId === 'panel') {
+        document.getElementById('form-container').classList.remove('hidden');
+        document.getElementById('admin-panel-view').classList.remove('hidden');
+        document.getElementById('new-user-pwd').value = '';
+        document.getElementById('admin-panel-msg').classList.add('hidden');
+        resetFileSelector();
+      } 
+      else if (viewId === 'viewer') {
+        document.getElementById('image-view').classList.remove('hidden');
+        resetZoom();
+      }
+    }
+
+    function showUserLogin() { showView('user'); }
+    function showAdminLogin() { showView('admin'); }
+
+    // ==========================================
+    // 2. 비즈니스 로직 (구글 통신 완전 정석 패턴)
+    // ==========================================
+    
+    // 유저 비밀번호 검증
+    function checkUserPwd() {
+      const pwd = document.getElementById('user-pwd').value;
+      if (!pwd) return;
+
+      const btn = document.getElementById('user-login-btn');
+      const errorEl = document.getElementById('user-error');
+      const origText = btn.innerText;
+
+      errorEl.classList.add('hidden');
+      btn.innerText = '확인 중...';
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(isValid) {
+            if (isValid) {
+              loadViewerData();
+            } else {
+              btn.innerText = origText;
+              errorEl.innerText = "비밀번호가 일치하지 않습니다.";
+              errorEl.classList.remove('hidden');
+            }
+          })
+          .withFailureHandler(function(err) {
+            btn.innerText = origText;
+            errorEl.innerText = "서버 검증 오류: " + err.message;
+            errorEl.classList.remove('hidden');
+          })
+          .verifyPassword('user', pwd);
+      } else {
+        setTimeout(function() {
+          if (false) {
+            
+            showView('viewer');
+            btn.innerText = origText;
+          } else {
+            btn.innerText = origText;
+            errorEl.innerText = "비밀번호가 일치하지 않습니다.";
+            errorEl.classList.remove('hidden');
+          }
+        }, 300);
+      }
+    }
+
+    // 파일 메타데이터 불러오기 및 뷰어 띄우기
+    function loadViewerData() {
+      const btn = document.getElementById('user-login-btn');
+      const errorEl = document.getElementById('user-error');
+      
+      // Code.gs에 getFileMetadata가 구현되어 있어야 합니다. 
+      // 만약 없다면 getFileId 함수를 호출하도록 우회 동작합니다.
+      if (google.script.run.getFileMetadata) {
+        google.script.run
+          .withSuccessHandler(function(meta) {
+            // 메타데이터가 객체가 아니라 단일 ID(문자열)로 넘어올 경우를 방어합니다.
+            const fileId = typeof meta === 'object' ? meta.id : meta;
+            const fileMime = typeof meta === 'object' ? meta.mimeType : null;
+            
+            updateViewerSource(fileId, fileMime);
+            btn.innerText = "확인";
+            showView('viewer');
+          })
+          .withFailureHandler(function(err) {
+            btn.innerText = "확인";
+            errorEl.innerText = "파일 로드 오류: " + err.message;
+            errorEl.classList.remove('hidden');
+          })
+          .getFileMetadata();
+      } else {
+        google.script.run
+          .withSuccessHandler(function(fileId) {
+            updateViewerSource(fileId, null);
+            btn.innerText = "확인";
+            showView('viewer');
+          })
+          .withFailureHandler(function(err) {
+            btn.innerText = "확인";
+            errorEl.innerText = "파일 ID 로드 오류: " + err.message;
+            errorEl.classList.remove('hidden');
+          })
+          .getFileId();
+      }
+    }
+
+    // 파일 종류에 맞춰 뷰어 분기 렌더링 (400 에러 해결의 핵심)
+    function docSrc(url, mime) {
+      if (mime && mime.indexOf('pdf') !== -1) return url;
+      return 'https://docs.google.com/gview?embedded=1&url=' + encodeURIComponent(url);
+    }
+
+    function updateViewerSource(id, mimeType) {
+      const imgEl = document.getElementById('pdf-image');
+      const iframeEl = document.getElementById('document-iframe');
+      const zoomZone = document.getElementById('zoom-zone');
+      const docZone = document.getElementById('document-viewer-zone');
+      const resetBtn = document.getElementById('img-reset-btn');
+
+      // MimeType이 명시적으로 이미지이거나, MimeType을 모를 땐 일단 이미지로 간주하고 시도
+      if (!mimeType || mimeType.indexOf('image/') !== -1) {
+        zoomZone.classList.remove('hidden');
+        docZone.classList.add('hidden');
+        resetBtn.classList.remove('hidden');
+        
+        // [해결] 갓 업로드된 파일의 thumbnail 400 에러 방지를 위해 원본 다이렉트 호출(uc) 사용
+        imgEl.src = id;
+        
+        // 이미지 로딩 실패(엑셀/PDF인데 이미지로 간주된 경우) 시 iframe 뷰어로 자동 전환
+        imgEl.onerror = function() {
+          zoomZone.classList.add('hidden');
+          docZone.classList.remove('hidden');
+          resetBtn.classList.add('hidden');
+          iframeEl.src = docSrc(id, mimeType);
+        };
+      } else {
+        zoomZone.classList.add('hidden');
+        docZone.classList.remove('hidden');
+        resetBtn.classList.add('hidden');
+        
+        // [해결] docs.google.com/viewer 에러 방지를 위해 구글 드라이브 공식 preview 사용
+        iframeEl.src = docSrc(id, mimeType);
+      }
+    }
+
+    // 관리자 로그인 검증
+    function checkAdminPwd() {
+      const pwd = document.getElementById('admin-pwd').value;
+      if (!pwd) return;
+
+      const btn = document.getElementById('admin-login-btn');
+      const errorEl = document.getElementById('admin-error');
+      const origText = btn.innerText;
+
+      errorEl.classList.add('hidden');
+      btn.innerText = '확인 중...';
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(isValid) {
+            btn.innerText = origText;
+            if (isValid) {
+              currentAdminPwd = pwd;
+              showView('panel');
+            } else {
+              errorEl.innerText = "관리자 비밀번호가 일치하지 않습니다.";
+              errorEl.classList.remove('hidden');
+            }
+          })
+          .withFailureHandler(function(err) {
+            btn.innerText = origText;
+            errorEl.innerText = "관리자 인증 서버 오류: " + err.message;
+            errorEl.classList.remove('hidden');
+          })
+          .verifyPassword('admin', pwd);
+      } else {
+        setTimeout(function() {
+          if (pwd === '00admin') {
+            currentAdminPwd = pwd;
+            showView('panel');
+            btn.innerText = origText;
+          } else {
+            btn.innerText = origText;
+            errorEl.innerText = "관리자 비밀번호가 일치하지 않습니다.";
+            errorEl.classList.remove('hidden');
+          }
+        }, 300);
+      }
+    }
+
+    // 비밀번호 변경 저장
+    function changePassword() {
+      const newPwd = document.getElementById('new-user-pwd').value;
+      if (!newPwd) {
+        showMessage('새로운 비밀번호를 입력해주세요.', 'text-red-500');
+        return;
+      }
+
+      setSpinner(true, '비밀번호를 변경하고 있습니다...');
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(res) {
+            setSpinner(false);
+            if (res.success) {
+              showMessage(res.message, 'text-green-600');
+            } else {
+              showMessage(res.message, 'text-red-500');
+            }
+          })
+          .withFailureHandler(function(err) {
+            setSpinner(false);
+            showMessage('서버 통신 실패: ' + err.message, 'text-red-500');
+          })
+          .changeUserPassword(currentAdminPwd, newPwd);
+      } else {
+        setTimeout(function() {
+          setSpinner(false);
+          showMessage('로컬 환경이므로 변경을 시뮬레이션 했습니다.', 'text-green-600');
+        }, 500);
+      }
+    }
+
+    // 파일 교체 업로드 실행
+    function triggerFileUpload() {
+      const uploader = document.getElementById('file-uploader');
+      if (!uploader.files || uploader.files.length === 0) {
+        showMessage('교체할 파일이 선택되지 않았습니다.', 'text-red-500');
+        return;
+      }
+
+      const file = uploader.files[0];
+      const reader = new FileReader();
+
+      setSpinner(true, '파일을 서버로 업로드하고 있습니다...');
+
+      reader.onload = function(e) {
+        const base64Data = e.target.result.split(',')[1]; // Base64 메타 제거
+        
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run
+            .withSuccessHandler(function(res) {
+              setSpinner(false);
+              if (res.success) {
+                showMessage(res.message, 'text-green-600');
+                resetFileSelector();
+              } else {
+                showMessage(res.message, 'text-red-500');
+              }
+            })
+            .withFailureHandler(function(err) {
+              setSpinner(false);
+              showMessage('업로드 통신 실패: ' + err.message, 'text-red-500');
+            })
+            .uploadFile(currentAdminPwd, base64Data, file.name, file.type);
+        } else {
+           setTimeout(function() {
+             setSpinner(false);
+             showMessage('로컬 환경에서 업로드 시뮬레이션 완료.', 'text-green-600');
+             resetFileSelector();
+           }, 1000);
+        }
+      };
+
+      reader.onerror = function() {
+        setSpinner(false);
+        showMessage('로컬 기기 내에서 파일을 해석하는 데 실패했습니다.', 'text-red-500');
+      };
+
+      reader.readAsDataURL(file);
+    }
+
+    // ==========================================
+    // 3. UI 헬퍼 및 확대/축소 제스처 함수들
+    // ==========================================
+    
+    function resetFileSelector() {
+      document.getElementById('file-uploader').value = '';
+      document.getElementById('file-display-name').innerText = "파일 선택 (EXCEL, PDF, JPG, PNG)";
+      document.getElementById('upload-icon').className = "fa-solid fa-cloud-arrow-up text-3xl text-gray-400 mb-2";
+    }
+
+    function displaySelectedFileName(input) {
+      const fileNameEl = document.getElementById('file-display-name');
+      const iconEl = document.getElementById('upload-icon');
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        fileNameEl.innerText = file.name;
+        
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (ext === 'xlsx' || ext === 'xls') {
+          iconEl.className = "fa-solid fa-file-excel text-3xl text-green-500 mb-2";
+        } else if (ext === 'pdf') {
+          iconEl.className = "fa-solid fa-file-pdf text-3xl text-red-500 mb-2";
+        } else {
+          iconEl.className = "fa-solid fa-file-image text-3xl text-indigo-500 mb-2";
+        }
+      } else {
+        resetFileSelector();
+      }
+    }
+
+    function setSpinner(show, text) {
+      const spinner = document.getElementById('global-spinner');
+      if (show) {
+        document.getElementById('spinner-text').innerText = text;
+        spinner.classList.remove('hidden');
+      } else {
+        spinner.classList.add('hidden');
+      }
+    }
+
+    function showMessage(text, colorClass) {
+      const msgEl = document.getElementById('admin-panel-msg');
+      msgEl.innerText = text;
+      msgEl.className = 'mt-4 text-sm font-bold ' + colorClass;
+      msgEl.classList.remove('hidden');
+    }
+
+    // 줌/드래그 상태 변수
+    let scale = 1;
+    let pointX = 0, pointY = 0;
+    let startX = 0, startY = 0;
+    let isPanning = false;
+    let touchStartDist = 0;
+
+    function updateTransform() {
+      const zoomZone = document.getElementById('zoom-zone');
+      if (zoomZone) {
+        zoomZone.style.transform = 'translate(' + pointX + 'px, ' + pointY + 'px) scale(' + scale + ')';
+      }
+    }
+
+    function resetZoom() {
+      scale = 1;
+      pointX = 0;
+      pointY = 0;
+      updateTransform();
+    }
+
+    // 마우스 휠, 드래그 및 터치 이벤트 직접 등록 (에러 없는 완전 안전 방식)
+    const zz = document.getElementById('zoom-zone');
+    
+    function startPan(e) {
+      if (document.getElementById('image-view').classList.contains('hidden')) return;
+      if (!document.getElementById('document-viewer-zone').classList.contains('hidden')) return;
+      if (e.touches && e.touches.length > 1) return; 
+
+      isPanning = true;
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      startX = clientX - pointX;
+      startY = clientY - pointY;
+    }
+
+    function movePan(e) {
+      if (!isPanning) return;
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      pointX = clientX - startX;
+      pointY = clientY - startY;
+      updateTransform();
+    }
+
+    function endPan() {
+      isPanning = false;
+    }
+
+    window.addEventListener('wheel', function(e) {
+      if (document.getElementById('image-view').classList.contains('hidden')) return;
+      if (!document.getElementById('document-viewer-zone').classList.contains('hidden')) return;
+      e.preventDefault();
+      
+      const zoomFactor = 0.1;
+      if (e.deltaY < 0) {
+        scale = Math.min(scale + zoomFactor, 5);
+      } else {
+        scale = Math.max(scale - zoomFactor, 0.8);
+      }
+      updateTransform();
+    }, { passive: false });
+
+    zz.addEventListener('mousedown', startPan);
+    window.addEventListener('mousemove', movePan);
+    window.addEventListener('mouseup', endPan);
+
+    zz.addEventListener('touchstart', function(e) {
+      if (e.touches.length === 2) {
+        touchStartDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+      } else {
+        startPan(e);
+      }
+    });
+
+    zz.addEventListener('touchmove', function(e) {
+      if (e.touches.length === 2 && touchStartDist > 0) {
+        e.preventDefault();
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const factor = dist / touchStartDist;
+        touchStartDist = dist; 
+        
+        scale = Math.max(0.8, Math.min(scale * factor, 5));
+        updateTransform();
+      } else {
+        movePan(e);
+      }
+    }, { passive: false });
+
+    zz.addEventListener('touchend', function(e) {
+      if (e.touches.length < 2) touchStartDist = 0;
+      endPan();
+    });
+  </script>
+</body>
+</html>

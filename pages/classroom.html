@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>교실배치도</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+  <script src="../assets/js/firebase-config.js"></script>
+  <script src="../assets/js/gas-shim.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css'); body{font-family:'Pretendard',sans-serif;background:#f8fafc}</style>
+</head>
+<body class="p-4 md:p-6 text-slate-800">
+<div class="max-w-5xl mx-auto space-y-4">
+  <div class="flex items-center justify-between"><h1 class="text-2xl font-bold">교실배치도</h1>
+    <label class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold cursor-pointer">이미지 올리기<input id="file" type="file" accept="image/*" class="hidden"></label></div>
+  <div id="view" class="bg-white border border-slate-200 rounded-xl shadow-sm p-3 text-center"></div>
+</div>
+<script>
+async function load(){
+  const v=document.getElementById('view');
+  try{
+    const res=await GP.storage.ref('classroom').listAll();
+    const items=res.items.sort((a,b)=>b.name.localeCompare(a.name));
+    if(!items.length){ v.innerHTML='<p class="text-slate-400 py-10">등록된 교실배치도가 없습니다.</p>'; return; }
+    v.innerHTML='<img class="max-w-full h-auto mx-auto" src="'+await items[0].getDownloadURL()+'">';
+  }catch(e){ v.innerHTML='<p class="text-red-500 py-10">불러오기 실패: '+e.message+'</p>'; }
+}
+document.getElementById('file').onchange=async(e)=>{
+  const f=e.target.files[0]; if(!f) return;
+  const res=await GP.storage.ref('classroom').listAll();
+  await GP.storage.ref('classroom/'+Date.now()+'_'+f.name.replace(/[^\w.\-]+/g,'_')).put(f);
+  for(const it of res.items){ try{await it.delete();}catch(_){} }
+  load();
+};
+load();
+</script></body></html>

@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 기존 구글 사이트처럼 로그인 없이 읽고 수정하는 설정입니다. (임시)
+    // 학생 이름·생년월일, 쇼핑몰 ID/비밀번호가 포함되어 있어 공개 운영 전 반드시 강화하세요.
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

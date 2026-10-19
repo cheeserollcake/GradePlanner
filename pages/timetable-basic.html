@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <script>window.__GP_PAGE__ = 'p04';</script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+  <script src="../assets/js/firebase-config.js"></script>
+  <script src="../assets/js/gas-shim.js"></script>
+
+    
+    <!-- unpkg 대신 안정적인 cdnjs 사용 및 Babel 7 버전 고정 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+      body { font-family: 'Pretendard', sans-serif; background-color: #f8fafc; }
+      
+      /* 커스텀 스크롤바 */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+      .loader {
+        border: 3px solid #f3f3f3; border-top: 3px solid #6366f1;
+        border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite;
+      }
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      
+      /* 하이라이트 색상 */
+      .bg-p12 { background-color: #fbf6e3 !important; font-weight: bold; }
+      .bg-p13 { background-color: #ecf1fe !important; font-weight: bold; }
+      
+      @keyframes loading-bar {
+        0% { width: 0%; }
+        50% { width: 70%; }
+        100% { width: 100%; }
+      }
+      .loading-progress {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 3px;
+        background-color: #3b82f6;
+        animation: loading-bar 1s infinite;
+      }
+
+      /* 드롭다운 가운데 정렬을 위한 스타일 */
+      select.center-select {
+        text-align: center;
+        text-align-last: center;
+        -moz-text-align-last: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel">
+      const { useState, useEffect, useRef } = React;
+
+      // Error Boundary: 화이트 스크린 방지
+      class ErrorBoundary extends React.Component {
+        constructor(props) {
+          super(props);
+          this.state = { hasError: false, error: null };
+        }
+        static getDerivedStateFromError(error) {
+          return { hasError: true, error };
+        }
+        render() {
+          if (this.state.hasError) {
+            return (
+              <div className="p-10 text-center text-red-500 bg-white m-4 rounded shadow">
+                <h2 className="text-xl font-bold mb-2">오류가 발생했습니다.</h2>
+                <pre className="text-sm bg-gray-100 p-2 rounded mb-4 overflow-auto">{this.state.error && this.state.error.toString()}</pre>
+                <button onClick={() => window.location.reload()} className="px-4 py-2 bg-slate-200 rounded hover:bg-slate-300">새로고침</button>
+              </div>
+            );
+          }
+          return this.props.children;
+        }
+      }
+
+      const Icons = {
+        RotateCw: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>,
+        Trash: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>,
+        ClipboardList: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>,
+        Calendar: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>,
+        ChevronDown: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      };
+
+      const BasicTimetablePage = () => {
+        const [timetableData, setTimetableData] = useState(null);
+        const [loading, setLoading] = useState(true);
+        const [activeTab, setActiveTab] = useState('all'); 
+        const [isRefreshing, setIsRefreshing] = useState(false);
+
+        const periods = ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'];
+
+        const loadData = (classNum) => {
+          setLoading(true);
+          setIsRefreshing(true);
+          setTimetableData(null); 
+          
+          google.script.run
+            .withSuccessHandler(res => {
+              try {
+                const parsed = JSON.parse(res);
+                if (parsed.success && (parsed.type === 'basic_timetable' || parsed.type === 'basic_timetable_all')) {
+                   setTimetableData(parsed.data);
+                } else if (parsed.error) {
+                   alert('데이터 로드 오류: ' + parsed.error);
+                }
+              } catch (e) {
+                console.error("JSON parse error", e);
+                alert("데이터 처리 중 오류가 발생했습니다.");
+              }
+              setLoading(false);
+              setIsRefreshing(false);
+            })
+            .withFailureHandler(err => {
+              alert("서버 연결 실패: " + err);
+              setLoading(false);
+              setIsRefreshing(false);
+            })
+            .refreshData({ classNum: classNum });
+        };
+
+        useEffect(() => {
+          loadData(activeTab);
+        }, [activeTab]);
+
+        const handleCellEdit = (r, c, val, targetClass) => {
+          if (!timetableData) return;
+
+          const target = targetClass || activeTab;
+          if (activeTab === 'all') {
+             const newData = { ...timetableData };
+             newData.allSchedules[target-1][r][c] = val;
+             setTimetableData(newData);
+          } else {
+             const newData = { ...timetableData };
+             newData.schedule[r][c] = val;
+             setTimetableData(newData);
+          }
+          google.script.run.updateSheetData({ type: 'basic_timetable_edit', classNum: target, r, c, value: val });
+        };
+        
+        const handleDeleteTimetable = (targetClass) => {
+          if(confirm(`${targetClass}반 기초시간표를 초기화하시겠습니까?`)) {
+             google.script.run.withSuccessHandler(() => {
+                loadData(activeTab);
+             }).deleteBasicTimetable({ classNum: targetClass });
+          }
+        };
+
+        // --- Single View ---
+        const renderSingleClassView = () => {
+          if (!timetableData || !timetableData.schedule) return null;
+          
+          const { subjects, goals, p12, p13, schedule } = timetableData;
+          const special12 = p12 ? p12.toString() : '';
+          const special13 = p13 ? p13.toString() : '';
+
+          const actualCounts = subjects.map(subj => {
+            if (!subj) return 0;
+            let count = 0;
+            for(let r=1; r<=6; r++) {
+              for(let c=1; c<=5; c++) {
+                if (schedule[r] && schedule[r][c] === subj) count++;
+              }
+            }
+            return count;
+          });
+          const totalGoal = goals.reduce((a,b) => (Number(a)||0) + (Number(b)||0), 0);
+          const totalActual = actualCounts.reduce((a,b) => a + b, 0);
+
+          return (
+            <div className="space-y-8 text-[0.8rem]">
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-3 bg-indigo-50 border-b border-indigo-100 font-bold text-indigo-900 flex items-center gap-2"
+                     style={{ fontSize: '12pt' }}> {/* 제목 폰트 12pt 적용 */}
+                  <Icons.ClipboardList size={22}/>
+                  시수 배정 확인
+                </div>
+                <div className="overflow-x-auto p-3">
+                  <table className="w-full text-center border-collapse border border-slate-300">
+                    <thead className="bg-slate-100">
+                      <tr>
+                        <th className="border p-2 min-w-[70px]">과목명</th>
+                        {subjects.map((s, i) => {
+                          let thClass = "";
+                          if(s === special12) thClass = "bg-p12";
+                          if(s === special13) thClass = "bg-p13";
+                          return <th key={i} className={`border p-2 ${thClass}`}>{s}</th>;
+                        })}
+                        <th className="border p-2 bg-slate-200">합계</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <th className="border p-2 bg-slate-50">배정시수</th>
+                        {goals.map((g, i) => {
+                           let cellClass = "";
+                           const s = subjects[i];
+                           if(s === special12) cellClass = "bg-p12";
+                           if(s === special13) cellClass = "bg-p13";
+                           return <td key={i} className={`border p-2 ${cellClass}`}>{g}</td>
+                        })}
+                        <td className="border p-2 font-bold">{totalGoal}</td>
+                      </tr>
+                      <tr>
+                        <th className="border p-2 bg-slate-50">{activeTab}반</th>
+                        {actualCounts.map((cnt, i) => {
+                          const goal = goals[i];
+                          const isMismatch = Number(goal) !== Number(cnt);
+                          
+                          let cellClass = "";
+                          const s = subjects[i];
+                          if(s === special12) cellClass = "bg-p12";
+                          if(s === special13) cellClass = "bg-p13";
+                          
+                          return <td key={i} className={`border p-2 ${cellClass} ${isMismatch ? 'text-red-600 font-bold' : ''}`}>{cnt}</td>
+                        })}
+                        <td className={`border p-2 font-bold ${totalActual !== totalGoal ? 'text-red-600' : ''}`}>{totalActual}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-3 bg-slate-50 border-b border-slate-200 font-bold text-slate-700 flex justify-between items-center"
+                     style={{ fontSize: '12pt' }}> {/* 제목 폰트 12pt 적용 */}
+                    <div className="flex items-center gap-2">
+                      <Icons.Calendar size={22}/>
+                      {activeTab}반 기초시간표
+                    </div>
+                    <button onClick={() => handleDeleteTimetable(activeTab)} className="text-slate-400 hover:text-red-500 transition-colors p-1">
+                     <Icons.Trash size={24} />
+                    </button>
+                </div>
+                <div className="overflow-x-auto p-3">
+                  <table className="w-full text-center border-collapse border border-slate-300 whitespace-normal table-fixed">
+                    <thead className="bg-slate-100">
+                      <tr>
+                        {/* 1열 너비 30px 고정 - 고정 스타일 적용 */}
+                        <th className="border p-1 w-[30px] min-w-[30px] max-w-[30px]" style={{ width: '30px' }}>{activeTab}반</th>
+                        {['월','화','수','목','금'].map(d => <th key={d} className="border p-3 w-[18%]">{d}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {periods.map((period, rIdx) => (
+                        <tr key={rIdx}>
+                          <th className="border p-1 bg-slate-50 font-bold w-[30px] min-w-[30px] max-w-[30px]" style={{ width: '30px', fontSize: '10pt' }}>{period}</th>
+                          {schedule[rIdx+1] && schedule[rIdx+1].slice(1, 6).map((cell, cIdx) => {
+                            let cellBg = "";
+                            let cellBold = "";
+                            if(cell === special12) { cellBg = "bg-p12"; cellBold = "font-bold"; }
+                            if(cell === special13) { cellBg = "bg-p13"; cellBold = "font-bold"; }
+                            
+                            return (
+                              <td key={cIdx} className={`border p-0 ${cellBg} ${cellBold} h-12 relative`}>
+                                <div className="relative w-full h-full flex items-center justify-center">
+                                  {/* 드롭다운 글자 크기 12pt 설정 */}
+                                  <select 
+                                    value={cell || ''}
+                                    onChange={(e) => handleCellEdit(rIdx+1, cIdx+1, e.target.value)}
+                                    className="w-full h-full p-3 bg-transparent outline-none center-select appearance-none relative z-10 cursor-pointer"
+                                    style={{ whiteSpace: 'normal', height: 'auto', minHeight: '3rem', fontSize: '12pt' }}
+                                  >
+                                    <option value="">-</option>
+                                    {subjects.filter(s=>s).map(s => <option key={s} value={s}>{s}</option>)}
+                                  </select>
+                                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none text-gray-400">
+                                    <Icons.ChevronDown className="w-4 h-4" />
+                                  </div>
+                                </div>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        // --- All View (전체 보기) ---
+        const renderWholeView = () => {
+          if (!timetableData || !timetableData.allSchedules) return <div>데이터 로딩 중...</div>;
+          const { allSchedules, subjects, goals, p12, p13 } = timetableData;
+          
+          const special12 = p12 ? p12.toString() : '';
+          const special13 = p13 ? p13.toString() : '';
+
+          const totalGoal = goals.reduce((a,b) => (Number(a)||0) + (Number(b)||0), 0);
+
+          const classCounts = allSchedules.map(sch => {
+             return subjects.map(subj => {
+                if (!subj) return 0;
+                let count = 0;
+                for(let r=1; r<=6; r++) {
+                  for(let c=1; c<=5; c++) {
+                    if (sch[r] && sch[r][c] === subj) count++;
+                  }
+                }
+                return count;
+             });
+          });
+
+          return (
+            <div className="space-y-12 text-[0.9rem]">
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-3 bg-indigo-50 border-b border-indigo-100 font-bold text-indigo-900 flex items-center gap-2"
+                     style={{ fontSize: '12pt' }}> {/* 제목 폰트 12pt 적용 */}
+                  <Icons.ClipboardList size={20}/>
+                  시수 배정 확인 (전체)
+                </div>
+                <div className="overflow-x-auto p-3">
+                  <table className="w-full text-center border-collapse border border-slate-300">
+                    <thead className="bg-slate-100">
+                      <tr>
+                        <th className="border p-1.5 min-w-[70px]">구분</th>
+                        {subjects.map((s, i) => {
+                           let thClass = "";
+                           if(s === special12) thClass = "bg-p12";
+                           if(s === special13) thClass = "bg-p13";
+                           return <th key={i} className={`border p-1.5 ${thClass}`}>{s}</th>;
+                        })}
+                        <th className="border p-1.5 bg-slate-200">합계</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <th className="border p-1.5 bg-slate-50">배정시수</th>
+                        {goals.map((g, i) => {
+                           let cellClass = "";
+                           const s = subjects[i];
+                           if(s === special12) cellClass = "bg-p12";
+                           if(s === special13) cellClass = "bg-p13";
+                           return <td key={i} className={`border p-1.5 ${cellClass}`}>{g}</td>
+                        })}
+                        <td className="border p-1.5 font-bold">{totalGoal}</td>
+                      </tr>
+                      {classCounts.map((counts, idx) => {
+                        const classTotal = counts.reduce((a, b) => a + b, 0);
+                        return (
+                          <tr key={idx}>
+                            <th className="border p-1.5 bg-slate-50">{idx+1}반</th>
+                            {counts.map((cnt, i) => {
+                               const goal = goals[i];
+                               const isMismatch = Number(goal) !== Number(cnt);
+                               
+                               let cellClass = "";
+                               const s = subjects[i];
+                               if(s === special12) cellClass = "bg-p12";
+                               if(s === special13) cellClass = "bg-p13";
+                               
+                               return <td key={i} className={`border p-1.5 ${cellClass} ${isMismatch ? 'text-red-600 font-bold' : ''}`}>{cnt}</td>
+                            })}
+                            <td className={`border p-1.5 font-bold ${classTotal !== totalGoal ? 'text-red-600' : ''}`}>{classTotal}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-3 bg-slate-50 border-b border-slate-200 font-bold text-slate-700 flex items-center gap-2"
+                     style={{ fontSize: '12pt' }}> {/* 제목 폰트 12pt 적용 */}
+                  <Icons.Calendar size={20}/>
+                  학년 기초시간표 조회
+                </div>
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                  {allSchedules.map((sch, clsIdx) => (
+                    <div key={clsIdx} className="border border-slate-300 rounded overflow-hidden shadow-sm">
+                      <div className="bg-slate-100 text-center font-bold p-2 border-b border-slate-300 text-lg flex justify-between items-center px-4">
+                        <span>{clsIdx+1}반</span>
+                      </div>
+                      <table className="w-full text-center border-collapse text-xs whitespace-normal">
+                        <thead>
+                           <tr>
+                             <th className="border p-1 w-[15%]">{clsIdx+1}반</th>
+                             {['월','화','수','목','금'].map(d => <th key={d} className="border p-1 w-[17%]">{d}</th>)}
+                           </tr>
+                        </thead>
+                        <tbody>
+                          {periods.map((period, rIdx) => (
+                            <tr key={rIdx}>
+                              <th className="border p-1 bg-slate-50">{period}</th>
+                              {sch[rIdx+1] && sch[rIdx+1].slice(1, 6).map((cell, cIdx) => {
+                                  let cellClass = "";
+                                  let cellBold = "";
+                                  if(cell === special12) { cellClass = "bg-p12"; cellBold = "font-bold"; }
+                                  if(cell === special13) { cellClass = "bg-p13"; cellBold = "font-bold"; }
+                                  
+                                  return (
+                                    <td key={cIdx} className={`border p-0 ${cellClass} ${cellBold} h-8 relative`}>
+                                        {cell}
+                                    </td>
+                                  )
+                                })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        return (
+          <div className="flex h-screen bg-slate-50 overflow-hidden flex-col">
+            <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shadow-sm z-10 sticky top-0 relative overflow-hidden shrink-0">
+                {isRefreshing && <div className="loading-progress"></div>}
+                <div className="flex items-center gap-4">
+                  <h1 className="text-xl font-bold text-slate-800 tracking-tight">
+                    학급 기초 시간표
+                  </h1>
+                </div>
+                <button onClick={() => loadData(activeTab)} className={`p-2 text-slate-500 hover:text-indigo-600 transition-colors ${isRefreshing ? 'animate-spin' : ''}`}>
+                  <Icons.RotateCw size={20} />
+                </button>
+            </header>
+
+            <main className="flex-1 overflow-y-auto p-4 lg:p-8">
+              <div className="max-w-[1920px] mx-auto pb-10">
+                <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2 mb-6 justify-center sm:justify-start">
+                  <button 
+                      onClick={() => setActiveTab('all')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'all' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}`}
+                    >
+                      전체
+                  </button>
+                  {Array.from({length:10}, (_, i) => i+1).map(num => (
+                    <button 
+                      key={num} 
+                      onClick={() => setActiveTab(num)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === num ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}`}
+                    >
+                      {num}반
+                    </button>
+                  ))}
+                </div>
+                
+                <ErrorBoundary>
+                  {loading && !timetableData ? (
+                    <div className="h-96 flex items-center justify-center">
+                       <div className="loader"/>
+                    </div>
+                  ) : (
+                    activeTab === 'all' ? renderWholeView() : renderSingleClassView()
+                  )}
+                </ErrorBoundary>
+              </div>
+            </main>
+          </div>
+        );
+      };
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<BasicTimetablePage />);
+    </script>
+  </body>
+</html>

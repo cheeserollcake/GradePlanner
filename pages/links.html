@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>바로가기</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+  <script src="../assets/js/firebase-config.js"></script>
+  <script src="../assets/js/gas-shim.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css'); body{font-family:'Pretendard',sans-serif;background:#f8fafc}</style>
+</head>
+<body class="p-4 md:p-6 text-slate-800">
+<div class="max-w-4xl mx-auto space-y-4">
+  <div class="flex items-center justify-between"><h1 class="text-2xl font-bold">바로가기</h1>
+    <button id="add" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold">+ 추가</button></div>
+  <div id="list" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+  <p id="empty" class="text-center text-slate-400 py-10 hidden">등록된 바로가기가 없습니다. 오른쪽 위 [+ 추가]로 등록하세요.</p>
+</div>
+<script>
+const esc=(s)=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function load(){
+  GP.invalidate('data_links'); const rows=(await GP.getCol('data_links')).sort((a,b)=>(a.order||0)-(b.order||0));
+  document.getElementById('empty').classList.toggle('hidden',rows.length>0);
+  document.getElementById('list').innerHTML=rows.map(r=>'<div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center justify-between gap-2">'+
+   '<a class="font-bold text-blue-600 hover:underline break-all" target="_blank" rel="noopener" href="'+esc(r.url)+'">'+esc(r.name||r.url)+'</a>'+
+   '<button data-id="'+r._id+'" class="del text-xs text-slate-400 hover:text-red-600">삭제</button></div>').join('');
+  document.querySelectorAll('.del').forEach(b=>b.onclick=async()=>{ if(confirm('삭제할까요?')){ await GP.db.collection('data_links').doc(b.dataset.id).delete(); load(); }});
+}
+document.getElementById('add').onclick=async()=>{
+  const name=prompt('이름'); if(!name) return; let url=prompt('주소(URL)'); if(!url) return;
+  if(!/^https?:\/\//i.test(url)) url='https://'+url;
+  const rows=await GP.getCol('data_links'); await GP.db.collection('data_links').add({name,url,order:rows.length+1}); load();
+};
+load();
+</script></body></html>

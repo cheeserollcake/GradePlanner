@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>6학년 통합 관리 시스템</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    html,body{height:100%;margin:0;font-family:'Pretendard',sans-serif;background:#f8fafc}
+    #frame{width:100%;height:100%;border:0;background:#f8fafc}
+    .nav-item{display:block;width:100%;text-align:left;padding:.55rem 1rem;font-size:.9rem;color:#334155;border-radius:.5rem}
+    .nav-item:hover{background:#eef2ff}.nav-item.active{background:#e0e7ff;color:#3730a3;font-weight:700}
+    .group{padding:.7rem 1rem .25rem;font-size:.72rem;font-weight:700;color:#94a3b8;letter-spacing:.04em}
+  </style>
+</head>
+<body class="flex flex-col md:flex-row">
+  <header class="md:hidden flex items-center justify-between bg-white border-b px-4 py-3">
+    <span class="font-bold text-indigo-700">6학년 통합 관리 시스템</span>
+    <button id="burger" class="p-2" aria-label="메뉴">☰</button>
+  </header>
+  <nav id="nav" class="hidden md:block md:w-60 shrink-0 bg-white border-r overflow-y-auto p-3 space-y-0.5">
+    <div class="hidden md:block px-3 py-3 font-bold text-indigo-700 leading-tight">2026학년도<br>6학년 통합 관리 시스템</div>
+  </nav>
+  <main class="flex-1 min-h-0"><iframe id="frame" title="내용"></iframe></main>
+<script>
+const MENU = [
+  ['홈','home'], ['6학년 개요','overview'], ['학년 전체 명렬표','namelist'],
+  ['시간표',null],
+  ['기초 시간표','timetable-basic'], ['월간 시간표','timetable-monthly'], ['전담 시간표','timetable-special'],
+  ['특별실 시간표','timetable-room'], ['반별 일정 조회','lookup-class'], ['강좌별 시간표 조회','lookup-course'],
+  ['업무',null],
+  ['예산','budget'], ['쇼핑몰 학교 ID','mall-id'], ['바로가기','links'], ['교실배치도','classroom'], ['내선번호','extension']
+];
+const nav = document.getElementById('nav'), frame = document.getElementById('frame');
+MENU.forEach(([label, page]) => {
+  if (!page) { const g = document.createElement('div'); g.className = 'group'; g.textContent = label; nav.appendChild(g); return; }
+  const a = document.createElement('a'); a.className = 'nav-item'; a.href = '#/' + page; a.textContent = label; a.dataset.page = page; nav.appendChild(a);
+});
+function route() {
+  const page = (location.hash.replace('#/', '') || 'home');
+  frame.src = 'pages/' + page + '.html';
+  nav.querySelectorAll('.nav-item').forEach(a => a.classList.toggle('active', a.dataset.page === page));
+  if (innerWidth < 768) nav.classList.add('hidden');
+}
+document.getElementById('burger').onclick = () => nav.classList.toggle('hidden');
+addEventListener('hashchange', route); route();
+</script>
+</body>
+</html>

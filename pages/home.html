@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script>window.__GP_PAGE__ = 'p01';</script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+  <script src="../assets/js/firebase-config.js"></script>
+  <script src="../assets/js/gas-shim.js"></script>
+
+  
+  <meta charset="UTF-8">
+  <!-- React 및 라이브러리 로드 (안정성이 검증된 공용 CDN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.20/babel.min.js" crossorigin></script>
+  
+  <!-- 스타일 지정을 위한 Tailwind CSS 공식 엔진 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body {
+      font-family: 'Pretendard', sans-serif;
+      background-color: #f8fafc;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+    /* 테이블 행 호버 효과 및 테두리 스타일 강화 */
+    tr {
+      transition: background-color 0.15s ease;
+    }
+  </style>
+
+  <!-- 브라우저 내부 스크립트 에러 감지 센서 -->
+  <script>
+    window.addEventListener('error', function(e) {
+      var root = document.getElementById('root');
+      if (root) {
+        root.innerHTML = `
+          <div class="h-screen flex flex-col items-center justify-center space-y-4 bg-[#f8fafc] p-6 text-center">
+            <div class="text-red-500 text-5xl mb-2">🚨</div>
+            <div class="text-gray-800 text-xl font-bold">브라우저 내 스크립트 실행 오류</div>
+            <div class="text-gray-600 bg-white p-5 rounded-2xl shadow-md border border-red-100 max-w-lg w-full text-left text-xs font-mono space-y-2">
+              <p class="font-bold text-red-600">상세 정보:</p>
+              <p class="break-all">${e.message}</p>
+            </div>
+            <button onclick="window.location.reload()" class="mt-4 px-6 py-2 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">재시도</button>
+          </div>
+        `;
+      }
+    });
+  </script>
+</head>
+
+<body>
+  <!-- 기본 마운트 지점 -->
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    /* ===== 유틸 ===== */
+    const getDayOfWeek = d => {
+      try {
+        if (!d) return '';
+        return ['일','월','화','수','목','금','토'][new Date(d).getDay()];
+      } catch (e) {
+        return '';
+      }
+    };
+
+    const formatDate = d => {
+      if(!d) return '-';
+      const date = new Date(d);
+      if(isNaN(date.getTime())) return d;
+      return `${date.getFullYear()}.${String(date.getMonth()+1).padStart(2,'0')}.${String(date.getDate()).padStart(2,'0')} (${getDayOfWeek(date)})`;
+    };
+
+    const formatShortDate = d => {
+      if(!d) return '-';
+      const date = new Date(d);
+      if(isNaN(date.getTime())) return d;
+      return `${String(date.getMonth()+1).padStart(2,'0')}.${String(date.getDate()).padStart(2,'0')} (${getDayOfWeek(date)})`;
+    };
+
+    const calculateDDay = target => {
+      if(!target) return '-';
+      const t = new Date(target);
+      const now = new Date();
+      if(isNaN(t.getTime())) return '-';
+      t.setHours(0,0,0,0); now.setHours(0,0,0,0);
+      const diff = (t - now) / (1000*60*60*24);
+      return diff === 0 ? "D-Day" : diff > 0 ? `D-${diff}` : `D+${Math.abs(diff)}`;
+    };
+
+    const getScheduleRowColor = (date, event) => {
+      try {
+        if(!date) return '';
+        const day = new Date(date).getDay();
+        const isHoliday = event && typeof event === 'string' && event.includes('(휴)');
+        if(day === 0 || isHoliday) return 'bg-red-50 text-red-600 font-semibold';
+        if(day === 6) return 'bg-blue-50 text-blue-600 font-semibold';
+      } catch (e) {
+        console.error(e);
+      }
+      return '';
+    };
+
+    const renderContentWithLink = (content) => {
+      if (!content) return null;
+      const str = String(content);
+
+      const regex = /(\[([^\]]+)\]\((https?:\/\/[^)]+)\))|(https?:\/\/[^\s]+)/g;
+      const elements = [];
+      let lastIndex = 0;
+      let match;
+
+      while ((match = regex.exec(str)) !== null) {
+        if (match.index > lastIndex) {
+          elements.push(str.substring(lastIndex, match.index));
+        }
+        if (match[1]) {
+          elements.push(
+            <a 
+              key={match.index}
+              href={match[3]} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-blue-600 hover:text-blue-800 hover:underline font-bold transition-colors cursor-pointer"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {match[2]}
+            </a>
+          );
+        } else if (match[4]) {
+          elements.push(
+            <a 
+              key={match.index}
+              href={match[4]} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-blue-600 hover:text-blue-800 hover:underline break-all font-bold transition-colors cursor-pointer"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {match[4]}
+            </a>
+          );
+        }
+        lastIndex = regex.lastIndex;
+      }
+      if (lastIndex < str.length) {
+        elements.push(str.substring(lastIndex));
+      }
+      if (elements.length === 0) {
+        return <span className="whitespace-pre-wrap">{str}</span>;
+      }
+      return <span className="whitespace-pre-wrap">{elements}</span>;
+    };
+
+    /* ===== 컴포넌트 ===== */
+    const Clock = () => {
+      const [time, setTime] = useState(new Date());
+      useEffect(() => {
+        const t = setInterval(() => setTime(new Date()), 1000);
+        return () => clearInterval(t);
+      }, []);
+      const h = time.getHours();
+      return <span>{h % 12 || 12}:{String(time.getMinutes()).padStart(2,'0')} ({h>=12?'오후':'오전'})</span>;
+    };
+
+    const DateCard = ({ title, date, dDay, gradientClass, textColor, isToday }) => (
+      <div className={`${gradientClass} ${textColor} rounded-2xl p-4 shadow-sm text-center h-28 border border-white/60`}>
+        <div className="font-semibold opacity-80 text-sm">{title}</div>
+        {isToday ? (
+          <>
+            <div className="font-bold text-xl mt-1">{date}</div>
+            <div className="font-bold text-sm opacity-90"><Clock/></div>
+          </>
+        ) : (
+          <>
+            <div className="font-bold text-xl mt-1">{date}</div>
+            <div className="font-bold text-xs bg-white/60 rounded-full inline-block px-3 py-0.5 mt-1">{dDay}</div>
+          </>
+        )}
+      </div>
+    );
+
+    const DateCardsSection = ({ dates }) => {
+      const safeDates = dates || { summer: null, winter: null };
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <DateCard
+            title="오늘 날짜"
+            date={formatDate(new Date())}
+            isToday
+            gradientClass="bg-gradient-to-br from-emerald-50 to-teal-100"
+            textColor="text-teal-900"
+          />
+          <DateCard
+            title="여름방학식"
+            date={formatDate(safeDates.summer)}
+            dDay={calculateDDay(safeDates.summer)}
+            gradientClass="bg-gradient-to-br from-orange-50 to-amber-100"
+            textColor="text-amber-900"
+          />
+          <DateCard
+            title="겨울방학식"
+            date={formatDate(safeDates.winter)}
+            dDay={calculateDDay(safeDates.winter)}
+            gradientClass="bg-gradient-to-br from-sky-50 to-indigo-100"
+            textColor="text-indigo-900"
+          />
+        </div>
+      );
+    };
+
+    const MainPage = ({ overview, onRefresh, isRefreshing, isLoading }) => {
+      const safeOverview = overview || {};
+      const safeSchedule = safeOverview.schedule || [];
+      const safeDates = safeOverview.dates || { summer: null, winter: null };
+
+      const upcoming = safeSchedule
+        .filter(s => {
+          if (!s || !s.date) return false;
+          try {
+            return new Date(s.date) >= new Date().setHours(0,0,0,0);
+          } catch(e) {
+            return false;
+          }
+        })
+        .slice(0,7);
+
+      return (
+        <div className="max-w-7xl mx-auto p-6 space-y-8">
+          {/* 상단 헤더 영역 */}
+          <div className="flex justify-between items-center mb-2">
+            <h1 className="text-2xl font-bold text-gray-800">6학년 통합 관리</h1>
+            <button 
+              onClick={onRefresh} 
+              disabled={isRefreshing || isLoading}
+              className="flex items-center space-x-2 bg-white border border-gray-300 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              <svg className={`w-4 h-4 text-gray-600 ${(isRefreshing || isLoading) ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span className="text-sm font-medium text-gray-700">
+                {isRefreshing ? '새로고침 중...' : isLoading ? '연결 중...' : '새로고침'}
+              </span>
+            </button>
+          </div>
+
+          <DateCardsSection dates={safeDates} />
+
+          {/* 주요 일정 테이블 구역 */}
+          <div>
+            <div className="p-4 bg-sky-50 border rounded-t-xl font-bold flex items-center justify-between">
+              <span className="text-sky-900 text-lg">주요 일정</span>
+            </div>
+            
+            <div className="bg-white border border-t-0 rounded-b-xl p-4 overflow-x-auto relative shadow-sm">
+              {/* 로딩 인디케이터 (테이블 상단에 얇게 표시하여 전면 블로킹 제거) */}
+              {isLoading && (
+                <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-20 backdrop-blur-[1px]">
+                  <div className="flex items-center space-x-3 bg-white px-5 py-3 rounded-full shadow-md border border-gray-100">
+                    <div className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                    <span className="text-sm font-semibold text-gray-600">최신 정보를 불러오는 중...</span>
+                  </div>
+                </div>
+              )}
+
+              <table className="w-full min-w-[700px] table-fixed border-collapse">
+                <colgroup>
+                  <col style={{width: '110px'}} />
+                  <col />
+                  <col />
+                  <col />
+                </colgroup>
+                <thead className="bg-slate-50">
+                  <tr>
+                    {/* 테이블 헤더 글자 크기 조정 (text-base, font-bold) */}
+                    <th className="sticky left-0 z-10 bg-slate-50 border p-3 text-base text-gray-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] font-bold">날짜</th>
+                    <th className="border p-3 text-base text-gray-700 font-bold">학교 행사</th>
+                    <th className="border p-3 text-base text-gray-700 font-bold">학년 강사 일정</th>
+                    <th className="border p-3 text-base text-gray-700 font-bold">학년 일정</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {upcoming.length > 0 ? (
+                    upcoming.map((s, i) => {
+                      const rowColor = getScheduleRowColor(s.date, s.event);
+                      const stickyCellColor = rowColor || 'bg-white';
+                      return (
+                        <tr key={i} className={`${rowColor} hover:bg-slate-50/70 transition-colors`}>
+                          {/* 행 내부 글자 크기 조정 (text-base로 변경) */}
+                          <td className={`sticky left-0 z-10 border p-3 text-center text-base font-bold align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${stickyCellColor}`}>
+                            {formatShortDate(s.date)}
+                          </td>
+                          <td className="border p-3 text-base whitespace-pre-wrap align-middle leading-relaxed text-gray-800">
+                            {s.event || '-'}
+                          </td>
+                          <td className="border p-3 text-base whitespace-pre-wrap align-middle leading-relaxed text-gray-800">
+                            {s.grade || '-'}
+                          </td>
+                          <td className="border p-3 text-base whitespace-pre-wrap align-middle leading-relaxed text-gray-800">
+                            {renderContentWithLink(s.manual)}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan="4" className="border p-12 text-center text-gray-400 text-base">
+                        {isLoading ? '일정을 로드하는 중입니다...' : '예정된 일정이 없습니다.'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const App = () => {
+      // 빈 껍데기가 아닌, 기본 레이아웃 뼈대가 바로 그려지도록 기본값 설정
+      const [overview, setOverview] = useState({ dates: { summer: null, winter: null }, schedule: [] });
+      const [isLoading, setIsLoading] = useState(true);
+      const [isRefreshing, setIsRefreshing] = useState(false);
+      const [errorMsg, setErrorMsg] = useState('');
+
+      useEffect(() => {
+        if (typeof google === 'undefined' || !google.script || !google.script.run) {
+          setErrorMsg("구글 스크립트 실행 환경을 찾을 수 없습니다. 배포된 웹앱 주소로 직접 접속해 주세요.");
+          setIsLoading(false);
+          return;
+        }
+
+        try {
+          google.script.run
+            .withSuccessHandler(res => {
+              try {
+                if (!res) {
+                  setErrorMsg("서버로부터 데이터를 수신하지 못했습니다.");
+                  setIsLoading(false);
+                  return;
+                }
+
+                let data = res;
+                if (typeof res === 'string') {
+                  data = JSON.parse(res);
+                }
+
+                if (data.error) {
+                  setErrorMsg(data.error);
+                } else if (data.overview) {
+                  setOverview(data.overview);
+                } else {
+                  setErrorMsg("데이터 구조 변환 과정에서 유실 오류가 발생했습니다.");
+                }
+              } catch(e) {
+                setErrorMsg("데이터를 해석(파싱)하는 중 시스템 에러가 발생했습니다.");
+              }
+              setIsLoading(false);
+            })
+            .withFailureHandler(err => {
+              setErrorMsg("서버 연결 실패: " + (err.message || err));
+              setIsLoading(false);
+            })
+            .getInitialData(); 
+        } catch (fatalError) {
+          setErrorMsg("초기 통신 단계에서 알 수 없는 충돌이 생겼습니다.");
+          setIsLoading(false);
+        }
+      }, []);
+
+      const handleRefresh = () => {
+        if (typeof google === 'undefined' || !google.script || !google.script.run) return;
+        setIsRefreshing(true);
+        google.script.run
+          .withSuccessHandler(res => {
+            try {
+              let data = res;
+              if (typeof res === 'string') data = JSON.parse(res);
+              if (data.overview) setOverview(data.overview);
+            } catch(e) {
+              alert("동기화 해석 오류");
+            }
+            setIsRefreshing(false);
+          })
+          .withFailureHandler(err => {
+            alert("서버 연결이 원활하지 않습니다.");
+            setIsRefreshing(false);
+          })
+          .refreshData();
+      };
+
+      // 시스템 장애 발생 시에만 전면 에러 메시지 표시
+      if (errorMsg) {
+        return (
+          <div className="h-screen flex flex-col items-center justify-center space-y-4 bg-[#f8fafc] p-6 text-center">
+            <div className="text-red-500 text-4xl mb-2">⚠️</div>
+            <div className="text-gray-800 text-xl font-bold">시스템 안내</div>
+            <div className="text-gray-600 bg-white p-5 rounded-2xl shadow-md border border-red-100 max-w-md w-full text-sm">
+              <p className="font-semibold text-red-600 mb-1">원인 메시지:</p>
+              <p className="break-all font-mono text-xs">{errorMsg}</p>
+            </div>
+            <button onClick={() => window.location.reload()} className="mt-4 px-6 py-2 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">다시 연결 시도</button>
+          </div>
+        );
+      }
+
+      // 로딩 중에도 전면 로딩 스크린 대신 MainPage를 띄우고 내부 로더 상태만 넘겨줍니다.
+      return (
+        <MainPage 
+          overview={overview} 
+          onRefresh={handleRefresh} 
+          isRefreshing={isRefreshing} 
+          isLoading={isLoading} 
+        />
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
