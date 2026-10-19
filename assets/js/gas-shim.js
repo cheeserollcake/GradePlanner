@@ -50,7 +50,8 @@
   const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const isoLocal = (d) => `${ymd(d)}T00:00:00`;
   const appDate = (d) => `${d.getFullYear()}년 ${pad(d.getMonth() + 1)}월 ${pad(d.getDate())}일 (${DAYS[d.getDay()]})`;
-  const toTS = (d) => TS.fromDate(d);
+  // 기존 데이터가 "2026년 10월 20일 (화)" 문자열이므로 저장할 때도 같은 형식으로 씁니다.
+  const toTS = (d) => appDate(d);
   const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
   function* eachDay(a, b) { for (let d = a; d <= b; d = addDays(d, 1)) yield d; }
   const num = (v) => { const n = Number(String(v === undefined || v === null ? '' : v).replace(/,/g, '')); return isNaN(n) ? 0 : n; };
@@ -142,7 +143,7 @@
     const rows = await getBasicRows();
     const uniq = (f) => [...new Set(rows.map((r) => str(r[f]).trim()).filter(Boolean))];
     return {
-      classes: uniq('list_class'), subs: uniq('list_sub'), times: uniq('list_time'),
+      classes: uniq('list_class').sort(natural), subs: uniq('list_sub'), times: uniq('list_time').sort(natural),
       gyms: uniq('list_gym'), rooms: uniq('list_room'), teachers: uniq('list_t'),
       budgets: rows.filter((r) => str(r.list_budget).trim())
         .map((r) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount) })),
@@ -252,7 +253,7 @@
       ops.push({ type: 'update', col: 'data_task_memo', id: rows[0]._id, data: { task_memo_name: value } });
       rows.slice(1).forEach((r) => ops.push({ type: 'delete', col: 'data_task_memo', id: r._id }));
     } else {
-      ops.push({ type: 'set', col: 'data_task_memo', id: newId('data_task_memo'), data: { task_memo_date_start: toTS(d), task_memo_date_end: null, task_memo_name: value } });
+      ops.push({ type: 'set', col: 'data_task_memo', id: newId('data_task_memo'), data: { task_memo_date_start: toTS(d), task_memo_date_end: '', task_memo_name: value } });
     }
     await commit(ops); invalidate('data_task_memo');
   }
