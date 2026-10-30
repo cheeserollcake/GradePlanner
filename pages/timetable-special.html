@@ -154,7 +154,7 @@
       );
 
       const SpecialTimetableApp = () => {
-        const [activeTab, setActiveTab] = useState('전담(과학1)');
+        const [activeTab, setActiveTab] = useState('');
         const [semester, setSemester] = useState(1);
         
         const [cachedData, setCachedData] = useState({});
@@ -169,7 +169,7 @@
         
         const [editingCell, setEditingCell] = useState(null);
 
-        const tabs = ['전담(과학1)', '전담(과학2)', '전담(영어1)', '전담(영어2)', '전담(영어3)'];
+        const tabs = Object.keys(cachedData);
 
         useEffect(() => {
           const now = new Date();
@@ -204,6 +204,8 @@
               processedAll[key] = processDataOnLoad(parsed.data[key]);
             });
             setCachedData(processedAll);
+            setActiveTab(prev => (prev && processedAll[prev]) ? prev : (Object.keys(processedAll)[0] || ''));
+            if (parsed.currentSemester) setSemester(parsed.currentSemester);
             setInitialLoaded(true);
         };
 
@@ -345,13 +347,12 @@
         const getColorClass = (val, options) => {
           if (!val) return '';
           const idx = options.indexOf(val);
-          if (idx === 9) return 'bg-color-9'; 
-          if (idx >= 0 && idx <= 8) return `bg-color-${idx}`;
+          if (idx >= 0) return `bg-color-${idx % 10}`;
           return '';
         };
 
         const getTextStyle = (val) => {
-          if (typeof val === 'string' && val.length === 1) return 'text-bold-red';
+          if (typeof val === 'string' && val.length <= 2) return 'text-bold-red';
           return '';
         };
 
@@ -418,7 +419,9 @@
             </header>
 
             <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
-              {!initialLoaded || !currentTabData ? (
+              {initialLoaded && tabs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-2"><p>등록된 전담교사가 없습니다.</p><p className="text-sm">학년 관리자 &gt; 학년 기초 설정 &gt; 전담교사에서 과목·담당학급·교사를 등록하세요.</p></div>
+              ) : !initialLoaded || !currentTabData ? (
                 <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-4">
                   <p>모든 시간표 데이터를 불러오는 중입니다...</p>
                   <p className="text-sm text-slate-300">잠시만 기다려주세요</p>
@@ -534,7 +537,7 @@
                                           <option key={i} value={opt}>{opt}</option>
                                         ))}
                                         {!validOptions.includes(cell) && cell && <option value={cell}>{cell}</option>}
-                                        <option value="direct_input" className="text-blue-600 font-bold bg-slate-100">[직접 입력]</option>
+                                        
                                       </select>
                                     )}
                                   </td>

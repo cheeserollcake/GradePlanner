@@ -90,7 +90,7 @@
       Gear: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
     };
 
-    const classOptions = ["1반","2반","3반","4반","5반","6반","7반","8반","9반","10반","불가"];
+    let classOptions = ["1반","2반","3반","4반","5반","6반","7반","8반","9반","10반","불가"];
     
     const allSpaces = ['강당', '다목(2층)', '운동장', '나래', 'VR', '컴1', '컴2', '음악', '다목(3층)'];
     const spaceBgColors = ['bg-auditorium', 'bg-multi', 'bg-play', 'bg-narae', 'bg-vr', 'bg-auditorium', 'bg-multi', 'bg-play', 'bg-multi'];
@@ -106,7 +106,7 @@
     };
 
     const ScheduleTable = ({ title, spaces, spaceIndices, tableType, holidays, schedule, settings, onSave, onRefresh, onLoading }) => {
-      const [selectedMonth, setSelectedMonth] = useState(3);
+      const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth() + 1);
       const [unsavedChanges, setUnsavedChanges] = useState({});
       const [multiSelectModal, setMultiSelectModal] = useState(null);
       const [damokModal, setDamokModal] = useState(null);
@@ -129,7 +129,7 @@
         onRefresh();
       };
 
-      const year = (selectedMonth === 1 || selectedMonth === 2) ? 2027 : 2026;
+      const year = (selectedMonth <= 2) ? ((settings?.year || 2026) + 1) : (settings?.year || 2026);
       const startDate = new Date(year, selectedMonth - 1, 1);
       const daysInMonth = [];
       let d = new Date(startDate);
@@ -141,6 +141,7 @@
       const weekDays = ['월', '화', '수', '목', '금'];
       const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
       const semester = (selectedMonth >= 3 && selectedMonth <= 7) ? 'sem1' : 'sem2';
+      const semKeyOf = (dt) => { const sems = settings?.semesters || []; const iso = getLocalISODate(dt); const s1 = sems.find(x => x.name === '1학기'); const s2 = sems.find(x => x.name === '2학기'); if (s2 && iso >= s2.start && iso <= s2.end) return 'sem2'; if (s1 && iso >= s1.start && iso <= s1.end) return 'sem1'; return semester; };
 
       const weeks = [];
       let currentWeek = [];
@@ -157,6 +158,11 @@
       const tableWidthClass = tableType === 'sports' ? 'table-fixed-sports' : 'table-fixed-com';
       const gridRowClass = tableType === 'sports' ? 'grid-row-sports' : 'grid-row-com';
       const headerClass = tableType === 'sports' ? 'sticky-header-sports' : 'sticky-header-com';
+      const colW = 62 + spaces.length * 50;
+      const tdStyle = { width: colW + 10, minWidth: colW + 10, maxWidth: colW + 10 };
+      const tblStyle = { width: colW, minWidth: colW, maxWidth: colW };
+      const gridStyle = { display: 'grid', gridTemplateColumns: '1.3fr repeat(' + spaces.length + ', 1fr)', width: '100%' };
+      const periodCount = (settings?.times?.length || 6);
 
       const saveMultiSelect = () => {
         if (!multiSelectModal) return;
@@ -169,7 +175,7 @@
         <div className="flex flex-col h-full bg-slate-50 relative">
           <div className="relative flex items-center justify-center p-4 bg-white border-b shrink-0 min-h-[64px]">
             <div className="flex gap-1 overflow-x-auto no-scrollbar mr-32">
-              {[3,4,5,6,7,8,9,10,11,12,1].map(m => (
+              {[3,4,5,6,7,8,9,10,11,12,1,2].map(m => (
                 <button 
                   key={m} 
                   onClick={() => setSelectedMonth(m)}
@@ -193,7 +199,7 @@
             <table className="border-collapse bg-white shadow-sm rounded-lg mx-auto inline-table text-left" style={{tableLayout: 'fixed'}}>
               <thead className="text-slate-700 border-b-2 border-slate-200 shadow-sm">
                 <tr>
-                  {weekDays.map(wd => <th key={wd} className={`${headerClass} p-3 text-center font-extrabold`}>{wd}</th>)}
+                  {weekDays.map(wd => <th key={wd} style={tdStyle} className={`${headerClass} p-3 text-center font-extrabold`}>{wd}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -201,113 +207,61 @@
                   <tr key={wIdx} className="align-top border-b last:border-0">
                     {weekDays.map((wd, dIdx) => {
                       const dayObj = week.find(d => d.getDay() === dIdx + 1);
-                      if (!dayObj) return <td key={dIdx} className={`border-r bg-slate-50 ${tdWidthClass}`}></td>;
+                      if (!dayObj) return <td key={dIdx} style={tdStyle} className={`border-r bg-slate-50 ${tdWidthClass}`}></td>;
                       const dateStr = getKoreanDateStr(dayObj);
                       const isHoliday = holidays.includes(dateStr);
                       const isoDate = getLocalISODate(dayObj);
+                      const semester = semKeyOf(dayObj);
                       
                       return (
-                        <td key={dIdx} className={`border-r p-1 align-top ${tdWidthClass} ${isHoliday ? 'bg-holiday' : ''}`}>
+                        <td key={dIdx} style={tdStyle} className={`border-r p-1 align-top ${tdWidthClass} ${isHoliday ? 'bg-holiday' : ''}`}>
                           <div className={`text-center font-bold mb-1 rounded py-1 ${isHoliday ? 'text-holiday' : 'text-slate-600 bg-slate-100'}`}>
                             {dayObj.getMonth()+1}/{dayObj.getDate()} {isHoliday && "(휴)"}
                           </div>
                           {isHoliday ? (
                             <div className="h-40 flex items-center justify-center text-red-400 font-bold opacity-50 text-lg">휴일</div>
                           ) : (
-                            <div className={`${tableWidthClass} flex flex-col border border-slate-300 rounded overflow-hidden mx-auto`}>
-                              <div className={`${gridRowClass} bg-slate-200 text-center text-[10pt] font-bold border-b border-slate-300`}>
+                            <div style={tblStyle} className={`${tableWidthClass} flex flex-col border border-slate-300 rounded overflow-hidden mx-auto`}>
+                              <div style={gridStyle} className={`${gridRowClass} bg-slate-200 text-center text-[10pt] font-bold border-b border-slate-300`}>
                                 <div className="grid-col border-r border-slate-300">교시</div>
                                 {spaces.map((sp, i) => (
-                                  <div key={i} className={`grid-col ${i < spaces.length - 1 ? 'border-r border-slate-300' : ''}`}>{sp}</div>
+                                  <div key={i} style={{ backgroundColor: (settings?.colors || {})[sp] }} className={`grid-col ${i < spaces.length - 1 ? 'border-r border-slate-300' : ''}`}>{sp}</div>
                                 ))}
                               </div>
-                              {[1,2,3,4,5,6].map(period => (
-                                <div key={period} className={`${gridRowClass} border-b last:border-0 border-slate-200 h-8`}>
+                              {Array.from({ length: periodCount }, (_, i) => i + 1).map(period => (
+                                <div key={period} style={gridStyle} className={`${gridRowClass} border-b last:border-0 border-slate-200 h-8`}>
                                   <div className="grid-col bg-white text-center text-[11pt] font-bold border-r border-slate-200">{period}교시</div>
                                   {spaces.map((spName, localIdx) => {
                                     const borderClass = localIdx < spaces.length - 1 ? "border-r border-slate-200" : "";
 
-                                    // 다목의 경우 팝업 및 병합 표시 특별 처리
-                                    if (spName === '다목') {
-                                      const idx1 = 1; // 다목(2층)
-                                      const idx2 = 8; // 다목(3층)
-                                      
-                                      const isOpen1_base = (settings?.[semester]?.[`${dayKeys[dIdx]}_${period}_${idx1}`] === true) || 
-                                                      (settings?.exceptions || []).some(ex => ex.date === isoDate && parseInt(ex.period) === period && parseInt(ex.spaceIdx) === idx1);
-                                      const isClose1 = (settings?.closeExceptions || []).some(ex => ex.date === isoDate && parseInt(ex.period) === period && parseInt(ex.spaceIdx) === idx1);
-                                      const isOpen1 = isOpen1_base && !isClose1;
-
-                                      const isOpen2_base = (settings?.[semester]?.[`${dayKeys[dIdx]}_${period}_${idx2}`] === true) || 
-                                                      (settings?.exceptions || []).some(ex => ex.date === isoDate && parseInt(ex.period) === period && parseInt(ex.spaceIdx) === idx2);
-                                      const isClose2 = (settings?.closeExceptions || []).some(ex => ex.date === isoDate && parseInt(ex.period) === period && parseInt(ex.spaceIdx) === idx2);
-                                      const isOpen2 = isOpen2_base && !isClose2;
-
-                                      const isOpen = isOpen1 || isOpen2;
-
-                                      const cellKey1 = `${dateStr}_${period}교시_다목(2층)`;
-                                      const cellKey2 = `${dateStr}_${period}교시_다목(3층)`;
-                                      const value1 = unsavedChanges[cellKey1] !== undefined ? unsavedChanges[cellKey1] : (schedule[cellKey1] || "");
-                                      const value2 = unsavedChanges[cellKey2] !== undefined ? unsavedChanges[cellKey2] : (schedule[cellKey2] || "");
-
-                                      let displayTexts = [];
-                                      if (value1 && value1 !== "") displayTexts.push(`${value1}(2층)`);
-                                      if (value2 && value2 !== "") displayTexts.push(`${value2}(3층)`);
-
-                                      const bgColorClass = spaceBgColors[1];
-
-                                      if (!isOpen) {
-                                          return (
-                                            <div key={localIdx} className={`grid-col bg-slate-50 flex-col items-center justify-center text-[8pt] text-slate-300 ${borderClass} leading-tight`}>
-                                                {displayTexts.length === 0 ? <span className="text-transparent">.</span> : 
-                                                    displayTexts.map((text, idx) => <span key={idx} className="block">{text}{idx < displayTexts.length - 1 ? ',' : ''}</span>)
-                                                }
-                                            </div>
-                                          );
-                                      }
-
-                                      return (
-                                        <div key={localIdx} className={`grid-col ${bgColorClass} relative ${borderClass}`} onClick={() => setDamokModal({ cellKey1, cellKey2, isOpen1, isOpen2, val1: value1, val2: value2 })}>
-                                          <div className="cell-multi-text text-slate-800 text-[8pt] flex-col leading-tight pt-0.5">
-                                            {displayTexts.length === 0 ? <span className="text-transparent">.</span> : 
-                                                displayTexts.map((text, idx) => (
-                                                  <span key={idx} className="block whitespace-nowrap">
-                                                    {text}{idx < displayTexts.length - 1 ? ',' : ''}
-                                                  </span>
-                                                ))
-                                            }
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-
                                     // 일반 공간 처리
-                                    const globalSpaceIdx = spaceIndices[localIdx];
+                                    const globalSpaceIdx = spName;
                                     const weekKey = `${dayKeys[dIdx]}_${period}_${globalSpaceIdx}`;
                                     const isWeeklyOpen = settings?.[semester]?.[weekKey] === true;
                                     const isException = (settings?.exceptions || []).some(ex => 
-                                      ex.date === isoDate && parseInt(ex.period) === period && parseInt(ex.spaceIdx) === globalSpaceIdx
+                                      ex.date === isoDate && parseInt(ex.period) === period && ex.space === globalSpaceIdx
                                     );
                                     const isCloseException = (settings?.closeExceptions || []).some(ex => 
-                                      ex.date === isoDate && parseInt(ex.period) === period && parseInt(ex.spaceIdx) === globalSpaceIdx
+                                      ex.date === isoDate && parseInt(ex.period) === period && ex.space === globalSpaceIdx
                                     );
                                     const isOpen = (isWeeklyOpen || isException) && !isCloseException;
 
-                                    const spNameMapping = allSpaces[globalSpaceIdx]; // 실제 저장될 이름
+                                    const spNameMapping = spName; // 실제 저장될 이름
                                     const cellKey = `${dateStr}_${period}교시_${spNameMapping}`;
                                     const value = unsavedChanges[cellKey] !== undefined ? unsavedChanges[cellKey] : (schedule[cellKey] || "");
-                                    const bgColorClass = spaceBgColors[globalSpaceIdx];
+                                    const bgStyle = { backgroundColor: (settings?.colors || {})[spName] || '#e2e8f0' };
                                     
                                     if (!isOpen) return <div key={localIdx} className={`grid-col bg-slate-50 flex items-center justify-center text-[11pt] text-slate-300 ${borderClass}`}>{value}</div>;
                                     
                                     if (spName === '운동장') {
                                       return (
-                                        <div key={localIdx} className={`grid-col ${bgColorClass} relative ${borderClass}`} onClick={() => setMultiSelectModal({ cellKey, selected: value ? value.split(', ') : [] })}>
+                                        <div key={localIdx} style={bgStyle} className={`grid-col relative ${borderClass}`} onClick={() => setMultiSelectModal({ cellKey, selected: value ? value.split(', ') : [] })}>
                                           <div className="cell-multi-text text-slate-800 text-[10pt]">{value || <span className="text-transparent">.</span>}</div>
                                         </div>
                                       );
                                     }
                                     return (
-                                      <div key={localIdx} className={`grid-col ${bgColorClass} relative ${borderClass}`}>
+                                      <div key={localIdx} style={bgStyle} className={`grid-col relative ${borderClass}`}>
                                         <select className="cell-select font-medium text-slate-800 w-full h-full" value={value} onChange={(e) => handleCellChange(cellKey, e.target.value)}>
                                           <option value=""></option>
                                           {classOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -790,6 +744,7 @@
             const schMap = {};
             res.schedule.forEach(item => { schMap[`${item.date}_${item.period}_${item.space}`] = item.className; });
             setSchedule(schMap);
+            if (res.settings && res.settings.classNames) classOptions = res.settings.classNames.concat(['불가']);
             setSettings(prev => ({ ...prev, ...(res.settings || {}) }));
             setPasswords(res.roomPasswords || []);
           }
@@ -845,7 +800,7 @@
               </nav>
             </div>
             <div className="shrink-0 ml-2">
-              <button onClick={() => isAdmin ? setView('admin') : setAuthModal('admin')} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${isAdmin ? 'bg-slate-800 text-white' : 'bg-indigo-50 text-indigo-600 border border-indigo-100'}`}>
+              <button onClick={() => { try { parent.location.hash = '#/admin'; } catch (e) { location.href = 'admin.html'; } }} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${isAdmin ? 'bg-slate-800 text-white' : 'bg-indigo-50 text-indigo-600 border border-indigo-100'}`}>
                 {isAdmin ? <Icons.Gear /> : <Icons.Key />}
               </button>
             </div>
@@ -853,8 +808,8 @@
 
           <main className="flex-1 overflow-hidden relative">
             {view === 'sports' && <ScheduleTable 
-              spaces={['강당', '다목', '운동장', '나래', 'VR']} 
-              spaceIndices={[0, -1, 2, 3, 4]} 
+              spaces={settings.gymSpaces || []} 
+              spaceIndices={[]} 
               tableType="sports" 
               holidays={holidays} 
               schedule={schedule} 
@@ -867,8 +822,8 @@
               onLoading={setLoading} 
             />}
             {view === 'com' && <ScheduleTable 
-              spaces={['컴1', '컴2', '음악']} 
-              spaceIndices={[5, 6, 7]} 
+              spaces={settings.roomSpaces || []} 
+              spaceIndices={[]} 
               tableType="com" 
               holidays={holidays} 
               schedule={schedule} 

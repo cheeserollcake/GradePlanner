@@ -1,758 +1,177 @@
 <!DOCTYPE html>
-<html>
-  <head>
-  <script>window.__GP_PAGE__ = 'p02';</script>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>6학년 개요</title>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
   <script src="../assets/js/firebase-config.js"></script>
   <script src="../assets/js/gas-shim.js"></script>
+  <script src="../assets/js/app-data.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body { font-family: 'Pretendard', sans-serif; background:#f8fafc; }
+    .cell { white-space: pre-wrap; word-break: keep-all; }
+    .row-sat { background:#e0f2fe; color:#2563eb; }
+    .row-sun { background:#fce7f3; color:#dc2626; }
+    .row-today td:first-child { box-shadow: inset 4px 0 0 #4f46e5; }
+  </style>
+</head>
+<body class="p-4 md:p-6 text-slate-800">
+<div class="max-w-7xl mx-auto space-y-6">
+  <h1 class="text-2xl font-bold">6학년 개요 <span id="yearLabel" class="text-base font-medium text-slate-400"></span></h1>
 
-    
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- React & Tailwind CSS -->
-    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- [속도 개선] 서버에서 주입된 데이터 받기 -->
-    <script>
-      window.__INITIAL_DATA__ = null;
+  <section class="space-y-2">
+    <h2 class="font-bold text-lg">학년 개요</h2>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto"><table class="w-full text-sm text-center" id="info"></table></div>
+  </section>
 
-      window.onerror = function(msg, url, line, col, error) {
-        var root = document.getElementById('root');
-        if (root) {
-          root.innerHTML = '<div style="color: red; padding: 20px; font-family: sans-serif;">' +
-            '<h2 style="font-weight:bold; font-size: 1.2em;">치명적인 오류 발생</h2>' +
-            '<p>' + msg + '</p>' +
-            '<p style="font-size:0.8em; color:#666;">' + url + ':' + line + '</p>' +
-            '<button onclick="location.reload()" style="background:#eee; border:1px solid #ccc; padding:5px 10px; margin-top:10px; cursor:pointer;">새로고침</button>' +
-            '</div>';
-        }
-        return false;
-      };
-    </script>
+  <section class="space-y-2">
+    <h2 class="font-bold text-lg">학년 예산</h2>
+    <div id="cards" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"></div>
+  </section>
 
-    <style>
-      @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-      body { font-family: 'Pretendard', sans-serif; background-color: #f8fafc; }
-      
-      /* 커스텀 스크롤바 */
-      ::-webkit-scrollbar { width: 6px; height: 6px; }
-      ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-      .loader {
-        border: 3px solid #f3f3f3; border-top: 3px solid #6366f1;
-        border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite;
-      }
-      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-      
-      .loading-progress {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        height: 3px;
-        background-color: #3b82f6;
-        animation: loading-bar 1s infinite;
-      }
-      @keyframes loading-bar {
-        0% { width: 0%; }
-        50% { width: 70%; }
-        100% { width: 100%; }
-      }
-
-      .fade-in {
-        animation: fadeIn 0.3s ease-in-out;
-      }
-      @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(5px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-    </style>
-  </head>
-  <body>
-    <div id="root">
-      <!-- React 로딩 전 표시될 화면 -->
-      <div style="height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px;">
-        <div class="loader"></div>
-        <div style="color: #64748b; font-size: 0.9em;">시스템 로딩 중...</div>
+  <section class="space-y-2">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 class="font-bold text-lg">전체 일정</h2>
+      <div class="flex gap-1 bg-slate-100 p-1 rounded-lg" id="filters">
+        <button data-f="week" class="px-3 py-1 rounded-md text-sm font-semibold">이번주</button>
+        <button data-f="today" class="px-3 py-1 rounded-md text-sm font-semibold">오늘</button>
+        <button data-f="all" class="px-3 py-1 rounded-md text-sm font-semibold">전체</button>
       </div>
     </div>
+    <div id="scroller" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-auto relative" style="max-height:68vh">
+      <table class="w-full text-sm min-w-[720px]">
+        <thead class="bg-slate-100 text-slate-600 sticky top-0 z-10"><tr>
+          <th class="p-2 border-b w-32">날짜</th><th class="p-2 border-b">학교 행사</th><th class="p-2 border-b w-64">학년 강사 일정</th><th class="p-2 border-b">학년 일정</th>
+        </tr></thead>
+        <tbody id="body"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
 
-    <script type="text/babel">
-      const { useState, useEffect, useMemo, useRef } = React;
+<!-- 수정 팝업 -->
+<div id="modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-5 space-y-3 max-h-[92vh] overflow-y-auto">
+    <h3 id="mTitle" class="font-bold text-lg"></h3>
+    <div>
+      <div class="flex items-center justify-between mb-1"><label class="text-sm font-semibold">학교 행사</label>
+        <label class="text-sm flex items-center gap-1"><input type="checkbox" id="mHol"> 휴일</label></div>
+      <textarea id="mSchool" rows="3" class="w-full border rounded-lg p-2 text-sm"></textarea>
+      <p id="mNote" class="text-xs text-slate-400 mt-1 whitespace-pre-wrap"></p>
+    </div>
+    <div><label class="text-sm font-semibold block mb-1">학년 강사 일정 <span class="font-normal text-slate-400">(수정 불가)</span></label>
+      <textarea id="mLec" rows="2" disabled class="w-full border rounded-lg p-2 text-sm bg-slate-100 text-slate-500"></textarea></div>
+    <div><label class="text-sm font-semibold block mb-1">학년 일정</label>
+      <textarea id="mMemo" rows="3" class="w-full border rounded-lg p-2 text-sm"></textarea>
+      <p id="mMemoNote" class="text-xs text-slate-400 mt-1 whitespace-pre-wrap"></p></div>
+    <div class="flex justify-end gap-2 pt-1">
+      <button id="mCancel" class="px-4 py-2 rounded-lg bg-slate-100 text-sm font-semibold">취소</button>
+      <button id="mSave" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold">저장</button>
+    </div>
+  </div>
+</div>
 
-      // --- 에러 경계 컴포넌트 ---
-      class ErrorBoundary extends React.Component {
-        constructor(props) {
-          super(props);
-          this.state = { hasError: false, error: null };
-        }
-        static getDerivedStateFromError(error) {
-          return { hasError: true, error };
-        }
-        componentDidCatch(error, errorInfo) {
-          console.error("React Error:", error, errorInfo);
-        }
-        render() {
-          if (this.state.hasError) {
-            return (
-              <div className="p-8 text-center text-red-500 bg-red-50 rounded-xl m-4 border border-red-200 shadow-sm">
-                <h2 className="font-bold text-lg mb-2 text-red-700">앱 오류가 발생했습니다.</h2>
-                <p className="text-sm mb-4 text-red-600 font-mono text-xs p-2 bg-red-100 rounded overflow-auto text-left max-w-lg mx-auto">
-                  {this.state.error && this.state.error.toString()}
-                </p>
-                <button onClick={() => window.location.reload()} className="px-5 py-2 bg-white border border-red-300 rounded-lg hover:bg-red-50 text-red-700 font-medium transition-colors shadow-sm">
-                  페이지 새로고침
-                </button>
-              </div>
-            );
-          }
-          return this.props.children;
-        }
-      }
+<script>
+const DAYN = ['일','월','화','수','목','금','토'];
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = (n) => Number(n).toLocaleString();
+let general, rows = [], filter = 'today', editing = null;
+const todayDate = () => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); };
 
-      // --- 아이콘 컴포넌트 ---
-      const Icons = {
-        ClipboardList: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>,
-        Calendar: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>,
-        DollarSign: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
-        RotateCw: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>,
-        ChevronDown: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>,
-        ChevronRightSimple: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>,
-        ArrowUp: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>,
-        ArrowDown: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
-      };
-
-      // --- 유틸리티 ---
-      const getDayOfWeek = (d) => ['일','월','화','수','목','금','토'][new Date(d).getDay()];
-      const formatDate = (d) => {
-        if(!d) return '-';
-        const date = new Date(d);
-        if(isNaN(date.getTime())) return String(d); 
-        return `${date.getFullYear()}.${String(date.getMonth()+1).padStart(2,'0')}.${String(date.getDate()).padStart(2,'0')} (${getDayOfWeek(date)})`;
-      };
-      // 일정표용 날짜 포맷 (MM.DD 줄바꿈 (요일))
-      const formatScheduleDate = (d) => {
-        if(!d) return '-';
-        const date = new Date(d);
-        if(isNaN(date.getTime())) return String(d);
-        const mm = String(date.getMonth()+1).padStart(2,'0');
-        const dd = String(date.getDate()).padStart(2,'0');
-        const day = getDayOfWeek(date);
-        
-        return (
-          <>
-            {mm}.{dd}
-            <br/>
-            <span className="text-[0.9em] text-slate-500">({day})</span>
-          </>
-        );
-      };
-
-      const calculateDDay = (target) => {
-        if (!target) return null;
-        const t = new Date(target);
-        if (isNaN(t.getTime())) return null; 
-
-        const now = new Date();
-        t.setHours(0,0,0,0); now.setHours(0,0,0,0);
-        const diff = (t - now) / (1000*60*60*24);
-        return diff === 0 ? "D-Day" : diff > 0 ? `D-${diff}` : `D+${Math.abs(diff)}`;
-      };
-      
-      const getScheduleRowColor = (date, event) => {
-        const d = new Date(date);
-        const day = isNaN(d.getTime()) ? -1 : d.getDay();
-        const eventStr = String(event || ''); 
-        const isHoliday = eventStr.includes('(휴)');
-        
-        if(day === 0 || isHoliday) return 'bg-red-50 text-red-600';
-        if(day === 6) return 'bg-blue-50 text-blue-600';
-        return 'bg-white hover:bg-slate-50 text-slate-700';
-      };
-
-      const Clock = () => {
-        const [time, setTime] = useState(new Date());
-        useEffect(() => {
-          const timer = setInterval(() => setTime(new Date()), 1000);
-          return () => clearInterval(timer);
-        }, []);
-        const hour = time.getHours();
-        const ampm = hour >= 12 ? '오후' : '오전';
-        const displayHour = hour % 12 ? hour % 12 : 12;
-        const minute = String(time.getMinutes()).padStart(2, '0');
-        return <span>{displayHour}:{minute} ({ampm})</span>;
-      };
-
-      // --- 컴포넌트 ---
-
-      // [신규] 텍스트+링크 복합 지원 셀
-      // 지원 포맷 1: http://... (그냥 URL)
-      // 지원 포맷 2: [보여질이름](http://...) (마크다운 스타일)
-      const EditableScheduleCell = ({ value, rowIndex, onSave }) => {
-        const [isEditing, setIsEditing] = useState(false);
-        const [currentValue, setCurrentValue] = useState(value || '');
-
-        useEffect(() => {
-            setCurrentValue(value || '');
-        }, [value]);
-
-        const handleBlur = () => {
-            setIsEditing(false);
-            if (currentValue !== value) {
-                onSave(rowIndex, currentValue);
-            }
-        };
-
-        // 텍스트를 파싱하여 링크와 텍스트를 섞어 보여주는 함수
-        const renderContent = (text) => {
-            if (!text) return null;
-            // 줄바꿈으로 분리
-            return text.split('\n').map((line, lineIdx) => {
-                const parts = [];
-                // 정규식: Markdown Link OR Raw URL
-                // Group 1 (MD Text): \[([^\]]+)\]
-                // Group 2 (MD URL): \((https?:\/\/[^)]+)\)
-                // Group 3 (Raw URL): (https?:\/\/[^\s]+)
-                const regex = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)|(https?:\/\/[^\s]+)/g;
-                
-                let lastIndex = 0;
-                let match;
-                
-                while ((match = regex.exec(line)) !== null) {
-                    // 매칭 앞부분 일반 텍스트
-                    if (match.index > lastIndex) {
-                        parts.push(<span key={`txt-${lineIdx}-${lastIndex}`}>{line.substring(lastIndex, match.index)}</span>);
-                    }
-                    
-                    // Markdown Link 매칭 ([텍스트](URL))
-                    if (match[1] && match[2]) {
-                        parts.push(
-                            <a 
-                                key={`md-${lineIdx}-${match.index}`}
-                                href={match[2]} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800 hover:underline font-bold mx-0.5"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                {match[1]}
-                            </a>
-                        );
-                    } 
-                    // Raw URL 매칭 (http://...)
-                    else if (match[0]) {
-                        const url = match[3] || match[0];
-                        parts.push(
-                            <a 
-                                key={`raw-${lineIdx}-${match.index}`}
-                                href={url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800 hover:underline mx-0.5 break-all"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                {url}
-                            </a>
-                        );
-                    }
-                    lastIndex = regex.lastIndex;
-                }
-                
-                // 남은 뒷부분 텍스트
-                if (lastIndex < line.length) {
-                    parts.push(<span key={`txt-${lineIdx}-${lastIndex}`}>{line.substring(lastIndex)}</span>);
-                }
-
-                return (
-                    <div key={lineIdx} className="min-h-[1.25em]">
-                        {parts.length > 0 ? parts : <br/>}
-                    </div>
-                );
-            });
-        };
-
-        if (isEditing) {
-            return (
-                <textarea 
-                    autoFocus
-                    className="w-full h-full p-3 bg-white border border-blue-400 rounded outline-none resize-none text-sm block leading-relaxed shadow-md"
-                    value={currentValue}
-                    onChange={(e) => {
-                        setCurrentValue(e.target.value);
-                        e.target.style.height = 'auto';
-                        e.target.style.height = e.target.scrollHeight + 'px';
-                    }}
-                    onBlur={handleBlur}
-                    style={{ minHeight: '3rem' }}
-                    rows={Math.max(1, (currentValue || '').split('\n').length)}
-                    placeholder="내용 입력. 링크는 [이름](주소) 형식으로 짧게 만들 수 있습니다."
-                />
-            );
-        }
-
-        return (
-            <div 
-                onClick={() => setIsEditing(true)}
-                className="w-full h-full p-3 min-h-[3rem] whitespace-pre-wrap cursor-text hover:bg-slate-100/50 transition-colors text-sm leading-relaxed"
-                title="클릭하여 수정 (링크 팁: [보여질이름](http://주소))"
-            >
-                {renderContent(currentValue)}
-            </div>
-        );
-      };
-
-
-      const DateCard = ({ title, date, dDay, gradientClass, textColor, isToday, onToggle, isCollapsed }) => (
-        <div className={`${gradientClass} ${textColor} rounded-2xl p-2 shadow-sm flex flex-col justify-center text-center h-auto min-h-[3.5rem] transition-transform hover:scale-[1.02] border border-white/60 backdrop-blur-sm relative group`}>
-          {onToggle && (
-            <button 
-              onClick={(e) => { e.stopPropagation(); onToggle(); }}
-              className="absolute top-1 right-1 p-0.5 rounded-full hover:bg-white/20 transition-colors z-20 cursor-pointer"
-            >
-              <Icons.ChevronRightSimple className={`w-4 h-4 transition-transform duration-300 ${isCollapsed ? '' : 'rotate-180'}`} />
-            </button>
-          )}
-          <div className="font-semibold opacity-80 whitespace-nowrap leading-tight" style={{fontSize: 'clamp(12px, 1vw, 14px)'}}>{title}</div>
-          {isToday ? (
-             <div className="flex flex-col justify-center flex-1">
-               <div className="font-bold tracking-widest whitespace-nowrap overflow-hidden text-ellipsis w-full leading-tight" style={{fontSize: 'clamp(14px, 1.8vw, 18px)'}}>{date}</div>
-               <div className="font-bold whitespace-nowrap leading-tight mt-0.5" style={{fontSize: 'clamp(12px, 1.5vw, 14px)'}}><Clock/></div>
-             </div>
-          ) : (
-             <div className="flex flex-col justify-center flex-1">
-               <div className="font-bold tracking-widest whitespace-nowrap overflow-hidden text-ellipsis w-full leading-tight" style={{fontSize: 'clamp(14px, 1.8vw, 18px)'}}>{date}</div>
-               {dDay && <div className="font-bold px-1.5 py-0.5 bg-white/60 rounded-full shadow-sm inline-block mx-auto whitespace-nowrap leading-none mt-0.5" style={{fontSize: 'clamp(12px, 1.5vw, 14px)'}}>{dDay}</div>}
-             </div>
-          )}
-        </div>
-      );
-
-      // 예산 카드 (안전장치 강화)
-      const BudgetCard = ({ data = {} }) => {
-        const safeData = data || {};
-        const { name, assigned, used, balance } = safeData;
-        
-        const nameStr = String(name || '');
-        const assignedVal = assigned || 0;
-        const usedVal = used || 0;
-        const balanceVal = balance || 0;
-
-        let bgClass = "bg-gradient-to-br from-green-50/90 to-emerald-100/80 border-emerald-200/60"; 
-        if (nameStr.includes("(해)")) {
-          bgClass = "bg-gradient-to-br from-yellow-50/90 to-amber-100/80 border-amber-200/60";
-        } else if (nameStr.includes("회비")) {
-          bgClass = "bg-gradient-to-br from-blue-50/90 to-sky-100/80 border-sky-200/60";
-        }
-
-        const fmt = (n) => Number(n).toLocaleString();
-        const fontSizeStyle = { fontSize: 'clamp(11px, 1vw, 14px)' };
-        const labelStyle = { fontSize: 'clamp(10px, 0.9vw, 12px)' };
-
-        return (
-          <div className={`${bgClass} border rounded-xl p-3 shadow-sm flex flex-col gap-1.5 transition-transform hover:-translate-y-1 backdrop-blur-sm`}>
-            <div className="font-bold border-b border-black/10 pb-1.5 mb-1 text-slate-800 break-keep leading-tight" style={fontSizeStyle}>
-              {nameStr || '이름 없음'}
-            </div>
-            <div className="space-y-1">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-600" style={labelStyle}>배정액</span>
-                <span className="font-semibold text-slate-800" style={fontSizeStyle}>{fmt(assignedVal)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-600" style={labelStyle}>사용액</span>
-                <span className="font-semibold text-slate-800" style={fontSizeStyle}>{fmt(usedVal)}</span>
-              </div>
-              <div className="flex justify-between items-center mt-1.5 pt-1.5 border-t border-black/5">
-                <span className="text-slate-700 font-medium" style={labelStyle}>잔액</span>
-                <span className={`font-bold ${balanceVal < 0 ? 'text-red-600' : 'text-blue-700'}`} style={fontSizeStyle}>{fmt(balanceVal)}</span>
-              </div>
-            </div>
-          </div>
-        );
-      };
-
-      const DateCardsSection = ({ data }) => {
-        const [isCollapsed, setIsCollapsed] = useState(true); // 기본적으로 접힘
-        const overview = data?.overview || {};
-        const dates = overview.dates || { summer: '', winter: '' };
-        
-        const today = new Date();
-
-        return (
-          <div className={`grid gap-2 md:gap-4 transition-all duration-300 ${isCollapsed ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-3'}`}>
-            <DateCard 
-              title="오늘 날짜" 
-              date={formatDate(today)} 
-              isToday={true} 
-              gradientClass="bg-gradient-to-br from-emerald-50/60 to-teal-100/60" 
-              textColor="text-teal-900" 
-              onToggle={() => setIsCollapsed(!isCollapsed)}
-              isCollapsed={isCollapsed}
-            />
-            {!isCollapsed && (
-              <>
-                <DateCard title="여름방학식" date={formatDate(dates.summer)} dDay={calculateDDay(dates.summer)} gradientClass="bg-gradient-to-br from-orange-50/60 to-amber-100/60" textColor="text-amber-900" />
-                <DateCard title="겨울방학식" date={formatDate(dates.winter)} dDay={calculateDDay(dates.winter)} gradientClass="bg-gradient-to-br from-sky-50/60 to-indigo-100/60" textColor="text-indigo-900" />
-              </>
-            )}
-          </div>
-        );
-      };
-
-      const OverviewPage = ({ data }) => {
-        const [isOverviewCollapsed, setIsOverviewCollapsed] = useState(true);
-        const [isBudgetCollapsed, setIsBudgetCollapsed] = useState(true);
-        const [scheduleFilter, setScheduleFilter] = useState('today');
-        const scrollRef = useRef(null);
-
-        // 데이터가 없으면 로딩 표시 혹은 에러 메시지
-        if (!data) return <div className="p-8 text-center text-slate-500">데이터 없음</div>;
-        if (data.error) return <div className="p-8 text-center text-red-500">데이터 오류: {data.error}</div>;
-
-        const overview = data.overview || {};
-        const info = overview.info || [];
-        const schedules = overview.schedule || [];
-        
-        // 예산 리스트에서 '친목회비' 제외
-        const budgetList = Array.isArray(data.budget) 
-          ? data.budget.filter(item => !String(item.name || '').includes('친목회비')) 
-          : [];
-
-        const handleEdit = (rowId, colIndex, value) => {
-          if (typeof google !== 'undefined' && google.script) {
-            google.script.run.updateSheetData({ type: 'overview_edit', rowId, colIndex, value });
-          }
-        };
-        const handleScheduleEdit = (rowIndex, value) => {
-          if (typeof google !== 'undefined' && google.script) {
-            google.script.run.updateSheetData({ type: 'overview_schedule_edit', rowIndex, value });
-          }
-        };
-        
-        const filteredSchedules = useMemo(() => {
-          if (scheduleFilter === 'all') return schedules;
-          
-          const today = new Date();
-          today.setHours(0,0,0,0);
-          
-          if (scheduleFilter === 'today') {
-            return schedules.filter(s => {
-               const d = new Date(s.date);
-               return !isNaN(d.getTime()) && d >= today;
-            });
-          }
-          
-          if (scheduleFilter === 'week') {
-             const day = today.getDay();
-             const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-             const monday = new Date(today);
-             monday.setDate(diff);
-             monday.setHours(0,0,0,0);
-             return schedules.filter(s => {
-                const d = new Date(s.date);
-                return !isNaN(d.getTime()) && d >= monday;
-             });
-          }
-          return schedules;
-        }, [schedules, scheduleFilter]);
-
-        const scrollToTop = () => {
-          if (scrollRef.current) scrollRef.current.scrollTop = 0;
-        };
-        const scrollToBottom = () => {
-          if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        };
-
-        return (
-          <div className="space-y-8 fade-in pb-20">
-            {/* 1. 학년 개요 */}
-            <div>
-              <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-t-xl font-bold text-indigo-900 flex items-center justify-between gap-2 select-none">
-                <div className="flex items-center gap-2 whitespace-nowrap">
-                  <Icons.ClipboardList size={22}/>
-                  <span>학년 개요</span>
-                </div>
-                <button 
-                  onClick={() => setIsOverviewCollapsed(!isOverviewCollapsed)}
-                  className="p-1 hover:bg-indigo-100 rounded-full transition-colors"
-                >
-                  <Icons.ChevronDown className={`w-5 h-5 transition-transform duration-300 ${isOverviewCollapsed ? 'rotate-180' : ''}`} />
-                </button>
-              </div>
-              
-              {!isOverviewCollapsed && (
-                <div className="bg-white rounded-b-xl shadow-sm border-x border-b border-slate-200 overflow-hidden p-4 md:p-6">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs sm:text-sm lg:text-base text-center border border-slate-200 table-fixed min-w-[600px]">
-                      <colgroup>
-                        <col className="w-[64px]" />
-                        {[...Array(10)].map((_, i) => <col key={i} />)}
-                        <col className="w-[64px]" />
-                      </colgroup>
-                      <thead>
-                        <tr className="bg-slate-100 text-slate-600">
-                          <th className="p-1 border text-[clamp(12px,1.5vw,16px)] h-10 align-middle">구분</th>
-                          {[...Array(10)].map((_,i)=><th key={i} className="p-1 border text-[clamp(12px,1.5vw,16px)] h-10 align-middle">{i+1}반</th>)}
-                          <th className="p-1 border bg-slate-200 text-[clamp(12px,1.5vw,16px)] h-10 align-middle">계</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {info.map((row, rIdx) => (
-                          <tr key={row.id || rIdx}>
-                            <td className={`border font-medium bg-slate-50 whitespace-normal break-keep text-[clamp(12px,1.5vw,16px)] ${rIdx <= 2 ? 'p-1' : 'p-3'}`}>{row.label}</td>
-                            {[...Array(10)].map((_, i) => {
-                              const colKey = `c${i+1}`;
-                              return (
-                                <td key={i} className="p-0 border relative h-10">
-                                  {row.isEditable ? (
-                                    <input type="text" className="absolute inset-0 w-full h-full p-2 text-center outline-none bg-white/50 focus:bg-white/80 transition-colors text-[clamp(12px,1.5vw,16px)]"
-                                      defaultValue={row[colKey]} onBlur={(e)=>handleEdit(row.id, i, e.target.value)} 
-                                      style={{fontSize: 'inherit'}}
-                                    />
-                                  ) : <div className={`flex items-center justify-center h-full text-[clamp(12px,1.5vw,16px)]`}>{row[colKey]}</div>}
-                                </td>
-                              );
-                            })}
-                            <td className={`border font-medium bg-slate-50 text-center text-[clamp(12px,1.5vw,16px)]`}>{row.total}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* 2. 학년 예산 */}
-            <div>
-              <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-t-xl font-bold text-emerald-900 flex items-center justify-between gap-2 select-none">
-                <div className="flex items-center gap-2 whitespace-nowrap">
-                  <Icons.DollarSign size={22}/>
-                  <span>학년 예산</span>
-                </div>
-                <button 
-                  onClick={() => setIsBudgetCollapsed(!isBudgetCollapsed)}
-                  className="p-1 hover:bg-emerald-100 rounded-full transition-colors"
-                >
-                  <Icons.ChevronDown className={`w-5 h-5 transition-transform duration-300 ${isBudgetCollapsed ? 'rotate-180' : ''}`} />
-                </button>
-              </div>
-
-              {!isBudgetCollapsed && (
-                <div className="bg-white rounded-b-xl shadow-sm border-x border-b border-slate-200 p-4 md:p-6">
-                   {budgetList.length > 0 ? (
-                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                       {budgetList.map((card, idx) => (
-                         <BudgetCard key={idx} data={card} />
-                       ))}
-                     </div>
-                   ) : (
-                     <div className="text-center text-slate-400 py-10">예산 데이터가 없습니다.</div>
-                   )}
-                </div>
-              )}
-            </div>
-
-            {/* 날짜 카드 섹션 */}
-            <DateCardsSection data={data} />
-            
-            {/* 3. 전체 일정 */}
-            <div>
-              <div className="p-4 border border-[#e5e7eb] rounded-t-xl font-bold text-slate-700 flex justify-between items-center gap-2 bg-sky-50 whitespace-nowrap overflow-hidden">
-                <div className="flex items-center gap-2 flex-shrink min-w-0">
-                  <Icons.Calendar size={22} className="flex-shrink-0"/>
-                  <span className="truncate text-[clamp(14px,3vw,18px)]">전체 일정</span>
-                </div>
-                <div className="flex gap-2 items-center flex-shrink-0">
-                  <div className="flex gap-1 mr-2 border-r border-slate-300 pr-2">
-                    <button onClick={scrollToTop} className="p-1.5 bg-white border border-slate-200 rounded hover:bg-slate-50 transition-colors" title="맨 위로">
-                      <Icons.ArrowUp className="w-4 h-4 text-slate-600" />
-                    </button>
-                    <button onClick={scrollToBottom} className="p-1.5 bg-white border border-slate-200 rounded hover:bg-slate-50 transition-colors" title="맨 아래로">
-                      <Icons.ArrowDown className="w-4 h-4 text-slate-600" />
-                    </button>
-                  </div>
-                  <div className="flex gap-1">
-                    <button onClick={() => setScheduleFilter('week')} className={`px-2 py-1 text-xs sm:text-sm rounded border transition-colors ${scheduleFilter==='week' ? 'bg-blue-100 border-blue-300 text-blue-800 font-bold' : 'bg-white border-slate-200 text-slate-600'}`}>이번주</button>
-                    <button onClick={() => setScheduleFilter('today')} className={`px-2 py-1 text-xs sm:text-sm rounded border transition-colors ${scheduleFilter==='today' ? 'bg-blue-100 border-blue-300 text-blue-800 font-bold' : 'bg-white border-slate-200 text-slate-600'}`}>오늘</button>
-                    <button onClick={() => setScheduleFilter('all')} className={`px-2 py-1 text-xs sm:text-sm rounded border transition-colors ${scheduleFilter==='all' ? 'bg-blue-100 border-blue-300 text-blue-800 font-bold' : 'bg-white border-slate-200 text-slate-600'}`}>전체</button>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-b-xl shadow-sm border-x border-b border-[#e5e7eb] overflow-hidden p-0 relative">
-                <div ref={scrollRef} className="overflow-auto max-h-[600px] w-full relative">
-                  <table className="w-full text-xs sm:text-sm lg:text-base text-left border-collapse table-fixed min-w-[764px]">
-                    <colgroup>
-                      <col className="w-[64px]" />
-                      <col className="w-1/3" />
-                      <col className="w-1/3" />
-                      <col className="w-1/3" />
-                    </colgroup>
-                    <thead className="bg-sky-50 text-slate-600 font-bold sticky top-0 z-30 shadow-sm">
-                      <tr>
-                        <th className="px-1 py-3 text-center border-b border-r border-slate-200 bg-sky-50 sticky left-0 top-0 z-40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">날짜</th>
-                        <th className="px-4 py-3 border-b border-r border-slate-200 text-center">학교 행사</th>
-                        <th className="px-4 py-3 border-b border-r border-slate-200 text-center">학년 강사 일정</th>
-                        <th className="px-4 py-3 border-b border-slate-200 text-center">학년 일정 (수정가능)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {filteredSchedules.map((s,i) => {
-                          const rowClass = getScheduleRowColor(s.date, s.event);
-                          return (
-                           <tr key={i} className={`${rowClass} group transition-colors`}>
-                             <td className={`px-1 py-3 text-center font-medium border-r border-slate-200 whitespace-nowrap sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${rowClass}`}>
-                               {formatScheduleDate(s.date)}
-                             </td>
-                             <td className="px-4 py-3 border-r border-slate-200 text-left whitespace-pre-wrap break-words leading-relaxed">{s.event}</td>
-                             <td className="px-4 py-3 border-r border-slate-200 text-left whitespace-pre-wrap break-words leading-relaxed">{s.grade}</td>
-                             <td className="p-0 text-left relative align-top border-b border-slate-200">
-                                {/* [변경] 텍스트+링크 복합 지원 컴포넌트 사용 */}
-                                <EditableScheduleCell 
-                                   value={s.manual} 
-                                   rowIndex={s.rowIndex}
-                                   onSave={handleScheduleEdit}
-                                />
-                             </td>
-                           </tr>
-                          );
-                      })}
-                      {filteredSchedules.length === 0 && (
-                        <tr><td colSpan="4" className="p-10 text-center text-slate-400">일정이 없습니다.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      };
-
-      const App = () => {
-        const [data, setData] = useState(null);
-        const [isRefreshing, setIsRefreshing] = useState(false);
-        const [error, setError] = useState(null);
-
-        const fetchData = () => {
-          setIsRefreshing(true);
-          setError(null);
-          
-          if (typeof google === 'undefined' || !google.script) {
-             // 로컬 테스트용 더미 데이터
-             setTimeout(() => {
-                setData({
-                  overview: {
-                    info: Array(6).fill(0).map((_,i)=>({id:`r${i}`, label:`항목${i}`, total:0})),
-                    dates: { summer: new Date(), winter: new Date() },
-                    schedule: []
-                  },
-                  budget: []
-                });
-                setIsRefreshing(false);
-             }, 1000);
-             return;
-          }
-
-          google.script.run.withSuccessHandler(res => {
-            try {
-               const parsed = JSON.parse(res);
-               if (parsed.error) throw new Error(parsed.error);
-               setData(parsed);
-            } catch(e) {
-               setError(e.message);
-            } finally {
-               setIsRefreshing(false);
-            }
-          }).withFailureHandler(e => {
-             setError(e.toString());
-             setIsRefreshing(false);
-          }).refreshData();
-        };
-
-        useEffect(() => {
-           if (typeof google === 'undefined' || !google.script) {
-             console.warn("Google Script Environment not detected. Using dummy data.");
-             fetchData(); // 로컬 테스트
-           } else {
-             // 1. [속도 개선] 서버에서 주입된 데이터가 있으면 바로 사용
-             if (window.__INITIAL_DATA__) {
-                 try {
-                   // 이미 객체로 주입되었으므로 바로 사용 (혹은 문자열일 경우 파싱)
-                   const initData = typeof window.__INITIAL_DATA__ === 'string' ? JSON.parse(window.__INITIAL_DATA__) : window.__INITIAL_DATA__;
-                   if (initData.error) setError(initData.error);
-                   else setData(initData);
-                   return; // 비동기 로딩 건너뜀
-                 } catch(e) {
-                   console.error("Initial data parse error:", e);
-                   // 파싱 에러 시 아래 비동기 호출로 넘어감
-                 }
-             }
-
-             // 2. 주입된 데이터가 없으면 기존 방식대로 비동기 호출
-             google.script.run.withSuccessHandler(res => {
-                 try {
-                   const parsed = JSON.parse(res);
-                   if (parsed.error) setError(parsed.error);
-                   else setData(parsed);
-                 } catch(e) {
-                   setError("데이터 파싱 오류: " + e.message);
-                 }
-              }).withFailureHandler(e => setError(e.toString())).getInitialData();
-           }
-        }, []);
-
-        if (error) return (
-           <div className="h-screen flex items-center justify-center bg-slate-50 p-6">
-              <div className="bg-white p-8 rounded-xl shadow-lg border border-red-100 max-w-md text-center">
-                 <div className="text-red-500 mb-4 mx-auto w-12 h-12 flex items-center justify-center bg-red-50 rounded-full font-bold text-xl">!</div>
-                 <h3 className="font-bold text-lg text-slate-800 mb-2">데이터 로드 실패</h3>
-                 <p className="text-slate-600 mb-6 break-words">{error}</p>
-                 <button onClick={() => window.location.reload()} className="bg-slate-800 text-white px-6 py-2 rounded-lg hover:bg-slate-700 transition-colors">새로고침</button>
-              </div>
-           </div>
-        );
-
-        if (!data) return (
-          <div className="h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
-             <div className="loader"/> 
-             <div className="text-slate-500 font-medium animate-pulse">데이터를 불러오는 중...</div>
-          </div>
-        );
-
-        return (
-          <div className="flex h-screen bg-slate-50 overflow-hidden flex-col">
-            <header className="bg-white border-b border-slate-200 h-14 lg:h-16 flex items-center justify-between px-4 lg:px-6 shadow-sm z-10 sticky top-0 shrink-0">
-                {isRefreshing && <div className="loading-progress"></div>}
-                <div className="flex items-center gap-3">
-                  <h1 className="text-lg lg:text-xl font-bold text-slate-800 tracking-tight whitespace-nowrap">
-                    6학년 개요
-                  </h1>
-                </div>
-                <button onClick={fetchData} className={`p-2 rounded-full hover:bg-slate-100 text-slate-500 hover:text-indigo-600 transition-all ${isRefreshing ? 'animate-spin text-indigo-600' : ''}`} title="새로고침">
-                  <Icons.RotateCw size={20} />
-                </button>
-            </header>
-
-            <main className="flex-1 overflow-y-auto p-3 lg:p-6 bg-[#f8fafc]">
-              <div className="max-w-7xl mx-auto pb-10">
-                <ErrorBoundary>
-                  <OverviewPage data={data} />
-                </ErrorBoundary>
-              </div>
-            </main>
-          </div>
-        );
-      };
-
-      const root = ReactDOM.createRoot(document.getElementById('root'));
-      root.render(<App />);
-    </script>
-  </body>
+async function renderInfo() {
+  const [students, ov] = await Promise.all([GP.getCol('data_student'), GP.getCol('data_overview')]);
+  const ovMap = {}; ov.forEach((r) => { ovMap[r._id] = r; });
+  const names = general.classNames, n = names.length;
+  const cnt = (f) => names.map((_, i) => students.filter((s) => GP.num(s.student_class) === i + 1 && GP.str(s.student_name).trim() && f(s)).length);
+  const sum = (a) => a.reduce((x, y) => x + y, 0);
+  const all = cnt(() => true), m = cnt((s) => GP.str(s.student_gender) === '남성'), f = cnt((s) => GP.str(s.student_gender) === '여성');
+  const th = 'p-2 border-b border-r bg-slate-100 font-bold', td = 'p-2 border-b border-r';
+  const numRow = (label, a) => '<tr><td class="' + th + ' w-24">' + label + '</td>' + a.map((v) => '<td class="' + td + '">' + v + '</td>').join('') + '<td class="' + td + ' font-bold">' + sum(a) + '</td></tr>';
+  const memoRow = () => '<tr><td class="' + th + '">비고</td>' + names.map((_, i) => '<td class="' + td + '"><input data-c="' + (i + 1) + '" value="' + esc((ovMap.r5 || {})['c' + (i + 1)] || '') + '" class="memo w-full text-center bg-transparent border-b border-dashed border-slate-300 focus:outline-none focus:border-indigo-500"></td>').join('') + '<td class="' + td + '"></td></tr>';
+  const homeRow = () => '<tr><td class="' + th + '">담임</td>' + names.map((c) => '<td class="' + td + '">' + esc(general.homeroom[c] || '') + '</td>').join('') + '<td class="' + td + '"></td></tr>';
+  document.getElementById('info').innerHTML = '<thead><tr><th class="' + th + '">구분</th>' + names.map((c) => '<th class="' + th + '">' + esc(c) + '</th>').join('') + '<th class="' + th + '">계</th></tr></thead><tbody>' +
+    numRow('학생수', all) + numRow('남', m) + numRow('여', f) + memoRow() + homeRow() + '</tbody>';
+  document.querySelectorAll('.memo').forEach((inp) => inp.onchange = async () => {
+    await GP.db.collection('data_overview').doc('r5').set({ ['c' + inp.dataset.c]: inp.value }, { merge: true }); GP.invalidate('data_overview');
+  });
+}
+async function renderCards() {
+  const cards = (await GP.buildBudgetCards()).filter((c) => !String(c.name).includes('친목회비'));
+  document.getElementById('cards').innerHTML = cards.map((c) => '<div class="bg-white border border-slate-200 rounded-xl p-3 shadow-sm"><div class="font-bold text-sm border-b pb-1 mb-1">' + esc(c.name) + '</div>' +
+    '<div class="flex justify-between text-xs"><span>배정액</span><b>' + fmt(c.assigned) + '</b></div><div class="flex justify-between text-xs"><span>사용액</span><b>' + fmt(c.used) + '</b></div>' +
+    '<div class="flex justify-between text-sm mt-1 pt-1 border-t"><span>잔액</span><b class="' + (c.balance < 0 ? 'text-red-600' : 'text-blue-700') + '">' + fmt(c.balance) + '</b></div></div>').join('');
+}
+function renderRows() {
+  const t = GP.ymd(todayDate());
+  document.getElementById('body').innerHTML = rows.map((r) => {
+    const cls = (r.isHoliday || r.dow === 0) ? 'row-sun' : r.dow === 6 ? 'row-sat' : '';
+    return '<tr data-key="' + r.key + '" class="border-b last:border-0 align-top ' + cls + (r.key === t ? ' row-today' : '') + '">' +
+      '<td class="p-2 font-bold whitespace-nowrap">' + r.date.getFullYear().toString().slice(2) + '.' + (r.date.getMonth() + 1) + '.' + r.date.getDate() + ' (' + DAYN[r.dow] + ') ' +
+      '<button class="edit ml-1 align-middle opacity-60 hover:opacity-100" title="수정" data-key="' + r.key + '">✏️</button></td>' +
+      '<td class="p-2 cell">' + esc(r.school) + '</td><td class="p-2 cell">' + esc(r.lecturer) + '</td><td class="p-2 cell">' + esc(r.memo) + '</td></tr>';
+  }).join('');
+  document.querySelectorAll('.edit').forEach((b) => b.onclick = () => openEdit(b.dataset.key));
+}
+function scrollToKey(key) {
+  const sc = document.getElementById('scroller'); const tr = sc.querySelector('tr[data-key="' + key + '"]');
+  if (!tr) return; const head = sc.querySelector('thead').offsetHeight;
+  sc.scrollTop = tr.offsetTop - head;
+}
+function applyFilter(f, keepScroll) {
+  filter = f;
+  document.querySelectorAll('#filters button').forEach((b) => b.className = 'px-3 py-1 rounded-md text-sm font-semibold ' + (b.dataset.f === f ? 'bg-white shadow text-indigo-700' : 'text-slate-500'));
+  if (keepScroll) return;
+  const first = rows[0], last = rows[rows.length - 1]; const today = todayDate();
+  const clamp = (d) => (d < first.date ? first.date : d > last.date ? last.date : d);
+  let target = first.date;
+  if (f === 'today') target = clamp(today);
+  if (f === 'week') target = clamp(GP.mondayOf(today));
+  scrollToKey(GP.ymd(target));
+}
+async function load(keepScroll) {
+  const sc = document.getElementById('scroller'); const prev = sc.scrollTop;
+  ['data_task_school','data_task_memo','data_add_timetable','data_basic','data_student','data_overview','data_budget'].forEach(GP.invalidate);
+  general = await APP.getGeneral();
+  const r = APP.yearRange(general.year);
+  document.getElementById('yearLabel').textContent = general.year + '학년도';
+  rows = await APP.buildSchedule(r.start, r.end);
+  renderRows(); applyFilter(filter, keepScroll); if (keepScroll) sc.scrollTop = prev;
+  renderInfo(); renderCards();
+}
+async function openEdit(key) {
+  const d = GP.toDate(key); editing = d;
+  const st = await APP.getDayState(d); const row = rows.find((x) => x.key === key);
+  const holMode = st.holiday.length > 0;
+  document.getElementById('mTitle').textContent = GP.appDate(d) + ' 일정 수정';
+  document.getElementById('mHol').checked = holMode;
+  document.getElementById('mSchool').value = (holMode ? st.holiday.map((r) => r.holiday) : st.school.map((r) => r.task_school_name)).join('\n');
+  const notes = [];
+  if (st.publicName) notes.push('공휴일: ' + st.publicName + ' (자동 표시, 수정 불가)');
+  if (holMode && st.school.length) notes.push('같은 날 다른 학교 행사: ' + st.school.map((r) => r.task_school_name).join(' / '));
+  if (st.schoolRange.length) notes.push('기간 일정(관리자 > 학년 기초 설정에서 수정): ' + st.schoolRange.map((r) => r.task_school_name).join(' / '));
+  document.getElementById('mNote').textContent = notes.join('\n');
+  document.getElementById('mLec').value = row ? row.lecturer : '';
+  document.getElementById('mMemo').value = st.memo.map((r) => r.task_memo_name).join('\n');
+  document.getElementById('mMemoNote').textContent = st.memoRange.length ? '기간 일정: ' + st.memoRange.map((r) => r.task_memo_name).join(' / ') : '';
+  document.getElementById('modal').classList.remove('hidden'); document.getElementById('modal').classList.add('flex');
+}
+function closeModal() { document.getElementById('modal').classList.add('hidden'); document.getElementById('modal').classList.remove('flex'); }
+document.getElementById('mCancel').onclick = closeModal;
+document.getElementById('mSave').onclick = async () => {
+  const btn = document.getElementById('mSave'); btn.disabled = true; btn.textContent = '저장 중...';
+  try {
+    await APP.saveDay(editing, { schoolText: document.getElementById('mSchool').value, isHoliday: document.getElementById('mHol').checked, memoText: document.getElementById('mMemo').value });
+    closeModal(); await load(true);
+  } catch (e) { alert('저장하지 못했습니다: ' + e.message); }
+  btn.disabled = false; btn.textContent = '저장';
+};
+document.querySelectorAll('#filters button').forEach((b) => b.onclick = () => applyFilter(b.dataset.f));
+load(false).catch((e) => { console.error(e); alert('데이터를 불러오지 못했습니다: ' + e.message); });
+</script>
+</body>
 </html>

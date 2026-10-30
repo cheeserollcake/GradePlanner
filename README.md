@@ -19,3 +19,19 @@
 data_add_timetable, data_gym_timetable, data_room_timetable, data_budget, data_supply
 새로 쓰는 컬렉션: app_config(설정·비밀번호), data_overview(개요 표 수기 칸), data_basic_timetable,
 data_mall(쇼핑몰 ID), data_links(바로가기)
+
+## 관리자 페이지 (pages/admin.html)
+초기 비밀번호는 관리자·페이지 접근 모두 `0000` 입니다. (비밀번호/데이터 관리 메뉴에서 변경)
+- 시간표 설정: 과목·시수·전담 체크(`data_basic.list_sub`, `list_sub_hours`, `list_sub_special`), 교시(`list_time`)
+- 학년 기초 설정: 학년도, 학기·방학, 기초 일정(CSV 업로드), 학급·담임·전담교사(`app_config/general`, 교사 이름은 `list_t`)
+- 공간 개방 설정: 체육 공간(`list_gym`)·특별실(`list_room`), 학기별 개방 시간, 예외(`app_config/space_open`)
+- 비밀번호/데이터 관리: 공통 비밀번호(`app_config/passwords`), 학년도별 데이터 삭제
+
+## 참고
+- 목록 필드는 순서를 보존하려고 `<필드>_order` 숫자 필드를 함께 저장합니다.
+- 날짜는 기존 데이터와 같은 문자열(예: `2026년 10월 20일 (화)`)로 저장합니다.
+
+## 전담 시간표 / 특별실 시간표
+- 전담 시간표: 관리자 > 학년 기초 설정 > 전담교사에 등록한 (과목, 교사) 마다 탭이 만들어지고, 표에는 그 교사의 담당학급만 나옵니다.
+- 특별실 시간표: 관리자 > 공간 개방 설정의 공간 목록, 학기별 개방 시간, 예외(닫힌 곳 열기/열린 곳 닫기)를 그대로 따릅니다.
+- 공휴일은 법령 기준으로 계산합니다(양력 고정일, 음력 명절은 천문 계산, 대체공휴일). 선거일 등은 `ONE_OFF_HOLIDAYS` 에 추가하거나 개요 화면에서 휴일로 입력하세요.

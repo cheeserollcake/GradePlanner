@@ -100,17 +100,87 @@
   // ---------------------------------------------------------------- 기본 설정 / 휴일
   const SUBJECTS_DEFAULT = ['국어', '수학', '사회', '도덕', '음악', '미술', '체육', '실과', '창체', '영어', '과학'];
 
-  // 엑셀 data_basic 에는 공휴일이 없으므로 2026~2027학년도 공휴일을 코드에 둡니다(확인 필요).
-  const PUBLIC_HOLIDAYS = {
-    '2026-01-01': '신정', '2026-02-16': '설날 연휴', '2026-02-17': '설날', '2026-02-18': '설날 연휴',
-    '2026-03-01': '삼일절', '2026-03-02': '대체공휴일(삼일절)', '2026-05-05': '어린이날',
-    '2026-05-24': '부처님오신날', '2026-05-25': '대체공휴일(부처님오신날)', '2026-06-03': '전국동시지방선거',
-    '2026-06-06': '현충일', '2026-08-15': '광복절', '2026-08-17': '대체공휴일(광복절)',
-    '2026-09-24': '추석 연휴', '2026-09-25': '추석', '2026-09-26': '추석 연휴',
-    '2026-10-03': '개천절', '2026-10-05': '대체공휴일(개천절)', '2026-10-09': '한글날', '2026-12-25': '성탄절',
-    '2027-01-01': '신정', '2027-02-05': '설날 연휴', '2027-02-06': '설날', '2027-02-07': '설날 연휴',
-    '2027-02-08': '대체공휴일(설날)', '2027-03-01': '삼일절'
-  };
+  // ---------------------------------------------------------------- 대한민국 공휴일 자동 계산
+  // 엑셀 data_basic 에는 공휴일이 없어서 법령 기준으로 계산합니다. (양력 고정일 + 음력 명절 + 대체공휴일)
+  //  - 음력 명절은 브라우저의 음력(Intl chinese) 변환을 사용합니다.
+  //  - 2026년부터 노동절(5/1), 제헌절(7/17)이 공휴일입니다.
+  //  - 선거일·임시공휴일처럼 법령으로 계산되지 않는 날은 아래 ONE_OFF 에 직접 적거나, 개요 화면에서 '휴일'로 입력하세요.
+  const ONE_OFF_HOLIDAYS = { '2026-06-03': '전국동시지방선거', '2028-04-12': '국회의원선거' };
+  // 한국 음력(KST 기준) 명절을 천문 계산으로 구합니다. (브라우저 음력 변환은 삭 시각 경계에서 틀릴 수 있어 쓰지 않습니다.)
+  //  - 음력 월 시작일 = 삭(朔)이 일어난 날짜(KST)
+  //  - 1월은 우수(태양황경 330°), 4월은 소만(60°), 8월은 추분(180°)이 든 달
+  const JD_UNIX = 2440587.5, KST = 9 * 3600000;
+  const rad = Math.PI / 180;
+  function newMoonUTC(k) {   // Meeus ch.49 (단순식, 오차 1분 내외), ΔT 약 71초 보정
+    const T = k / 1236.85;
+    let jde = 2451550.09766 + 29.530588861 * k + 0.00015437 * T * T - 0.00000015 * T * T * T + 0.00000000073 * T * T * T * T;
+    const E = 1 - 0.002516 * T - 0.0000074 * T * T;
+    const M = (2.5534 + 29.1053567 * k - 0.0000014 * T * T) * rad, Mp = (201.5643 + 385.81693528 * k + 0.0107582 * T * T) * rad;
+    const F = (160.7108 + 390.67050284 * k - 0.0016118 * T * T) * rad, Om = (124.7746 - 1.56375588 * k + 0.0020672 * T * T) * rad;
+    const sn = Math.sin;
+    jde += -0.4072 * sn(Mp) + 0.17241 * E * sn(M) + 0.01608 * sn(2 * Mp) + 0.01039 * sn(2 * F) + 0.00739 * E * sn(Mp - M) - 0.00514 * E * sn(Mp + M) +
+      0.00208 * E * E * sn(2 * M) - 0.00111 * sn(Mp - 2 * F) - 0.00057 * sn(Mp + 2 * F) + 0.00056 * E * sn(2 * Mp + M) - 0.00042 * sn(3 * Mp) +
+      0.00042 * E * sn(M + 2 * F) + 0.00038 * E * sn(M - 2 * F) - 0.00024 * E * sn(2 * Mp - M) - 0.00017 * sn(Om);
+    return (jde - 71 / 86400 - JD_UNIX) * 86400000;
+  }
+  function sunLongitude(jde) {   // 태양 겉보기 황경(도), Meeus ch.25
+    const T = (jde - 2451545) / 36525;
+    const L0 = 280.46646 + 36000.76983 * T + 0.0003032 * T * T, M = (357.52911 + 35999.05029 * T - 0.0001537 * T * T) * rad;
+    const C = (1.914602 - 0.004817 * T - 0.000014 * T * T) * Math.sin(M) + (0.019993 - 0.000101 * T) * Math.sin(2 * M) + 0.000289 * Math.sin(3 * M);
+    const om = (125.04 - 1934.136 * T) * rad;
+    return (((L0 + C - 0.00569 - 0.00478 * Math.sin(om)) % 360) + 360) % 360;
+  }
+  function solarTermMs(year, deg, md) {   // 태양황경이 deg 가 되는 시각(UTC ms)
+    let jd = Date.UTC(year, md[0] - 1, md[1], 12) / 86400000 + JD_UNIX;
+    for (let i = 0; i < 6; i++) { const d = ((deg - sunLongitude(jd + 71 / 86400) + 540) % 360) - 180; jd += d / 0.98565; }
+    return (jd - JD_UNIX) * 86400000;
+  }
+  const dayNo = (ms) => Math.floor((ms + KST) / 86400000);            // KST 기준 날짜 번호
+  function lunarMonthStart(termMs) {                                    // 절기가 든 음력 달의 초하루(KST 날짜 번호)
+    const k0 = Math.round(((termMs / 86400000 + JD_UNIX) - 2451550.09766) / 29.530588861); const td = dayNo(termMs);
+    for (let k = k0 - 2; k <= k0 + 2; k++) { const a = dayNo(newMoonUTC(k)), b = dayNo(newMoonUTC(k + 1)); if (a <= td && td < b) return a; }
+    return null;
+  }
+  function lunarHoliday(year, deg, md, plus) {
+    const st = lunarMonthStart(solarTermMs(year, deg, md)); if (st === null) return null;
+    const d = new Date((st + plus) * 86400000);    // UTC 자정 → 날짜 성분만 사용
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  }
+  function holidaysOfYear(y) {
+    const items = []; // {date, name, group, sub}  sub: 'sun'(일요일/타공휴일) | 'weekend'(토·일) | 'child'(토·일·타공휴일) | null
+    const fix = (m, d, name, sub) => items.push({ date: new Date(y, m - 1, d), name, group: name, sub });
+    fix(1, 1, '신정', null); fix(3, 1, '삼일절', 'weekend'); fix(5, 5, '어린이날', 'child'); fix(6, 6, '현충일', null);
+    fix(8, 15, '광복절', 'weekend'); fix(10, 3, '개천절', 'weekend'); fix(10, 9, '한글날', 'weekend'); fix(12, 25, '성탄절', 'weekend');
+    if (y >= 2026) { fix(5, 1, '노동절', 'weekend'); fix(7, 17, '제헌절', 'weekend'); }
+    const seol = lunarHoliday(y, 330, [2, 19], 0), chu = lunarHoliday(y, 180, [9, 23], 14), buddha = lunarHoliday(y, 60, [5, 21], 7);
+    if (buddha) items.push({ date: buddha, name: '부처님오신날', group: '부처님오신날', sub: 'weekend' });
+    [[seol, '설날'], [chu, '추석']].forEach(([c, n]) => { if (!c) return; [-1, 0, 1].forEach((k) => items.push({ date: addDays(c, k), name: k === 0 ? n : n + ' 연휴', group: n, sub: 'sun' })); });
+    return items;
+  }
+  function buildPublicHolidays(y0, y1) {
+    const out = {};
+    for (let y = y0; y <= y1; y++) {
+      const items = holidaysOfYear(y); const cnt = {};
+      items.forEach((i) => { cnt[ymd(i.date)] = (cnt[ymd(i.date)] || 0) + 1; });
+      const taken = new Set(items.map((i) => ymd(i.date)));
+      const isOff = (d) => d.getDay() === 0 || d.getDay() === 6 || taken.has(ymd(d));
+      const groups = new Map();
+      items.forEach((i) => { if (!groups.has(i.group)) groups.set(i.group, []); groups.get(i.group).push(i); });
+      const subs = [];
+      groups.forEach((list, name) => {
+        const first = list[0], sub = first.sub; if (!sub) return;
+        const sun = list.some((i) => i.date.getDay() === 0), wk = list.some((i) => i.date.getDay() === 0 || i.date.getDay() === 6), clash = list.some((i) => cnt[ymd(i.date)] > 1);
+        const need = sub === 'sun' ? (sun || clash) : sub === 'child' ? (wk || clash) : wk;
+        if (need) subs.push({ after: list[list.length - 1].date, name });
+      });
+      subs.sort((a, b) => a.after - b.after).forEach((s) => { let d = addDays(s.after, 1); while (isOff(d)) d = addDays(d, 1); taken.add(ymd(d)); out[ymd(d)] = '대체공휴일(' + s.name + ')'; });
+      const names = {}; items.forEach((i) => { const k = ymd(i.date); const base = i.name.replace(/ 연휴$/, ''); (names[k] = names[k] || []).push(i.name); });
+      Object.keys(names).forEach((k) => { const n = names[k]; const main = n.filter((x) => !/ 연휴$/.test(x)); out[k] = (main.length ? main : n).join(' / '); });
+    }
+    Object.keys(ONE_OFF_HOLIDAYS).forEach((k) => { if (!out[k]) out[k] = ONE_OFF_HOLIDAYS[k]; });
+    return out;
+  }
+  const PUBLIC_HOLIDAYS = buildPublicHolidays(2020, 2045);
 
   async function getBasicRows() { return getCol('data_basic'); }
 
@@ -216,6 +286,90 @@
     mall: { userPw: '1111', adminPw: '0000' },
     special: { adminPwd: '0000', specialPwd: '1111', sem1: {}, sem2: {}, exceptions: [], closeExceptions: [] }
   };
+
+
+  // ---------------------------------------------------------------- 공통 비밀번호 (관리자 페이지에서 변경)
+  const getPw = async () => Object.assign({ access: '0000', admin: '0000' }, await getCfg('passwords', {}));
+  const setPw = (pw) => setCfg('passwords', pw);
+
+  // ---------------------------------------------------------------- data_basic 목록 읽기/쓰기
+  // data_basic 은 한 문서가 한 행이고 문서 ID 가 무작위라서, 순서를 보존하려고 <필드>_order 를 함께 저장합니다.
+  const CANON = {
+    list_sub: SUBJECTS_DEFAULT,
+    list_gym: ['강당', '다목(2층)', '다목(3층)', '운동장', '나래', 'VR'],
+    list_room: ['컴1', '컴2', '음악']
+  };
+  async function readList(field) {
+    const rows = (await getCol('data_basic')).filter((r) => str(r[field]).trim());
+    const canon = CANON[field] || [];
+    const seen = new Set();
+    const items = rows.map((r) => ({
+      _id: r._id, value: str(r[field]).trim(), row: r,
+      order: (r[field + '_order'] === undefined || r[field + '_order'] === '' || r[field + '_order'] === null) ? null : Number(r[field + '_order'])
+    })).filter((i) => (seen.has(i.value) ? false : (seen.add(i.value), true)));
+    items.sort((a, b) => {
+      if (a.order !== null && b.order !== null) return a.order - b.order;
+      if (a.order !== null) return -1;
+      if (b.order !== null) return 1;
+      const ia = canon.indexOf(a.value), ib = canon.indexOf(b.value);
+      if (ia >= 0 || ib >= 0) return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+      return natural(a.value, b.value);
+    });
+    return items;
+  }
+  // items: [{value, extra:{필드:값}}]  -> data_basic 에 반영(없어진 값은 삭제, 새 값은 추가)
+  async function writeList(field, items) {
+    invalidate('data_basic');
+    const rows = await getCol('data_basic');
+    const DEL = firebase.firestore.FieldValue.delete();
+    const cur = rows.filter((r) => str(r[field]).trim());
+    const holder = new Map();
+    cur.forEach((r) => { const v = str(r[field]).trim(); if (!holder.has(v)) holder.set(v, r); });
+    const wanted = items.map((i) => i.value);
+    const free = cur.filter((r) => { const v = str(r[field]).trim(); return holder.get(v) !== r || wanted.indexOf(v) < 0; });
+    const extraKeys = new Set(); items.forEach((i) => Object.keys(i.extra || {}).forEach((k) => extraKeys.add(k)));
+    const ops = [];
+    items.forEach((it, idx) => {
+      const data = Object.assign({ [field]: it.value, [field + '_order']: idx }, it.extra || {});
+      const r = holder.get(it.value);
+      if (r && wanted.indexOf(str(r[field]).trim()) >= 0 && free.indexOf(r) < 0) ops.push({ type: 'update', col: 'data_basic', id: r._id, data });
+      else { const fr = free.shift(); if (fr) ops.push({ type: 'update', col: 'data_basic', id: fr._id, data }); else ops.push({ type: 'set', col: 'data_basic', id: newId('data_basic'), data }); }
+    });
+    free.forEach((r) => {
+      const mine = new Set([field, field + '_order']); extraKeys.forEach((k) => mine.add(k));
+      const others = Object.keys(r).filter((k) => k !== '_id' && !mine.has(k) && !/_order$/.test(k));
+      if (!others.length) ops.push({ type: 'delete', col: 'data_basic', id: r._id });
+      else { const d = {}; mine.forEach((k) => { if (r[k] !== undefined) d[k] = DEL; }); ops.push({ type: 'update', col: 'data_basic', id: r._id, data: d }); }
+    });
+    await commit(ops); invalidate('data_basic');
+  }
+  const DEFAULT_HOURS = { 국어: 6, 수학: 4, 사회: 3, 과학: 3, 영어: 3, 음악: 2, 미술: 2, 체육: 2, 실과: 1, 창체: 2, 도덕: 1 };
+  const DEFAULT_SPECIAL = ['과학', '영어'];
+  async function getSubjectConfig() {
+    const items = await readList('list_sub');
+    return items.map((i) => {
+      const h = i.row.list_sub_hours, sp = i.row.list_sub_special;
+      return {
+        name: i.value,
+        hours: (h === undefined || h === '' || h === null) ? (DEFAULT_HOURS[i.value] === undefined ? '' : DEFAULT_HOURS[i.value]) : num(h),
+        special: (sp === undefined || sp === '' || sp === null) ? DEFAULT_SPECIAL.indexOf(i.value) >= 0 : (sp === true || str(sp) === 'true' || str(sp) === 'Y')
+      };
+    });
+  }
+
+  // 관리자 페이지의 공간 개방 설정(app_config/space_open)을 특별실 시간표 화면에 전달합니다. (공간 이름 기준)
+  const PALETTE = ['#CFE2F3', '#FCE5CD', '#D9EAD3', '#FFFEB5', '#E4D7F5'];
+  async function specialSettingsForPage07() {
+    const cfg = Object.assign({ sem1: {}, sem2: {}, exceptions: [], closeExceptions: [], colors: {} }, await getCfg('space_open', {}));
+    const gym = (await readList('list_gym')).map((i) => i.value), room = (await readList('list_room')).map((i) => i.value);
+    let times = (await readList('list_time')).map((i) => i.value); if (!times.length) times = [1, 2, 3, 4, 5, 6].map((n) => n + '교시');
+    const colors = {}; [gym, room].forEach((list) => list.forEach((n, i) => { colors[n] = cfg.colors[n] || PALETTE[i % PALETTE.length]; }));
+    const fixEx = (arr) => (arr || []).map((e) => ({ date: e.date, period: parseInt(e.period, 10), space: e.space }));
+    const g = await generalCfg(); const sems = await semestersOfYear(g.year);
+    return { sem1: cfg.sem1 || {}, sem2: cfg.sem2 || {}, exceptions: fixEx(cfg.exceptions), closeExceptions: fixEx(cfg.closeExceptions),
+      gymSpaces: gym, roomSpaces: room, times, colors, classNames: g.classNames, year: g.year,
+      semesters: sems.map((x) => ({ name: x.name, start: ymd(x.start), end: ymd(x.end) })) };
+  }
 
   // ---------------------------------------------------------------- 서버 함수들
   const SERVER = {};
@@ -333,33 +487,27 @@
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
   };
   SERVER.verifyPassword = async function (a, b) {
-    const page = (window.__GP_PAGE__ || '');
-    if (page === 'p10') { // verifyPassword(type, pwd) -> boolean
-      const pw = await getCfg('ext_passwords', DEFAULT_PW.ext);
-      return a === 'user' ? b === pw.user : a === 'admin' ? b === pw.admin : false;
-    }
-    const pw = await getCfg('page03_passwords', DEFAULT_PW.page03);
+    const pw = await getPw();
+    if ((window.__GP_PAGE__ || '') === 'p10') return a === 'user' ? b === pw.access : a === 'admin' ? b === pw.admin : false; // (type, pwd)
     return a === pw.access ? { success: true } : { success: false, message: '비밀번호가 일치하지 않습니다.' };
   };
   SERVER.verifyAdminPassword = async function (a) {
-    const pw = await getCfg('page03_passwords', DEFAULT_PW.page03);
+    const pw = await getPw();
     return a === pw.admin ? { success: true } : { success: false, message: '관리자 비밀번호가 일치하지 않습니다.' };
   };
   SERVER.changePasswords = async function (adminPw, newAccess, newAdmin) {
-    const pw = await getCfg('page03_passwords', DEFAULT_PW.page03);
+    const pw = await getPw();
     if (adminPw !== pw.admin) return { success: false, message: '관리자 비밀번호가 일치하지 않습니다.' };
     if (newAccess) pw.access = newAccess; if (newAdmin) pw.admin = newAdmin;
-    await setCfg('page03_passwords', pw);
+    await setPw(pw);
     return { success: true, message: '비밀번호가 성공적으로 변경되었습니다.' };
   };
 
   // ===== Page 04 : 기초 시간표 =====
   async function basicCommon() {
-    const lists = await getLists();
-    const common = (await getCfg('basic_timetable_common', {})) || {};
-    const subjects = common.subjects || SUBJECTS_DEFAULT.filter((s) => !lists.subs.length || lists.subs.indexOf(s) >= 0);
-    const goals = common.goals || subjects.map(() => '');
-    return { subjects, goals, p12: common.p12 || '', p13: common.p13 || '' };
+    const subs = (await getSubjectConfig()).filter((x) => num(x.hours) > 0);
+    const list = subs.length ? subs : SUBJECTS_DEFAULT.map((n) => ({ name: n, hours: DEFAULT_HOURS[n] }));
+    return { subjects: list.map((x) => x.name), goals: list.map((x) => num(x.hours)), p12: '', p13: '' };
   }
   async function basicSchedule(n) {
     const doc = (await getCol('data_basic_timetable')).find((r) => r._id === 'class_' + n);
@@ -416,72 +564,90 @@
   };
 
   // ===== Page 06 : 전담 시간표 =====
-  // 엑셀(data_sub_timetable)에는 교사 열이 없으므로 같은 시간대에 겹치지 않는 반 묶음으로 교사를 추정했습니다.
-  const TEACHER_TABS = {
-    '전담(과학1)': { sub: '과학', classes: [1, 2, 3, 4, 5] },
-    '전담(과학2)': { sub: '과학', classes: [6, 7, 8, 9, 10] },
-    '전담(영어1)': { sub: '영어', classes: [1, 2, 3, 4, 5] },
-    '전담(영어2)': { sub: '영어', classes: [6, 7, 8] },
-    '전담(영어3)': { sub: '영어', classes: [9, 10] }
-  };
-  const classChar = (n) => (n === 10 ? '0' : String(n));
-  const charClass = (c) => (c === '0' ? 10 : parseInt(c, 10));
+  // 관리자 페이지 > 학년 기초 설정 > 전담교사 의 매칭 정보(app_config/general.specials)를 탭으로 사용합니다.
+  //   탭 = 과목 + 교사,  표에 나오는 반 = 그 교사의 담당학급(학기·기간에 해당하는 것만)
+  const yearBounds = (y) => ({ start: new Date(y, 1, 1), end: new Date(y + 1, 2, 0) });
+  async function generalCfg() {
+    const now = new Date();
+    const g = Object.assign({ year: now.getMonth() >= 1 ? now.getFullYear() : now.getFullYear() - 1, classCount: 10, classNames: [], homeroom: {}, specials: [] }, await getCfg('general', {}));
+    g.classNames = Array.from({ length: g.classCount }, (_, i) => (g.classNames && g.classNames[i]) || `${i + 1}반`);
+    return g;
+  }
+  async function semestersOfYear(year) {
+    const b = yearBounds(year);
+    return (await getSemesters()).filter((x) => x.name.indexOf('방학') < 0 && x.start >= b.start && x.start <= b.end);
+  }
+  const classLabel = (name) => { const m = str(name).match(/^(\d+)반$/); return m ? m[1] : str(name); };
   const mondayOf = (d) => addDays(d, -((d.getDay() + 6) % 7));
   // 학기 시작일이 주말이면 다음 월요일부터 주차를 셉니다.
   const firstMonday = (sem) => mondayOf(addDays(sem.start, sem.start.getDay() === 0 ? 1 : sem.start.getDay() === 6 ? 2 : 0));
+  const appliesTo = (sp, semName, sem) => {
+    if (sp.period && sp.period.start && sp.period.end) { const a = toDate(sp.period.start), b = toDate(sp.period.end); return !!sem && a <= sem.end && b >= sem.start; }
+    return (sp.terms || []).indexOf(semName) >= 0;
+  };
+  async function specialTabs(g) {
+    const tabs = new Map();
+    (g.specials || []).forEach((sp) => {
+      if (!sp.subject || !sp.teacher) return;
+      const label = `${sp.subject}(${sp.teacher})`;
+      if (!tabs.has(label)) tabs.set(label, { label, subject: sp.subject, teacher: sp.teacher, entries: [] });
+      tabs.get(label).entries.push(sp);
+    });
+    return tabs;
+  }
+  const tabClasses = (g, tab, semNo, sems) => {
+    const semName = semNo + '학기', sem = sems.find((x) => x.name === semName);
+    const set = new Set(); tab.entries.forEach((e) => { if (appliesTo(e, semName, sem)) (e.classes || []).forEach((c) => set.add(c)); });
+    return g.classNames.filter((c) => set.has(c));
+  };
+  async function periodLabels() { const t = (await readList('list_time')).map((i) => i.value); const out = []; for (let i = 0; i < 6; i++) out.push(t[i] || `${i + 1}교시`); return out; }
 
-  async function teacherGrid(tab, semNo) {
-    const cfg = TEACHER_TABS[tab];
-    const sems = (await getSemesters()).filter((s) => s.name.indexOf('방학') < 0);
-    const sem = sems[semNo - 1] || sems[0];
-    const sub = await getCol('data_sub_timetable');
-    const year = sem ? sem.start.getFullYear() : new Date().getFullYear();
-    const options = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+  async function teacherGrid(g, tab, semNo, sems, times, sub) {
+    const semName = semNo + '학기', sem = sems.find((x) => x.name === semName);
+    const classes = tabClasses(g, tab, semNo, sems); const options = classes.map(classLabel);
     const bottom = []; const counts = {};
     if (sem) {
-      let mon = firstMonday(sem); let w = 1;
       const bySlot = new Map();
       sub.forEach((r) => {
-        const d = toDate(r.sub_date); const n = classNo(r.sub_class);
-        if (!d || str(r.sub_name) !== cfg.sub || cfg.classes.indexOf(n) < 0) return;
-        bySlot.set(`${ymd(d)}|${str(r.sub_time)}`, classChar(n));
+        const d = toDate(r.sub_date); if (!d || str(r.sub_name) !== tab.subject || classes.indexOf(str(r.sub_class)) < 0) return;
+        bySlot.set(`${ymd(d)}|${str(r.sub_time)}`, classLabel(str(r.sub_class)));
       });
-      for (; mon <= sem.end; mon = addDays(mon, 7), w++) {
+      let w = 1;
+      for (let mon = firstMonday(sem); mon <= sem.end; mon = addDays(mon, 7), w++) {
         const fri = addDays(mon, 4);
         const row = [w, `${mon.getMonth() + 1}/${mon.getDate()}~${fri.getMonth() + 1}/${fri.getDate()}`];
-        for (let day = 0; day < 5; day++) for (let p = 1; p <= 6; p++) {
-          row.push(bySlot.get(`${ymd(addDays(mon, day))}|${p}교시`) || '');
-        }
+        for (let day = 0; day < 5; day++) for (let p = 0; p < 6; p++) row.push(bySlot.get(`${ymd(addDays(mon, day))}|${times[p]}`) || '');
         bottom.push(row);
       }
     }
     bottom.forEach((r) => r.slice(2).forEach((c) => { if (c) counts[c] = (counts[c] || 0) + 1; }));
-    const targets = (await getCfg('p06_targets', {}))[`${tab}|${semNo}`] || {};
+    const targets = (await getCfg('p06_targets', {}))[`${tab.label}|${semNo}`] || {};
     const top = [['구분'].concat(options), ['목표'].concat(options.map((o) => (targets[o] === undefined ? '' : targets[o]))), ['배정'].concat(options.map((o) => counts[o] || 0))];
-    return { top, bottom, options, title: `${year}학년도 ${semNo}학기 ${tab.replace(/[()]/g, ' ').trim()}` };
-  }
-  async function allTimetableData() {
-    const out = {};
-    for (const tab of Object.keys(TEACHER_TABS)) out[tab] = { sem1: await teacherGrid(tab, 1), sem2: await teacherGrid(tab, 2) };
-    return out;
+    return { top, bottom, options, title: `${g.year}학년도 ${semNo}학기 ${tab.subject} ${tab.teacher}${sem ? '' : ' (학기 기간 미설정)'}` };
   }
   SERVER.getAllTimetableData = async function () {
-    try { invalidate('data_sub_timetable'); return JSON.stringify({ success: true, data: await allTimetableData() }); }
-    catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
+    try {
+      invalidate('data_sub_timetable'); invalidate('data_basic');
+      const g = await generalCfg(); const tabs = await specialTabs(g); const sems = await semestersOfYear(g.year);
+      const times = await periodLabels(); const sub = await getCol('data_sub_timetable'); const data = {};
+      for (const tab of tabs.values()) data[tab.label] = { sem1: await teacherGrid(g, tab, 1, sems, times, sub), sem2: await teacherGrid(g, tab, 2, sems, times, sub) };
+      const today = new Date(); const s2 = sems.find((x) => x.name === '2학기');
+      return JSON.stringify({ success: true, data, currentSemester: s2 && today >= s2.start ? 2 : 1 });
+    } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
   };
   SERVER.updateBatchSpecialTimetable = async function (list) {
     try {
-      const sub = await getCol('data_sub_timetable');
-      const sems = (await getSemesters()).filter((s) => s.name.indexOf('방학') < 0);
-      const ops = []; const seen = new Set();
+      invalidate('data_sub_timetable');
+      const g = await generalCfg(); const tabs = await specialTabs(g); const sems = await semestersOfYear(g.year); const times = await periodLabels();
+      const sub = await getCol('data_sub_timetable'); const ops = [];
       for (const u of list) {
-        const cfg = TEACHER_TABS[u.sheetName]; const sem = sems[u.semester - 1]; if (!cfg || !sem) continue;
-        const date = addDays(firstMonday(sem), u.r * 7 + Math.floor((u.c - 2) / 6));
-        const time = `${((u.c - 2) % 6) + 1}교시`;
-        const existing = sub.filter((r) => { const d = toDate(r.sub_date); return d && ymd(d) === ymd(date) && str(r.sub_time) === time && str(r.sub_name) === cfg.sub && cfg.classes.indexOf(classNo(r.sub_class)) >= 0; });
+        const tab = tabs.get(u.sheetName); const sem = sems.find((x) => x.name === u.semester + '학기'); if (!tab || !sem) continue;
+        const classes = tabClasses(g, tab, u.semester, sems);
+        const date = addDays(firstMonday(sem), u.r * 7 + Math.floor((u.c - 2) / 6)); const time = times[(u.c - 2) % 6];
+        const existing = sub.filter((r) => { const d = toDate(r.sub_date); return d && ymd(d) === ymd(date) && str(r.sub_time) === time && str(r.sub_name) === tab.subject && classes.indexOf(str(r.sub_class)) >= 0; });
         if (!str(u.value).trim()) { existing.forEach((r) => ops.push({ type: 'delete', col: 'data_sub_timetable', id: r._id })); continue; }
-        const n = charClass(str(u.value).trim()); if (isNaN(n) || cfg.classes.indexOf(n) < 0 && !(n >= 1 && n <= 10)) continue;
-        const data = { sub_name: cfg.sub, sub_date: toTS(date), sub_time: time, sub_class: `${n}반` };
+        const cls = classes.find((c) => classLabel(c) === str(u.value).trim()); if (!cls) continue;
+        const data = { sub_name: tab.subject, sub_date: toTS(date), sub_time: time, sub_class: cls };
         if (existing.length) { ops.push({ type: 'update', col: 'data_sub_timetable', id: existing[0]._id, data }); existing.slice(1).forEach((r) => ops.push({ type: 'delete', col: 'data_sub_timetable', id: r._id })); }
         else ops.push({ type: 'set', col: 'data_sub_timetable', id: newId('data_sub_timetable'), data });
       }
@@ -491,24 +657,24 @@
   };
 
   // ===== Page 07 : 특별실 시간표 =====
-  const GYM_SPACES = ['강당', '다목(2층)', '다목(3층)', '운동장', '나래', 'VR'];
-  const ROOM_SPACES = ['컴1', '컴2', '음악'];
   SERVER.getInitialData07 = async function () {
     try {
       const [hol, gym, room, settings, pw] = await Promise.all([getHolidayMap(), getCol('data_gym_timetable'), getCol('data_room_timetable'),
-        getCfg('special_room_settings', DEFAULT_PW.special), getCfg('room_passwords', [])]);
+        specialSettingsForPage07(), getCfg('room_passwords', [])]);
       const schedule = [];
       gym.forEach((r) => { const d = toDate(r.gym_date); if (d && str(r.gym_class)) schedule.push({ date: appDate(d), className: str(r.gym_class), period: str(r.gym_time).trim(), space: str(r.gym_place).trim() }); });
       room.forEach((r) => { const d = toDate(r.room_date); if (d && str(r.room_class)) schedule.push({ date: appDate(d), className: str(r.room_class), period: str(r.room_time).trim(), space: str(r.room_place).trim() }); });
+      const cpw = await getPw(); settings.adminPwd = cpw.admin; settings.specialPwd = cpw.access;
       return { success: true, holidays: [...hol.keys()].map((k) => appDate(toDate(k))), schedule, settings, roomPasswords: pw };
     } catch (e) { return { success: false, error: e.toString() }; }
   };
   SERVER.saveScheduleData = async function (updates) {
     try {
       const [gym, room] = await Promise.all([getCol('data_gym_timetable'), getCol('data_room_timetable')]);
+      const gymNames = (await readList('list_gym')).map((i) => i.value), roomNames = (await readList('list_room')).map((i) => i.value);
       const ops = [];
       for (const u of updates) {
-        const isGym = GYM_SPACES.indexOf(u.space) >= 0; const isRoom = ROOM_SPACES.indexOf(u.space) >= 0; if (!isGym && !isRoom) continue;
+        const isGym = gymNames.indexOf(u.space) >= 0; const isRoom = !isGym && roomNames.indexOf(u.space) >= 0; if (!isGym && !isRoom) continue;
         const d = toDate(u.date); if (!d) continue;
         const col = isGym ? 'data_gym_timetable' : 'data_room_timetable'; const p = isGym ? 'gym' : 'room'; const list = isGym ? gym : room;
         const period = str(u.period).trim();
@@ -522,7 +688,7 @@
       return { success: true };
     } catch (e) { return { success: false, error: e.toString() }; }
   };
-  SERVER.saveSettings = async (s) => { try { await setCfg('special_room_settings', s); return { success: true }; } catch (e) { return { success: false, error: e.toString() }; } };
+  SERVER.saveSettings = async () => ({ success: true }); // 공간 개방 설정은 관리자 페이지에서 관리합니다.
   SERVER.saveRoomPasswords = async (p) => { try { await setCfg('room_passwords', p); return { success: true }; } catch (e) { return { success: false, error: e.toString() }; } };
 
   const safeName = (n) => String(n).replace(/[^\w.\-가-힣]+/g, '_');
@@ -584,13 +750,13 @@
     return meta ? { id: meta.url, mimeType: meta.mimeType, name: meta.name } : { id: '', mimeType: 'image/png', name: '' };
   };
   SERVER.changeUserPassword = async function (adminPwd, newPwd) {
-    const pw = await getCfg('ext_passwords', DEFAULT_PW.ext);
+    const pw = await getPw();
     if (adminPwd !== pw.admin) return { success: false, message: '관리자 권한이 유효하지 않습니다.' };
-    pw.user = newPwd; await setCfg('ext_passwords', pw);
+    pw.access = newPwd; await setPw(pw);
     return { success: true, message: '비밀번호가 성공적으로 변경되었습니다.' };
   };
   SERVER.uploadFile = async function (adminPwd, base64, fileName, mime) {
-    const pw = await getCfg('ext_passwords', DEFAULT_PW.ext);
+    const pw = await getPw();
     if (adminPwd !== pw.admin) return { success: false, message: '관리자 권한이 유효하지 않습니다.' };
     try {
       const old = await getCfg('ext_file', null);
@@ -604,8 +770,8 @@
   };
 
   // ===== Page 11 : 쇼핑몰 학교 ID =====
-  SERVER.getAppConfig = async () => getCfg('mall_config', DEFAULT_PW.mall);
-  SERVER.saveAppConfig = async (c) => { await setCfg('mall_config', c); return true; };
+  SERVER.getAppConfig = async () => { const pw = await getPw(); return { userPw: pw.access, adminPw: pw.admin }; };
+  SERVER.saveAppConfig = async (c) => { const pw = await getPw(); if (c.userPw) pw.access = c.userPw; if (c.adminPw) pw.admin = c.adminPw; await setPw(pw); return true; };
   SERVER.getData = async function () {
     invalidate('data_mall');
     return (await getCol('data_mall')).map((r) => ({ rowIndex: Number(r._id), mall: str(r.mall), id: str(r.id), pw: str(r.pw), url: str(r.url), note: str(r.note) }))
@@ -650,5 +816,6 @@
   window.google = { script: { run: runner(null, null), host: { close() {}, setHeight() {} } } };
 
   // 직접 Firestore를 쓰는 새 페이지(예산/바로가기/교실배치도)를 위한 공용 도구
-  window.GP = { db, storage, TS, getCol, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, num, str, natural, commit, newId, SERVER };
+  window.GP = { db, storage, TS, getCol, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
+    getPw, setPw, readList, writeList, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
 })();
