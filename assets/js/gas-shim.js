@@ -104,8 +104,7 @@
   // 엑셀 data_basic 에는 공휴일이 없어서 법령 기준으로 계산합니다. (양력 고정일 + 음력 명절 + 대체공휴일)
   //  - 음력 명절은 브라우저의 음력(Intl chinese) 변환을 사용합니다.
   //  - 2026년부터 노동절(5/1), 제헌절(7/17)이 공휴일입니다.
-  //  - 선거일·임시공휴일처럼 법령으로 계산되지 않는 날은 아래 ONE_OFF 에 직접 적거나, 개요 화면에서 '휴일'로 입력하세요.
-  const ONE_OFF_HOLIDAYS = { '2026-06-03': '전국동시지방선거', '2028-04-12': '국회의원선거' };
+  //  - 선거일·임시공휴일처럼 법령으로 계산되지 않는 날은 관리자 페이지(기초 일정, 휴일 체크) 또는 개요 화면에서 입력하며, data_basic 의 holiday 필드에 저장됩니다.
   // 한국 음력(KST 기준) 명절을 천문 계산으로 구합니다. (브라우저 음력 변환은 삭 시각 경계에서 틀릴 수 있어 쓰지 않습니다.)
   //  - 음력 월 시작일 = 삭(朔)이 일어난 날짜(KST)
   //  - 1월은 우수(태양황경 330°), 4월은 소만(60°), 8월은 추분(180°)이 든 달
@@ -177,7 +176,6 @@
       const names = {}; items.forEach((i) => { const k = ymd(i.date); const base = i.name.replace(/ 연휴$/, ''); (names[k] = names[k] || []).push(i.name); });
       Object.keys(names).forEach((k) => { const n = names[k]; const main = n.filter((x) => !/ 연휴$/.test(x)); out[k] = (main.length ? main : n).join(' / '); });
     }
-    Object.keys(ONE_OFF_HOLIDAYS).forEach((k) => { if (!out[k]) out[k] = ONE_OFF_HOLIDAYS[k]; });
     return out;
   }
   const PUBLIC_HOLIDAYS = buildPublicHolidays(2020, 2045);
@@ -352,6 +350,9 @@
       return {
         name: i.value,
         hours: (h === undefined || h === '' || h === null) ? (DEFAULT_HOURS[i.value] === undefined ? '' : DEFAULT_HOURS[i.value]) : num(h),
+        stored: !(h === undefined || h === '' || h === null),
+        hoursSem1: (i.row.list_sub_hours_sem1 === undefined || i.row.list_sub_hours_sem1 === '' || i.row.list_sub_hours_sem1 === null) ? '' : num(i.row.list_sub_hours_sem1),
+        hoursSem2: (i.row.list_sub_hours_sem2 === undefined || i.row.list_sub_hours_sem2 === '' || i.row.list_sub_hours_sem2 === null) ? '' : num(i.row.list_sub_hours_sem2),
         special: (sp === undefined || sp === '' || sp === null) ? DEFAULT_SPECIAL.indexOf(i.value) >= 0 : (sp === true || str(sp) === 'true' || str(sp) === 'Y')
       };
     });
@@ -602,7 +603,7 @@
   };
   async function periodLabels() { const t = (await readList('list_time')).map((i) => i.value); const out = []; for (let i = 0; i < 6; i++) out.push(t[i] || `${i + 1}교시`); return out; }
 
-  async function teacherGrid(g, tab, semNo, sems, times, sub) {
+  async function teacherGrid(g, tab, semNo, sems, times, sub, subCfg) {
     const semName = semNo + '학기', sem = sems.find((x) => x.name === semName);
     const classes = tabClasses(g, tab, semNo, sems); const options = classes.map(classLabel);
     const bottom = []; const counts = {};
@@ -621,16 +622,16 @@
       }
     }
     bottom.forEach((r) => r.slice(2).forEach((c) => { if (c) counts[c] = (counts[c] || 0) + 1; }));
-    const targets = (await getCfg('p06_targets', {}))[`${tab.label}|${semNo}`] || {};
-    const top = [['구분'].concat(options), ['목표'].concat(options.map((o) => (targets[o] === undefined ? '' : targets[o]))), ['배정'].concat(options.map((o) => counts[o] || 0))];
+    const sc = subCfg.find((x) => x.name === tab.subject); const total = sc ? (semNo === 1 ? sc.hoursSem1 : sc.hoursSem2) : '';   // 관리자 > 시간표 설정의 학기 총시수
+    const top = [['구분'].concat(options), ['시수'].concat(options.map(() => total)), ['배정'].concat(options.map((o) => counts[o] || 0))];
     return { top, bottom, options, title: `${g.year}학년도 ${semNo}학기 ${tab.subject} ${tab.teacher}${sem ? '' : ' (학기 기간 미설정)'}` };
   }
   SERVER.getAllTimetableData = async function () {
     try {
       invalidate('data_sub_timetable'); invalidate('data_basic');
       const g = await generalCfg(); const tabs = await specialTabs(g); const sems = await semestersOfYear(g.year);
-      const times = await periodLabels(); const sub = await getCol('data_sub_timetable'); const data = {};
-      for (const tab of tabs.values()) data[tab.label] = { sem1: await teacherGrid(g, tab, 1, sems, times, sub), sem2: await teacherGrid(g, tab, 2, sems, times, sub) };
+      const times = await periodLabels(); const sub = await getCol('data_sub_timetable'); const subCfg = await getSubjectConfig(); const data = {};
+      for (const tab of tabs.values()) data[tab.label] = { sem1: await teacherGrid(g, tab, 1, sems, times, sub, subCfg), sem2: await teacherGrid(g, tab, 2, sems, times, sub, subCfg) };
       const today = new Date(); const s2 = sems.find((x) => x.name === '2학기');
       return JSON.stringify({ success: true, data, currentSemester: s2 && today >= s2.start ? 2 : 1 });
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }

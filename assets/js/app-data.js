@@ -15,9 +15,24 @@
 
   async function getGeneral() {
     const today = new Date();
-    const g = Object.assign({ year: yearOf(today), classCount: 10, classNames: [], homeroom: {}, specials: [] }, await getCfg('general', {}));
+    const g = Object.assign({ year: yearOf(today), classCount: 10, classNames: [], homerooms: [], specials: [] }, await getCfg('general', {}));
     g.classNames = Array.from({ length: g.classCount }, (_, i) => (g.classNames && g.classNames[i]) || `${i + 1}반`);
+    if (!Array.isArray(g.homerooms)) g.homerooms = [];
+    if (!g.homerooms.length && g.homeroom && typeof g.homeroom === 'object') {   // 이전 형식({학급: 교사}) 변환
+      Object.keys(g.homeroom).forEach((c) => { if (str(g.homeroom[c]).trim()) g.homerooms.push({ className: c, teacher: g.homeroom[c], terms: ['1학기', '2학기'], period: null }); });
+    }
+    delete g.homeroom; if (!Array.isArray(g.specials)) g.specials = [];
     return g;
+  }
+  // 학기/기간 매칭: entry = {terms:[...], period:{start,end}|null}, sems = {학기이름:{start,end}}
+  function entryApplies(e, date, sems) {
+    if (e.period && e.period.start && e.period.end) { const a = toDate(e.period.start), b = toDate(e.period.end); return !!a && !!b && date >= a && date <= b; }
+    return (e.terms || []).some((n) => sems[n] && date >= sems[n].start && date <= sems[n].end);
+  }
+  function homeroomFor(g, className, date, sems) {
+    const list = g.homerooms.filter((e) => e.className === className && str(e.teacher).trim());
+    const now = list.filter((e) => entryApplies(e, date, sems));
+    return [...new Set((now.length ? now : list).map((e) => str(e.teacher).trim()))].join(' / ');
   }
   async function saveGeneral(g) { await setCfg('general', g); }
 
@@ -86,6 +101,12 @@
       publicName: G.PUBLIC_HOLIDAYS[ymd(d)] || ''
     };
   }
+  function basicStripOps(rows, keys) {
+    return rows.map((r) => {
+      const others = Object.keys(r).filter((k) => k !== '_id' && !keys.includes(k) && !/_order$/.test(k));
+      return others.length ? { type: 'update', col: 'data_basic', id: r._id, data: Object.fromEntries(keys.map((k) => [k, DEL()])) } : { type: 'delete', col: 'data_basic', id: r._id };
+    });
+  }
   async function clearHolidayRows(rows) {
     const ops = rows.map((r) => {
       const others = Object.keys(r).filter((k) => !['_id', 'holiday', 'holiday_start_date', 'holiday_end_date'].includes(k) && !/_order$/.test(k));
@@ -127,22 +148,47 @@
     await commit(ops); invalidate('data_basic');
   }
 
-  // ------------------------------------------------------------ 기초 일정 (학교 행사)
-  async function listBaseEvents(year) {
-    invalidate('data_task_school'); const r = yearRange(year);
-    return (await getCol('data_task_school')).map((x) => ({ id: x._id, name: str(x.task_school_name), start: toDate(x.task_school_date_start), end: toDate(x.task_school_date_end) }))
-      .filter((x) => inRange(x.start, r)).sort((a, b) => a.start - b.start || natural(a.name, b.name));
+  async function clearSemester(year, name) {
+    const cur = await getSemesterRows(year); if (!cur[name]) return;
+    const row = (await getCol('data_basic')).find((x) => x._id === cur[name].id);
+    if (row) await commit(basicStripOps([row], ['semester', 'semester_start_date', 'semester_end_date'])); invalidate('data_basic');
   }
-  const eventDoc = (e) => ({ task_school_name: e.name, task_school_date_start: appDate(e.start), task_school_date_end: e.end && !sameDay(e.start, e.end) ? appDate(e.end) : '' });
-  async function addBaseEvents(list) {
-    await commit(list.map((e) => ({ type: 'set', col: 'data_task_school', id: newId('data_task_school'), data: eventDoc(e) }))); invalidate('data_task_school');
+
+  // ------------------------------------------------------------ 기초 일정 (학교 행사 + 휴일)
+  //  학교 행사 → data_task_school(task_school_name / _date_start / _date_end)
+  //  휴일      → data_basic(holiday / holiday_start_date / holiday_end_date)
+  async function listBaseItems(year) {
+    ['data_task_school', 'data_basic'].forEach(invalidate); const r = yearRange(year);
+    const ts = (await getCol('data_task_school')).map((x) => ({ kind: 'school', id: x._id, name: str(x.task_school_name), start: toDate(x.task_school_date_start), end: toDate(x.task_school_date_end) }));
+    const hol = (await getCol('data_basic')).filter((x) => str(x.holiday).trim() && toDate(x.holiday_start_date))
+      .map((x) => ({ kind: 'holiday', id: x._id, name: str(x.holiday), start: toDate(x.holiday_start_date), end: toDate(x.holiday_end_date) }));
+    return ts.concat(hol).filter((x) => inRange(x.start, r)).sort((a, b) => a.start - b.start || natural(a.name, b.name));
   }
-  async function updateBaseEvent(id, e) { await commit([{ type: 'update', col: 'data_task_school', id, data: eventDoc(e) }]); invalidate('data_task_school'); }
-  async function deleteBaseEvent(id) { await commit([{ type: 'delete', col: 'data_task_school', id }]); invalidate('data_task_school'); }
+  const schoolDoc = (e) => ({ task_school_name: e.name, task_school_date_start: appDate(e.start), task_school_date_end: e.end && !sameDay(e.start, e.end) ? appDate(e.end) : '' });
+  const holidayDoc = (e) => ({ holiday: e.name, holiday_start_date: appDate(e.start), holiday_end_date: appDate(e.end || e.start) });
+  const addOp = (e) => (e.holiday ? { type: 'set', col: 'data_basic', id: newId('data_basic'), data: holidayDoc(e) } : { type: 'set', col: 'data_task_school', id: newId('data_task_school'), data: schoolDoc(e) });
+  async function addBaseItems(list) { await commit(list.map(addOp)); ['data_task_school', 'data_basic'].forEach(invalidate); }
+  async function removeOps(item) {
+    if (item.kind === 'school') return [{ type: 'delete', col: 'data_task_school', id: item.id }];
+    const row = (await getCol('data_basic')).find((x) => x._id === item.id); return row ? basicStripOps([row], ['holiday', 'holiday_start_date', 'holiday_end_date']) : [];
+  }
+  async function updateBaseItem(item, e) {
+    const kind = e.holiday ? 'holiday' : 'school';
+    if (item.kind === kind) await commit([{ type: 'update', col: kind === 'school' ? 'data_task_school' : 'data_basic', id: item.id, data: kind === 'school' ? schoolDoc(e) : holidayDoc(e) }]);
+    else await commit((await removeOps(item)).concat([addOp(e)]));
+    ['data_task_school', 'data_basic'].forEach(invalidate);
+  }
+  async function deleteBaseItem(item) { await commit(await removeOps(item)); ['data_task_school', 'data_basic'].forEach(invalidate); }
 
   // ------------------------------------------------------------ 교사
   async function teacherNames() { return (await readList('list_t')).map((i) => i.value); }
   async function setTeacherNames(names) { await writeList('list_t', [...new Set(names.map((n) => n.trim()).filter(Boolean))].map((v) => ({ value: v }))); }
+  const namesOf = (g) => [...(g.homerooms || []).map((e) => e.teacher), ...(g.specials || []).map((e) => e.teacher)].map((n) => str(n).trim()).filter(Boolean);
+  async function syncTeachers(oldG, newG) {
+    const prev = new Set(namesOf(oldG)), now = new Set(namesOf(newG)); const cur = await teacherNames();
+    const list = cur.filter((t) => !(prev.has(t) && !now.has(t))); now.forEach((n) => { if (list.indexOf(n) < 0) list.push(n); });
+    if (list.length !== cur.length || list.some((t, i) => t !== cur[i])) await setTeacherNames(list);
+  }
   async function ensureTeachers(names) {
     const cur = await teacherNames(); const add = [...new Set(names.map((n) => str(n).trim()).filter((n) => n && cur.indexOf(n) < 0))];
     if (add.length) await setTeacherNames(cur.concat(add));
@@ -179,5 +225,5 @@
   }
 
   window.APP = { yearRange, yearOf, inRange, getGeneral, saveGeneral, holidayMap, buildSchedule, getDayState, saveDay, SEM_NAMES, getSemesterRows, saveSemesters,
-    listBaseEvents, addBaseEvents, updateBaseEvent, deleteBaseEvent, teacherNames, setTeacherNames, ensureTeachers, detectYears, deleteYear };
+    listBaseItems, addBaseItems, updateBaseItem, deleteBaseItem, clearSemester, entryApplies, homeroomFor, syncTeachers, teacherNames, setTeacherNames, ensureTeachers, detectYears, deleteYear };
 })();

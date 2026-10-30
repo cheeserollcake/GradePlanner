@@ -27,9 +27,10 @@
     <button id="reload" class="text-sm px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50">새로고침</button>
   </div>
   <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
-    <table class="w-full text-sm min-w-[640px]">
+    <table class="w-full text-sm min-w-[640px]" style="table-layout:fixed;width:100%">
+      <colgroup><col style="width:7.5rem"><col><col><col></colgroup>
       <thead class="bg-slate-100 text-slate-600"><tr>
-        <th class="p-2 border-b w-28">날짜</th><th class="p-2 border-b">학교 행사</th><th class="p-2 border-b w-64">학년 강사 일정</th><th class="p-2 border-b">학년 일정</th>
+        <th class="p-2 border-b">날짜</th><th class="p-2 border-b">학교 행사</th><th class="p-2 border-b">학년 강사 일정</th><th class="p-2 border-b">학년 일정</th>
       </tr></thead>
       <tbody id="body"></tbody>
     </table>

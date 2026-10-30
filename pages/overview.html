@@ -44,9 +44,10 @@
       </div>
     </div>
     <div id="scroller" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-auto relative" style="max-height:68vh">
-      <table class="w-full text-sm min-w-[720px]">
+      <table class="w-full text-sm min-w-[720px]" style="table-layout:fixed;width:100%">
+        <colgroup><col style="width:8.5rem"><col><col><col></colgroup>
         <thead class="bg-slate-100 text-slate-600 sticky top-0 z-10"><tr>
-          <th class="p-2 border-b w-32">날짜</th><th class="p-2 border-b">학교 행사</th><th class="p-2 border-b w-64">학년 강사 일정</th><th class="p-2 border-b">학년 일정</th>
+          <th class="p-2 border-b">날짜</th><th class="p-2 border-b">학교 행사</th><th class="p-2 border-b">학년 강사 일정</th><th class="p-2 border-b">학년 일정</th>
         </tr></thead>
         <tbody id="body"></tbody>
       </table>
@@ -80,7 +81,7 @@
 const DAYN = ['일','월','화','수','목','금','토'];
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmt = (n) => Number(n).toLocaleString();
-let general, rows = [], filter = 'today', editing = null;
+let general, rows = [], filter = 'today', editing = null, semRows = {};
 const todayDate = () => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); };
 
 async function renderInfo() {
@@ -93,7 +94,7 @@ async function renderInfo() {
   const th = 'p-2 border-b border-r bg-slate-100 font-bold', td = 'p-2 border-b border-r';
   const numRow = (label, a) => '<tr><td class="' + th + ' w-24">' + label + '</td>' + a.map((v) => '<td class="' + td + '">' + v + '</td>').join('') + '<td class="' + td + ' font-bold">' + sum(a) + '</td></tr>';
   const memoRow = () => '<tr><td class="' + th + '">비고</td>' + names.map((_, i) => '<td class="' + td + '"><input data-c="' + (i + 1) + '" value="' + esc((ovMap.r5 || {})['c' + (i + 1)] || '') + '" class="memo w-full text-center bg-transparent border-b border-dashed border-slate-300 focus:outline-none focus:border-indigo-500"></td>').join('') + '<td class="' + td + '"></td></tr>';
-  const homeRow = () => '<tr><td class="' + th + '">담임</td>' + names.map((c) => '<td class="' + td + '">' + esc(general.homeroom[c] || '') + '</td>').join('') + '<td class="' + td + '"></td></tr>';
+  const homeRow = () => '<tr><td class="' + th + '">담임</td>' + names.map((c) => '<td class="' + td + '">' + esc(APP.homeroomFor(general, c, todayDate(), semRows)) + '</td>').join('') + '<td class="' + td + '"></td></tr>';
   document.getElementById('info').innerHTML = '<thead><tr><th class="' + th + '">구분</th>' + names.map((c) => '<th class="' + th + '">' + esc(c) + '</th>').join('') + '<th class="' + th + '">계</th></tr></thead><tbody>' +
     numRow('학생수', all) + numRow('남', m) + numRow('여', f) + memoRow() + homeRow() + '</tbody>';
   document.querySelectorAll('.memo').forEach((inp) => inp.onchange = async () => {
@@ -136,7 +137,7 @@ function applyFilter(f, keepScroll) {
 async function load(keepScroll) {
   const sc = document.getElementById('scroller'); const prev = sc.scrollTop;
   ['data_task_school','data_task_memo','data_add_timetable','data_basic','data_student','data_overview','data_budget'].forEach(GP.invalidate);
-  general = await APP.getGeneral();
+  general = await APP.getGeneral(); semRows = await APP.getSemesterRows(general.year);
   const r = APP.yearRange(general.year);
   document.getElementById('yearLabel').textContent = general.year + '학년도';
   rows = await APP.buildSchedule(r.start, r.end);
