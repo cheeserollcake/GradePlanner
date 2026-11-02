@@ -184,9 +184,10 @@
         // -----------------------------------------------------------------
 
         let currentClass = 1;
+        window.__YEAR__ = parseInt(localStorage.getItem('gp_year'), 10) || 2026;
         let currentMonth = new Date().getMonth() + 1;
         
-        const classList = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; 
+        let classList = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; 
         const periodList = [1, 2, 3, 4, 5, 6];
 
         let globalRawEvents = []; 
@@ -195,7 +196,7 @@
 
         window.onload = () => {
             // 현재 월이 표시할 목록(3,4...12,1)에 없다면 3월로 초기화 (예: 2월인 경우)
-            if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1].includes(currentMonth)) {
+            if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2].includes(currentMonth)) {
                 currentMonth = 3;
             }
             renderUIComponents();
@@ -213,11 +214,8 @@
         function isClassMatch(targetStr, cNum) {
             if (!targetStr) return false;
             const s = String(targetStr);
-            if (s.includes(cNum + '반') || s === String(cNum) || s.includes('공통')) return true;
-            if (s.includes('전체') || s.includes('학년') || s.includes('전담')) return true;
-
-            const parts = s.split(',').map(x => x.trim().replace(/반$/, ''));
-            return parts.includes(String(cNum));
+            if (s.includes('공통') || s.includes('전체') || s.includes('학년') || s.includes('전담')) return true;
+            return s.split(',').map(x => x.trim().replace(/반$/, '')).includes(String(cNum));
         }
 
         function isPeriodMatch(periodStr, pNum) {
@@ -236,6 +234,7 @@
 
         function renderUIComponents() {
             const classMenu = document.getElementById('class-menu');
+            classMenu.innerHTML = '';
             classList.forEach(num => {
                 const btn = document.createElement('button');
                 btn.id = `nav-class-${num}`;
@@ -246,8 +245,9 @@
             });
 
             const monthSelect = document.getElementById('month-select');
+            monthSelect.innerHTML = '';
             // 월 목록 순서 변경: 3월 ~ 12월, 1월 (2월 삭제)
-            const months = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1];
+            const months = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2];
             months.forEach(m => {
                 const option = document.createElement('option');
                 option.value = m;
@@ -261,6 +261,8 @@
 
         function renderModalCheckboxes() {
             const classContainer = document.getElementById('modal-form-classes');
+            classContainer.innerHTML = '';
+            document.getElementById('modal-form-periods').innerHTML = '';
             classList.forEach(num => {
                 classContainer.insertAdjacentHTML('beforeend', `<label><input type="checkbox" value="${num}반" class="badge-checkbox modal-class-checkbox"><span class="badge-label">${num}반</span></label>`);
             });
@@ -274,6 +276,15 @@
         function changeMonth() {
             currentMonth = parseInt(document.getElementById('month-select').value);
             generateAndRenderTable();
+        }
+
+        function applyServerMeta(res) {
+            if (res.year) { window.__YEAR__ = res.year; localStorage.setItem('gp_year', res.year); }
+            if (res.classCount && res.classCount !== classList.length) {
+                classList = Array.from({ length: res.classCount }, (_, i) => i + 1);
+                if (currentClass > classList.length) currentClass = 1;
+                renderUIComponents(); renderModalCheckboxes();
+            }
         }
 
         function refreshData() {
@@ -314,6 +325,7 @@
                     if(response.success) {
                         globalRawEvents = response.rawEvents;
                         globalHolidays = response.holidays;
+                        applyServerMeta(response);
                         
                         // 로컬 스토리지 업데이트
                         localStorage.setItem('school_schedule_local_cache', JSON.stringify({
@@ -340,10 +352,8 @@
             });
             document.getElementById('display-class-name').textContent = `${currentClass}반`;
 
-            let year = 2026;
-            if (currentMonth === 1) {
-                year = 2027;
-            }
+            let year = window.__YEAR__ || 2026;
+            if (currentMonth <= 2) { year += 1; }
 
             const firstDay = new Date(year, currentMonth - 1, 1);
             const startDayOfWeek = firstDay.getDay(); 
@@ -480,7 +490,7 @@
                 container.innerHTML = '<p class="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded">등록된 일정이 없습니다.</p>';
             } else {
                 cellEvents.forEach(ev => {
-                    const isUnmodifiable = ['강당', '다목', '운동장', '전담', '(휴)'].some(keyword => ev.course.includes(keyword));
+                    const isUnmodifiable = ev.source === 'gym' || ['강당', '다목', '운동장', '전담', '(휴)'].some(keyword => ev.course.includes(keyword));
                     
                     const div = document.createElement('div');
                     div.className = "flex items-center justify-between p-2.5 border rounded mb-2 hover:bg-gray-50 transition-colors";
@@ -584,50 +594,28 @@
             if(selectedPeriods.length === 0) return alert("교시를 하나 이상 선택해주세요.");
             if(!courseVal) return alert("강좌명을 입력해주세요.");
 
-            const newData = { date: dateVal, classes: selectedClasses.join(', '), periods: selectedPeriods.join(', '), course: courseVal };
-            
-            if (currentSelectedOldData) {
-                const idx = globalRawEvents.findIndex(e => e === currentSelectedOldData);
-                if (idx !== -1) globalRawEvents[idx] = newData;
-                callBackendModify('edit', currentSelectedOldData, newData); 
-            } else {
-                globalRawEvents.push(newData);
-                callBackendModify('add', null, newData); 
-            }
-            
-            // Update LocalStorage immediately for optimistic UI persistence
-            localStorage.setItem('school_schedule_local_cache', JSON.stringify({
-                rawEvents: globalRawEvents,
-                holidays: globalHolidays
-            }));
-
-            closeModal();
-            generateAndRenderTable(); 
+            const newData = { date: dateVal, classes: selectedClasses.join(', '), periods: selectedPeriods.join(', '), course: courseVal, source: currentSelectedOldData ? currentSelectedOldData.source : 'add' };
+            if (currentSelectedOldData) callBackendModify('edit', currentSelectedOldData, newData);
+            else callBackendModify('add', null, newData);
         }
 
         function executeDelete(eventObj) {
-            if(confirm(`[${eventObj.course}] 일정을 정말 삭제하시겠습니까?`)) {
-                globalRawEvents = globalRawEvents.filter(e => e !== eventObj);
-                callBackendModify('delete', eventObj, null);
-                
-                // Update LocalStorage immediately for optimistic UI persistence
-                localStorage.setItem('school_schedule_local_cache', JSON.stringify({
-                    rawEvents: globalRawEvents,
-                    holidays: globalHolidays
-                }));
-
-                closeModal();
-                generateAndRenderTable(); 
-            }
+            if(confirm(`[${eventObj.course}] 일정을 정말 삭제하시겠습니까?`)) callBackendModify('delete', eventObj, null);
         }
 
+        // 서버에서 저장에 성공했을 때만 화면을 바꿉니다. (전담 시간표가 겹치면 오류 안내 후 저장하지 않음)
         function callBackendModify(action, oldData, newData) {
+            showLoading(true);
             google.script.run
                 .withSuccessHandler(res => {
-                    if(!res.success) {
-                        alert("백그라운드 통신 오류가 발생했습니다. 새로고침을 권장합니다: " + res.error);
-                    }
+                    showLoading(false);
+                    if (!res || !res.success) { alert((res && res.error) || '저장하지 못했습니다.'); return; }
+                    globalRawEvents = res.rawEvents || globalRawEvents;
+                    localStorage.setItem('school_schedule_local_cache', JSON.stringify({ rawEvents: globalRawEvents, holidays: globalHolidays }));
+                    closeModal();
+                    generateAndRenderTable();
                 })
+                .withFailureHandler(err => { showLoading(false); alert('통신 오류: ' + err); })
                 .modifyScheduleData(action, oldData, newData);
         }
 

@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>6학년 개요</title>
+  <title>학년 개요</title>
+  <script>window.__GP_SWR__ = true;</script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
@@ -12,17 +13,18 @@
   <script src="../assets/js/app-data.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-    body { font-family: 'Pretendard', sans-serif; background:#f8fafc; }
+    body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     .cell { white-space: pre-wrap; word-break: keep-all; }
     .row-sat { background:#e0f2fe; color:#2563eb; }
     .row-sun { background:#fce7f3; color:#dc2626; }
-    .row-today td:first-child { box-shadow: inset 4px 0 0 #4f46e5; }
+    .row-today td { box-shadow: inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
+    .row-today td:first-child { box-shadow: inset 3px 0 0 #2563eb, inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
+    .row-today td:last-child { box-shadow: inset -3px 0 0 #2563eb, inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
   </style>
 </head>
 <body class="p-4 md:p-6 text-slate-800">
 <div class="max-w-7xl mx-auto space-y-6">
-  <h1 class="text-2xl font-bold">6학년 개요 <span id="yearLabel" class="text-base font-medium text-slate-400"></span></h1>
+  <h1 class="text-2xl font-bold"><span id="gradeLabel">6</span>학년 개요 <span id="yearLabel" class="text-base font-medium text-slate-400"></span></h1>
 
   <section class="space-y-2">
     <h2 class="font-bold text-lg">학년 개요</h2>
@@ -134,15 +136,16 @@ function applyFilter(f, keepScroll) {
   if (f === 'week') target = clamp(GP.mondayOf(today));
   scrollToKey(GP.ymd(target));
 }
-async function load(keepScroll) {
+async function load(keepScroll, fresh) {
   const sc = document.getElementById('scroller'); const prev = sc.scrollTop;
-  ['data_task_school','data_task_memo','data_add_timetable','data_basic','data_student','data_overview','data_budget'].forEach(GP.invalidate);
+  if (fresh) ['data_task_school','data_task_memo','data_add_timetable','data_basic','data_student','data_overview','data_budget'].forEach(GP.invalidate);
   general = await APP.getGeneral(); semRows = await APP.getSemesterRows(general.year);
   const r = APP.yearRange(general.year);
   document.getElementById('yearLabel').textContent = general.year + '학년도';
+  document.getElementById('gradeLabel').textContent = general.grade;
+  renderInfo(); renderCards();   // 일정 계산과 동시에 진행
   rows = await APP.buildSchedule(r.start, r.end);
   renderRows(); applyFilter(filter, keepScroll); if (keepScroll) sc.scrollTop = prev;
-  renderInfo(); renderCards();
 }
 async function openEdit(key) {
   const d = GP.toDate(key); editing = d;
@@ -167,12 +170,13 @@ document.getElementById('mSave').onclick = async () => {
   const btn = document.getElementById('mSave'); btn.disabled = true; btn.textContent = '저장 중...';
   try {
     await APP.saveDay(editing, { schoolText: document.getElementById('mSchool').value, isHoliday: document.getElementById('mHol').checked, memoText: document.getElementById('mMemo').value });
-    closeModal(); await load(true);
+    closeModal(); await load(true, true);
   } catch (e) { alert('저장하지 못했습니다: ' + e.message); }
   btn.disabled = false; btn.textContent = '저장';
 };
 document.querySelectorAll('#filters button').forEach((b) => b.onclick = () => applyFilter(b.dataset.f));
-load(false).catch((e) => { console.error(e); alert('데이터를 불러오지 못했습니다: ' + e.message); });
+load(false, false).catch((e) => { console.error(e); alert('데이터를 불러오지 못했습니다: ' + e.message); });
+let _t; window.addEventListener('gp:data', () => { clearTimeout(_t); _t = setTimeout(() => load(true, false), 200); });
 </script>
 </body>
 </html>

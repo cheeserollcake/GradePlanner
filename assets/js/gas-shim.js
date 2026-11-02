@@ -41,6 +41,11 @@
       return null;
     }
     const s = String(v).trim();
+    if (dateMemo.has(s)) { const t = dateMemo.get(s); return t === null ? null : new Date(t); }   // 같은 문자열은 한 번만 해석
+    const d = parseDateStr(s); dateMemo.set(s, d ? d.getTime() : null); return d;
+  }
+  const dateMemo = new Map();
+  function parseDateStr(s) {
     if (/^\d{4}-\d{2}-\d{2}T/.test(s)) { const d = new Date(s); return isNaN(d) ? null : strip(d); }
     const m = s.match(/(\d{4})\s*[년.\-\/]\s*(\d{1,2})\s*[월.\-\/]\s*(\d{1,2})/);
     if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
@@ -61,14 +66,30 @@
 
   // ---------------------------------------------------------------- Firestore 유틸
   const cache = {};
+  const LS = (() => { try { localStorage.setItem('__gp', '1'); localStorage.removeItem('__gp'); return localStorage; } catch (e) { return null; } })();
+  const lsKey = (n) => 'gp_c_' + n;
+  const fetchCol = (name) => db.collection(name).get().then((snap) =>
+    snap.docs.map((d) => Object.assign({ _id: d.id }, d.data())).sort((a, b) => (a._id < b._id ? -1 : a._id > b._id ? 1 : 0)));
+  // window.__GP_SWR__ 를 켠 화면(홈, 개요)은 지난번 데이터를 먼저 보여주고, 서버에서 새로 받아 달라졌으면 'gp:data' 이벤트로 알려 줍니다.
   function getCol(name, force) {
     if (!force && cache[name]) return cache[name];
-    cache[name] = db.collection(name).get().then((snap) =>
-      snap.docs.map((d) => Object.assign({ _id: d.id }, d.data()))
-        .sort((a, b) => natural(a._id, b._id)));
+    if (!force && window.__GP_SWR__ && LS) {
+      try {
+        const raw = LS.getItem(lsKey(name));
+        if (raw) {
+          cache[name] = Promise.resolve(JSON.parse(raw));
+          fetchCol(name).then((fresh) => {
+            const txt = JSON.stringify(fresh);
+            if (txt !== raw) { try { LS.setItem(lsKey(name), txt); } catch (e) { /* 용량 초과 */ } cache[name] = Promise.resolve(fresh); window.dispatchEvent(new CustomEvent('gp:data', { detail: name })); }
+          }).catch((e) => console.warn('background refresh failed', name, e));
+          return cache[name];
+        }
+      } catch (e) { /* 저장된 사본을 읽지 못하면 서버에서 받습니다 */ }
+    }
+    cache[name] = fetchCol(name).then((rows) => { if (window.__GP_SWR__ && LS) { try { LS.setItem(lsKey(name), JSON.stringify(rows)); } catch (e) { /* 용량 초과 */ } } return rows; });
     return cache[name];
   }
-  const invalidate = (name) => { delete cache[name]; };
+  const invalidate = (name) => { delete cache[name]; try { if (LS) LS.removeItem(lsKey(name)); } catch (e) { /* ignore */ } };
 
   async function getCfg(key, def) {
     try {
@@ -552,8 +573,9 @@
     const holidays = [...hol.entries()].sort().map(([k, v]) => [isoLocal(toDate(k)), v]);
     const rows = (list, fd, fc, ft, fn) => list.map((r) => ({ d: toDate(r[fd]), r })).filter((x) => x.d && str(x.r[fc]).trim())
       .map((x) => slotRow(x.d, str(x.r[fc]), str(x.r[ft]), str(x.r[fn])));
+    const gcfg = await generalCfg();
     return {
-      holidays,
+      year: gcfg.year, holidays,
       auditorium: rows(gym, 'gym_date', 'gym_class', 'gym_time', 'gym_place'),
       subject: rows(sub, 'sub_date', 'sub_class', 'sub_time', 'sub_name'),
       added: rows(add, 'add_date', 'add_class', 'add_time', 'add_name')
@@ -591,8 +613,8 @@
     (g.specials || []).forEach((sp) => {
       if (!sp.subject || !sp.teacher) return;
       const label = `${sp.subject}(${sp.teacher})`;
-      if (!tabs.has(label)) tabs.set(label, { label, subject: sp.subject, teacher: sp.teacher, entries: [] });
-      tabs.get(label).entries.push(sp);
+      if (!tabs.has(label)) tabs.set(label, { label, subject: sp.subject, teacher: sp.teacher, space: '', entries: [] });
+      const t = tabs.get(label); t.entries.push(sp); if (!t.space && sp.space) t.space = sp.space;
     });
     return tabs;
   }
@@ -624,16 +646,23 @@
     bottom.forEach((r) => r.slice(2).forEach((c) => { if (c) counts[c] = (counts[c] || 0) + 1; }));
     const sc = subCfg.find((x) => x.name === tab.subject); const total = sc ? (semNo === 1 ? sc.hoursSem1 : sc.hoursSem2) : '';   // 관리자 > 시간표 설정의 학기 총시수
     const top = [['구분'].concat(options), ['시수'].concat(options.map(() => total)), ['배정'].concat(options.map((o) => counts[o] || 0))];
-    return { top, bottom, options, title: `${g.year}학년도 ${semNo}학기 ${tab.subject} ${tab.teacher}${sem ? '' : ' (학기 기간 미설정)'}` };
+    return { top, bottom, options, title: `${g.year}학년도 ${semNo}학기 ${tab.subject} ${tab.teacher}${tab.space ? '/' + tab.space : ''}${sem ? '' : ' (학기 기간 미설정)'}` };
   }
   SERVER.getAllTimetableData = async function () {
     try {
       invalidate('data_sub_timetable'); invalidate('data_basic');
       const g = await generalCfg(); const tabs = await specialTabs(g); const sems = await semestersOfYear(g.year);
       const times = await periodLabels(); const sub = await getCol('data_sub_timetable'); const subCfg = await getSubjectConfig(); const data = {};
-      for (const tab of tabs.values()) data[tab.label] = { sem1: await teacherGrid(g, tab, 1, sems, times, sub, subCfg), sem2: await teacherGrid(g, tab, 2, sems, times, sub, subCfg) };
+      for (const tab of tabs.values()) data[tab.label] = { space: tab.space, sem1: await teacherGrid(g, tab, 1, sems, times, sub, subCfg), sem2: await teacherGrid(g, tab, 2, sems, times, sub, subCfg) };
       const today = new Date(); const s2 = sems.find((x) => x.name === '2학기');
       return JSON.stringify({ success: true, data, currentSemester: s2 && today >= s2.start ? 2 : 1 });
+    } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
+  };
+  SERVER.saveSpaceName = async function (label, space) {
+    try {
+      const g = await getCfg('general', {}); const m = str(label).match(/^(.*)\((.*)\)$/); if (!m) return JSON.stringify({ success: false });
+      (g.specials || []).forEach((e) => { if (e.subject === m[1] && e.teacher === m[2]) e.space = str(space).trim(); });
+      await setCfg('general', g); return JSON.stringify({ success: true });
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
   };
   SERVER.updateBatchSpecialTimetable = async function (list) {
@@ -709,39 +738,99 @@
   };
 
   // ===== Page 08 / 09 : 반별·강좌별 조회 =====
+  // 일정 출처: 추가된 일정(add) / 전담 시간표(sub) / 체육 공간(gym)
+  const EV_SOURCES = {
+    add: { col: 'data_add_timetable', d: 'add_date', c: 'add_class', t: 'add_time', n: 'add_name' },
+    sub: { col: 'data_sub_timetable', d: 'sub_date', c: 'sub_class', t: 'sub_time', n: 'sub_name' },
+    gym: { col: 'data_gym_timetable', d: 'gym_date', c: 'gym_class', t: 'gym_time', n: 'gym_place' }
+  };
+  const csvList = (v) => str(v).split(',').map((x) => x.trim()).filter(Boolean);
+  const josa = (w, pair) => { const [a, b] = pair.split('/'); const code = str(w).trim().slice(-1).charCodeAt(0); return code >= 0xAC00 && code <= 0xD7A3 ? (((code - 0xAC00) % 28) ? a : b) : b; };
+  // 날짜·교시·내용이 같은 일정은 반을 묶어 하나의 일정으로 돌려줍니다. (예: 11월 2일 2교시 2반, 3반 심폐소생술)
+  async function groupedEvents() {
+    const groups = new Map();
+    for (const [source, def] of Object.entries(EV_SOURCES)) {
+      (await getCol(def.col)).forEach((r) => {
+        const d = toDate(r[def.d]), cls = str(r[def.c]).trim(); if (!d || !cls) return;
+        const per = str(r[def.t]).trim(), name = str(r[def.n]).trim(); const k = source + '|' + ymd(d) + '|' + per + '|' + name;
+        let g = groups.get(k); if (!g) { g = { source, date: ymd(d), periods: per, course: name, list: [] }; groups.set(k, g); }
+        if (g.list.indexOf(cls) < 0) g.list.push(cls);
+      });
+    }
+    return [...groups.values()].map((g) => ({ date: g.date, classes: g.list.sort(natural).join(', '), periods: g.periods, course: g.course, source: g.source }));
+  }
   SERVER.getAllData = async function (isRefresh) {
     const page = (window.__GP_PAGE__ || '');
     try {
-      if (isRefresh) ['data_add_timetable', 'data_gym_timetable', 'data_sub_timetable'].forEach(invalidate);
+      if (isRefresh) ['data_add_timetable', 'data_gym_timetable', 'data_sub_timetable', 'data_basic'].forEach(invalidate);
+      const g = await generalCfg();
       if (page === 'p08') {
-        const m = await monthlyData();
-        const holidays = m.holidays.map(([d, n]) => ({ date: d.slice(0, 10), name: n }));
-        const toEv = (r) => ({ date: r[0].slice(0, 10), classes: r[1], periods: r[2], course: r[3] });
-        return { success: true, holidays, rawEvents: m.added.map(toEv).concat(m.auditorium.map(toEv), m.subject.map(toEv)) };
+        const [hol, rawEvents] = await Promise.all([getHolidayMap(), groupedEvents()]);
+        return { success: true, holidays: [...hol.entries()].map(([k, v]) => ({ date: k, name: v })), rawEvents, year: g.year, classCount: g.classNames.length };
       }
       // p09
-      const [hol, add] = await Promise.all([getHolidayMap(), getCol('data_add_timetable')]);
+      const [hol, add, groups] = await Promise.all([getHolidayMap(), getCol('data_add_timetable'), getCfg('course_groups', [])]);
       const events = add.map((r) => ({ d: toDate(r.add_date), r })).filter((x) => x.d)
         .map((x) => ({ date: ymd(x.d), classNm: str(x.r.add_class), period: str(x.r.add_time), course: str(x.r.add_name).trim() }));
       const dropdowns = [...new Set(events.map((e) => e.course).filter(Boolean))].sort(natural);
       const holidays = {}; hol.forEach((v, k) => { holidays[k] = v; });
-      return { success: true, dropdowns, specials: { all: '', partial1: '', partial2: '', partial3: '', partial4: '', partial5: '', partial6: '', partial7: '' }, events, holidays };
+      return { success: true, dropdowns, groups, specials: { all: '', partial1: '', partial2: '', partial3: '', partial4: '', partial5: '', partial6: '', partial7: '' }, events, holidays, year: g.year };
     } catch (e) { return { success: false, error: e.toString() }; }
   };
+  SERVER.saveCourseGroups = async function (groups) {
+    try {
+      const clean = (groups || []).map((x) => ({ name: str(x.name).trim(), courses: [...new Set((x.courses || []).map((c) => str(c).trim()).filter(Boolean))] })).filter((x) => x.name);
+      await setCfg('course_groups', clean); return { success: true, groups: clean };
+    } catch (e) { return { success: false, error: e.toString() }; }
+  };
+  // 수정/삭제/추가: 일정의 출처(source)에 맞는 컬렉션을 고칩니다. 같은 일정으로 묶인 모든 반이 함께 바뀝니다.
   SERVER.modifyScheduleData = async function (action, oldData, newData) {
     try {
-      const add = await getCol('data_add_timetable');
-      const sameRow = (r) => { const d = toDate(r.add_date); return d && ymd(d) === ymd(toDate(oldData.date)) && str(r.add_class) === str(oldData.classes) && str(r.add_time) === str(oldData.periods) && str(r.add_name).trim() === str(oldData.course).trim(); };
-      const build = (n) => ({ add_date: toTS(toDate(n.date)), add_class: str(n.classes), add_time: str(n.periods), add_name: str(n.course) });
-      if (action === 'add') { await db.collection('data_add_timetable').add(build(newData)); }
-      else {
-        const target = add.filter(sameRow)[0];
-        if (!target) return { success: false, error: '해당 일정을 찾을 수 없습니다.' };
-        if (action === 'delete') await db.collection('data_add_timetable').doc(target._id).delete();
-        else if (action === 'edit') await db.collection('data_add_timetable').doc(target._id).update(build(newData));
+      const source = (oldData && oldData.source) || 'add'; const def = EV_SOURCES[source]; if (!def) return { success: false, error: '알 수 없는 일정입니다.' };
+      Object.values(EV_SOURCES).forEach((x) => invalidate(x.col));
+      const rows = await getCol(def.col);
+      const tuples = (d) => { const out = []; if (!d) return out; csvList(d.classes).forEach((c) => csvList(d.periods).forEach((p) => out.push({ date: ymd(toDate(d.date)), cls: c, per: p, name: str(d.course).trim() }))); return out; };
+      const key = (t) => [t.date, t.cls, t.per, t.name].join('|');
+      const rowKey = (r) => { const d = toDate(r[def.d]); return key({ date: d ? ymd(d) : '', cls: str(r[def.c]).trim(), per: str(r[def.t]).trim(), name: str(r[def.n]).trim() }); };
+      const byKey = new Map(); rows.forEach((r) => { const k = rowKey(r); if (!byKey.has(k)) byKey.set(k, []); byKey.get(k).push(r); });
+      const oldT = tuples(oldData), newT = action === 'delete' ? [] : tuples(newData);
+      const oldKeys = new Set(oldT.map(key)), newKeys = new Set(newT.map(key));
+      if ((action === 'edit' || action === 'delete') && !oldT.some((t) => byKey.has(key(t)))) return { success: false, error: '해당 일정을 찾을 수 없습니다. 새로고침 후 다시 시도해 주세요.' };
+      if (action !== 'delete' && !newT.length) return { success: false, error: '날짜, 학급, 교시, 내용을 모두 입력해 주세요.' };
+
+      // 전담 시간표: 같은 반이 같은 시간에 둘 이상이거나, 같은 교사의 다른 반이 같은 시간에 있으면 저장하지 않습니다.
+      if (source === 'sub' && action !== 'delete') {
+        const g = await generalCfg(); const specials = g.specials || [];
+        const teacherOf = (subject, cls) => { const e = specials.find((sp) => sp.subject === subject && (sp.classes || []).indexOf(cls) >= 0); return e ? e.teacher : ''; };
+        const removed = new Set([...oldKeys].filter((k) => !newKeys.has(k)));
+        const slotRows = (t) => rows.filter((r) => { const d = toDate(r[def.d]); return d && ymd(d) === t.date && str(r[def.t]).trim() === t.per && !removed.has(rowKey(r)); });
+        const fresh = newT.filter((t) => !byKey.has(key(t)));
+        const clashMsg = (cls, name) => `${cls} ${name}${josa(name, '이/가')} 이미 배정되어 있습니다.`;
+        for (const t of fresh) {
+          const others = slotRows(t);
+          const same = others.find((r) => str(r[def.c]).trim() === t.cls);
+          if (same) return { success: false, error: clashMsg(t.cls, str(same[def.n]).trim()) };
+          const tc = teacherOf(t.name, t.cls);
+          if (tc) { const clash = others.find((r) => str(r[def.n]).trim() === t.name && str(r[def.c]).trim() !== t.cls && teacherOf(t.name, str(r[def.c]).trim()) === tc); if (clash) return { success: false, error: clashMsg(str(clash[def.c]).trim(), t.name) }; }
+        }
+        for (let i = 0; i < newT.length; i++) for (let j = i + 1; j < newT.length; j++) {
+          const a = newT[i], b = newT[j];
+          if (a.date === b.date && a.per === b.per) {
+            if (a.cls === b.cls && a.name !== b.name) return { success: false, error: clashMsg(a.cls, a.name) };
+            const ta = teacherOf(a.name, a.cls);
+            if (a.name === b.name && a.cls !== b.cls && ta && ta === teacherOf(b.name, b.cls)) return { success: false, error: clashMsg(b.cls, b.name) };
+          }
+        }
       }
-      invalidate('data_add_timetable');
-      return { success: true };
+
+      const ops = [];
+      if (action !== 'add') oldT.forEach((t) => { const k = key(t); if (!newKeys.has(k)) (byKey.get(k) || []).forEach((r) => ops.push({ type: 'delete', col: def.col, id: r._id })); });
+      newT.forEach((t) => {
+        if (byKey.has(key(t))) return; const d = toDate(t.date);
+        ops.push({ type: 'set', col: def.col, id: newId(def.col), data: { [def.d]: toTS(d), [def.c]: t.cls, [def.t]: t.per, [def.n]: t.name } });
+      });
+      await commit(ops); invalidate(def.col);
+      return { success: true, rawEvents: await groupedEvents() };
     } catch (e) { return { success: false, error: e.toString() }; }
   };
 

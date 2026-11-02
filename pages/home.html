@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>홈</title>
+  <script>window.__GP_SWR__ = true;</script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
@@ -12,12 +13,13 @@
   <script src="../assets/js/app-data.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-    body { font-family: 'Pretendard', sans-serif; background:#f8fafc; }
+    body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     .cell { white-space: pre-wrap; word-break: keep-all; }
     .row-sat { background:#e0f2fe; color:#2563eb; }
     .row-sun { background:#fce7f3; color:#dc2626; }
-    .row-today td:first-child { box-shadow: inset 4px 0 0 #4f46e5; }
+    .row-today td { box-shadow: inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
+    .row-today td:first-child { box-shadow: inset 3px 0 0 #2563eb, inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
+    .row-today td:last-child { box-shadow: inset -3px 0 0 #2563eb, inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
   </style>
 </head>
 <body class="p-4 md:p-6 text-slate-800">
@@ -40,10 +42,10 @@
 <script>
 const DAYN = ['일','월','화','수','목','금','토'];
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-async function load() {
+async function load(fresh) {
   const body = document.getElementById('body'), msg = document.getElementById('msg');
   try {
-    ['data_task_school','data_task_memo','data_add_timetable','data_basic'].forEach(GP.invalidate);
+    if (fresh) ['data_task_school','data_task_memo','data_add_timetable','data_basic'].forEach(GP.invalidate);
     const t = new Date(); const today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
     const end = GP.addDays(today, 6);
     document.getElementById('range').textContent = GP.appDate(today) + ' ~ ' + GP.appDate(end);
@@ -56,7 +58,8 @@ async function load() {
     }).join('');
   } catch (e) { console.error(e); msg.textContent = '일정을 불러오지 못했습니다: ' + e.message; msg.classList.remove('hidden'); }
 }
-document.getElementById('reload').onclick = load; load();
+document.getElementById('reload').onclick = () => load(true); load(false);
+let _t; window.addEventListener('gp:data', () => { clearTimeout(_t); _t = setTimeout(() => load(false), 150); });
 </script>
 </body>
 </html>

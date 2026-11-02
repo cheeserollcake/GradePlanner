@@ -102,6 +102,7 @@
                     <select id="course-select" class="custom-select min-w-[150px]" onchange="renderTable()">
                         <option value="" disabled selected>로딩 중...</option>
                     </select>
+                    <button onclick="openGroupModal()" class="px-2 py-1 bg-white border-2 border-gray-200 rounded-lg hover:bg-blue-50" title="강좌 범주 관리">✏️</button>
                 </div>
 
                 <!-- 월 선택 드롭다운 -->
@@ -143,6 +144,8 @@
         // 전역 변수
         let globalDropdowns = [];
         let globalSpecials = {}; 
+        let globalGroups = [];
+        let editingGroup = null;
         let globalHolidays = {}; // 휴일 정보 저장 객체
         let eventsByDate = {}; 
         let currentMonth = new Date().getMonth() + 1;
@@ -155,7 +158,7 @@
 
         function initMonthSelect() {
             const monthSelect = document.getElementById('month-select');
-            const months = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1];
+            const months = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2];
             
             if (!months.includes(currentMonth)) {
                 currentMonth = 3;
@@ -187,6 +190,8 @@
                     if(response.success) {
                         globalDropdowns = response.dropdowns || [];
                         globalSpecials = response.specials || {};
+                        globalGroups = response.groups || [];
+                        if (response.year) window.__YEAR__ = response.year;
                         globalHolidays = response.holidays || {}; // 휴일 데이터 저장
                         
                         processEventsData(response.events || []);
@@ -216,33 +221,80 @@
             });
         }
 
-        function initCourseSelect() {
+        function initCourseSelect(keep) {
             const select = document.getElementById('course-select');
-            select.innerHTML = ''; 
-            
-            // 데이터가 비어있을 경우 대비
-            if (globalDropdowns.length === 0) {
+            const prev = keep || select.value;
+            select.innerHTML = '';
+            if (globalDropdowns.length === 0 && globalGroups.length === 0) {
                 const option = document.createElement('option');
                 option.textContent = "데이터 없음";
                 select.appendChild(option);
                 return;
             }
-
-            globalDropdowns.forEach((course, index) => {
+            // 범주는 항상 맨 위에 파란 볼드체로 고정
+            globalGroups.forEach(gr => {
+                const option = document.createElement('option');
+                option.value = 'group::' + gr.name;
+                option.textContent = gr.name;
+                option.style.fontWeight = 'bold';
+                option.style.color = '#2563eb';
+                select.appendChild(option);
+            });
+            globalDropdowns.forEach(course => {
                 const option = document.createElement('option');
                 option.value = course;
                 option.textContent = course;
-                
-                if(index === 0) option.selected = true;
-                
-                // 특수 키워드 8개 (G2:G9, index 0~7) 파란색 볼드체 적용
-                if (index < 8) {
-                    option.style.fontWeight = 'bold';
-                    option.style.color = '#2563eb';
-                }
-
                 select.appendChild(option);
             });
+            if (prev && Array.from(select.options).some(o => o.value === prev)) select.value = prev; else select.selectedIndex = 0;
+        }
+
+        // ---- 강좌 범주 관리 (연필 아이콘) ----
+        function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+        function openGroupModal() { editingGroup = null; renderGroupModal(); document.getElementById('group-modal').classList.remove('hidden'); }
+        function closeGroupModal() { document.getElementById('group-modal').classList.add('hidden'); }
+        function newGroup() { editingGroup = { index: -1, name: '', courses: [] }; renderGroupModal(); }
+        function editGroup(i) { editingGroup = { index: i, name: globalGroups[i].name, courses: globalGroups[i].courses.slice() }; renderGroupModal(); }
+        function cancelGroupEdit() { editingGroup = null; renderGroupModal(); }
+        function selectByText() {
+            const t = document.getElementById('group-match').value.trim(); if (!t) return;
+            document.querySelectorAll('.group-course').forEach(cb => { if (cb.value.includes(t)) cb.checked = true; });
+            if (!document.getElementById('group-name').value.trim()) document.getElementById('group-name').value = t;
+        }
+        function persistGroups(groups, selectName) {
+            google.script.run.withSuccessHandler(res => {
+                if (!res || !res.success) { alert((res && res.error) || '저장하지 못했습니다.'); return; }
+                globalGroups = res.groups; editingGroup = null;
+                initCourseSelect(selectName ? 'group::' + selectName : null); renderTable(); renderGroupModal();
+            }).saveCourseGroups(groups);
+        }
+        function saveGroup() {
+            const name = document.getElementById('group-name').value.trim();
+            const courses = Array.from(document.querySelectorAll('.group-course:checked')).map(cb => cb.value);
+            if (!name) return alert('범주 이름을 입력해주세요.');
+            if (!courses.length) return alert('포함할 강좌를 하나 이상 선택해주세요.');
+            if (globalGroups.some((g, i) => g.name === name && i !== editingGroup.index)) return alert('같은 이름의 범주가 이미 있습니다.');
+            const groups = globalGroups.map(g => ({ name: g.name, courses: g.courses.slice() }));
+            if (editingGroup.index >= 0) groups[editingGroup.index] = { name, courses }; else groups.push({ name, courses });
+            persistGroups(groups, name);
+        }
+        function deleteGroup(i) {
+            if (!confirm('[' + globalGroups[i].name + '] 범주를 삭제할까요? (강좌 자체는 삭제되지 않습니다)')) return;
+            const select = document.getElementById('course-select'); const cur = select.value;
+            persistGroups(globalGroups.filter((_, k) => k !== i), cur === 'group::' + globalGroups[i].name ? null : cur);
+        }
+        function renderGroupModal() {
+            const box = document.getElementById('group-modal-body');
+            if (!editingGroup) {
+                const list = globalGroups.map((g, i) => '<div class="flex items-center justify-between border rounded px-3 py-2"><span class="font-bold text-blue-600">' + escHtml(g.name) + ' <span class="text-xs text-gray-400 font-normal">(' + g.courses.length + '개 강좌)</span></span><span class="flex gap-2"><button onclick="editGroup(' + i + ')" class="text-xs px-2 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded">수정</button><button onclick="deleteGroup(' + i + ')" class="text-xs px-2 py-1 bg-red-50 border border-red-200 text-red-600 rounded">삭제</button></span></div>').join('');
+                box.innerHTML = '<p class="text-sm text-gray-500 mb-2">여러 강좌를 하나의 범주로 묶어서 볼 수 있습니다. (예: 우쿨(1~2), 우쿨(3~4) → 우쿨)</p><div class="space-y-2 mb-3">' + (list || '<p class="text-sm text-gray-400 text-center py-3">등록된 범주가 없습니다.</p>') + '</div><button onclick="newGroup()" class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm">+ 범주 추가</button>';
+                return;
+            }
+            const eg = editingGroup;
+            box.innerHTML = '<input id="group-name" class="w-full border rounded px-2 py-1.5 text-sm mb-2" placeholder="범주 이름 (예: 우쿨)" value="' + escHtml(eg.name) + '">' +
+                '<div class="flex gap-1 mb-2"><input id="group-match" class="flex-1 border rounded px-2 py-1 text-sm" placeholder="포함된 글자로 한꺼번에 선택 (예: 우쿨)"><button onclick="selectByText()" class="px-2 py-1 bg-gray-100 border rounded text-sm">선택</button></div>' +
+                '<div class="max-h-64 overflow-y-auto border rounded p-2 grid grid-cols-2 gap-1">' + globalDropdowns.map(c => '<label class="text-sm flex items-center gap-1"><input type="checkbox" class="group-course" value="' + escHtml(c) + '" ' + (eg.courses.includes(c) ? 'checked' : '') + '>' + escHtml(c) + '</label>').join('') + '</div>' +
+                '<div class="flex justify-between mt-3"><button onclick="cancelGroupEdit()" class="px-3 py-1.5 bg-gray-100 rounded text-sm">취소</button><button onclick="saveGroup()" class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm">저장</button></div>';
         }
 
         function refreshData() {
@@ -256,9 +308,11 @@
                 const selectedMonth = parseInt(document.getElementById('month-select').value);
                 const courseSelect = document.getElementById('course-select');
                 const selectedCourse = courseSelect ? courseSelect.value : '';
+                const groupDef = selectedCourse.startsWith('group::') ? globalGroups.find(gr => 'group::' + gr.name === selectedCourse) : null;
+                const groupSet = groupDef ? new Set(groupDef.courses) : null;
 
-                let year = 2026;
-                if (selectedMonth === 1) year = 2027;
+                let year = window.__YEAR__ || 2026;
+                if (selectedMonth <= 2) year += 1;
 
                 const firstDay = new Date(year, selectedMonth - 1, 1);
                 const startDayOfWeek = firstDay.getDay(); 
@@ -354,6 +408,7 @@
                                         if (!ev.period.includes(String(p))) return false;
                                         if (!selectedCourse) return false;
 
+                                        if (groupSet) return groupSet.has(ev.course);
                                         if (isAll) return true;
                                         if (isPartial) return ev.course.includes(selectedCourse);
                                         return ev.course === selectedCourse;
@@ -392,5 +447,6 @@
             if(el) el.style.display = show ? 'flex' : 'none'; 
         }
     </script>
+<div id="group-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex justify-center items-center p-4"><div class="bg-white rounded-xl shadow-xl w-full max-w-md p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-bold">강좌 범주 관리</h3><button onclick="closeGroupModal()" class="text-gray-400 text-lg">✕</button></div><div id="group-modal-body"></div></div></div>
 </body>
 </html>

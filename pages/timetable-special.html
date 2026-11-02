@@ -1,21 +1,18 @@
 <!DOCTYPE html>
 <html>
   <head>
+  <meta charset="UTF-8">
   <script>window.__GP_PAGE__ = 'p06';</script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
   <script src="../assets/js/firebase-config.js"></script>
   <script src="../assets/js/gas-shim.js"></script>
-
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js"></script>
+  <script src="../assets/js/react.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-      @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-      body { font-family: 'Pretendard', sans-serif; background-color: #f8fafc; }
+      
+      body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background-color: #f8fafc; }
 
       /* 로딩바 */
       .loader-container {
@@ -71,14 +68,15 @@
       .bg-color-9 { background-color: #988bb9 !important; }
 
       .text-bold-red { font-weight: bold; color: red; }
+      .text-bold-black { font-weight: bold; color: #000; }
       
       /* 셀 크기 55px */
       .cell-fixed {
-        width: 55px;
-        min-width: 55px;
-        max-width: 55px;
+        width: 100%;
+        min-width: 0;
+        max-width: none;
         height: 30px;
-        font-size: 9pt;
+        font-size: 13pt;
       }
 
       /* 시수편차 테이블: 고정 레이아웃 제거하여 내용에 맞게 조절 */
@@ -94,9 +92,9 @@
       }
       
       .cell-input {
-        width: 55px; height: 30px; 
+        width: 100%; height: 30px;
         text-align: center; border: 2px solid #4f46e5; outline: none;
-        font-size: 9pt; font-weight: bold; background: white;
+        font-size: 13pt; font-weight: bold; background: white;
       }
       
       /* 저장 상태 표시 스타일 */
@@ -132,432 +130,8 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="text/babel">
-      const { useState, useEffect, useRef } = React;
-
-      const IconCheck = () => (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-        </svg>
-      );
-      
-      const IconSync = () => (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 spin-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-      );
-      
-      const IconSave = () => (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-           <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-        </svg>
-      );
-
-      const SpecialTimetableApp = () => {
-        const [activeTab, setActiveTab] = useState('');
-        const [semester, setSemester] = useState(1);
-        
-        const [cachedData, setCachedData] = useState({});
-        const [loading, setLoading] = useState(false);
-        const [initialLoaded, setInitialLoaded] = useState(false);
-        
-        // 'saved' | 'unsaved' | 'saving' | 'error'
-        const [saveStatus, setSaveStatus] = useState('saved');
-        
-        const saveQueue = useRef([]);         
-        const isProcessing = useRef(false);
-        
-        const [editingCell, setEditingCell] = useState(null);
-
-        const tabs = Object.keys(cachedData);
-
-        useEffect(() => {
-          const now = new Date();
-          const month = now.getMonth() + 1; 
-          if (month >= 2 && month <= 7) setSemester(1);
-          else setSemester(2);
-          
-          // [속도 최적화] 서버에서 주입된 데이터가 있으면 바로 사용
-          if (window.SERVER_DATA_RAW && window.SERVER_DATA_RAW.success) {
-            applyData(window.SERVER_DATA_RAW);
-          } else {
-            // 실패했거나 없으면 fetch 시도 (폴백)
-            fetchAllData();
-          }
-        }, []);
-
-        useEffect(() => {
-          const handleBeforeUnload = (e) => {
-            if (saveStatus === 'unsaved' || saveStatus === 'saving' || saveQueue.current.length > 0) {
-              e.preventDefault();
-              e.returnValue = '저장되지 않은 변경사항이 있습니다.';
-              return e.returnValue;
-            }
-          };
-          window.addEventListener('beforeunload', handleBeforeUnload);
-          return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-        }, [saveStatus]);
-
-        const applyData = (parsed) => {
-            const processedAll = {};
-            Object.keys(parsed.data).forEach(key => {
-              processedAll[key] = processDataOnLoad(parsed.data[key]);
-            });
-            setCachedData(processedAll);
-            setActiveTab(prev => (prev && processedAll[prev]) ? prev : (Object.keys(processedAll)[0] || ''));
-            if (parsed.currentSemester) setSemester(parsed.currentSemester);
-            setInitialLoaded(true);
-        };
-
-        const fetchAllData = () => {
-          setLoading(true);
-          google.script.run
-            .withSuccessHandler(res => {
-              const parsed = JSON.parse(res);
-              if (parsed.success) {
-                applyData(parsed);
-              }
-              else alert('로드 실패: ' + parsed.error);
-              setLoading(false);
-            })
-            .withFailureHandler(err => {
-              alert('서버 오류: ' + err);
-              setLoading(false);
-            })
-            .getAllTimetableData();
-        };
-
-        const processDataOnLoad = (rawData) => {
-          const newData = { ...rawData };
-          newData.sem1 = recalculateTopTable(newData.sem1);
-          newData.sem2 = recalculateTopTable(newData.sem2);
-          return newData;
-        };
-
-        useEffect(() => {
-          setEditingCell(null);
-        }, [activeTab]);
-
-        const recalculateTopTable = (semData) => {
-          const { top, bottom, options } = semData;
-          const counts = {};
-          options.forEach(opt => { if(opt) counts[opt] = 0; });
-
-          bottom.forEach(row => {
-            row.forEach((cell, cIdx) => {
-              if (cIdx > 1 && cell && counts.hasOwnProperty(cell)) {
-                counts[cell]++;
-              }
-            });
-          });
-
-          const newTop = top.map(row => [...row]);
-          if (newTop.length < 3) {
-            newTop.push(new Array(newTop[0].length).fill(''));
-          }
-          if (newTop[2]) {
-             newTop[2][0] = '배정';
-             for (let i = 1; i < newTop[0].length; i++) {
-               const headerName = newTop[0][i];
-               const count = counts[headerName] || 0;
-               newTop[2][i] = count;
-             }
-          }
-          return { ...semData, top: newTop };
-        };
-
-        const executeBatchSave = () => {
-          if (saveQueue.current.length === 0) {
-            setSaveStatus('saved');
-            return;
-          }
-
-          isProcessing.current = true;
-          setSaveStatus('saving');
-
-          const batchItems = [...saveQueue.current];
-          saveQueue.current = [];
-
-          google.script.run
-            .withSuccessHandler(() => {
-              if (saveQueue.current.length === 0) {
-                isProcessing.current = false;
-                setSaveStatus('saved');
-              } else {
-                isProcessing.current = false;
-                setSaveStatus('unsaved');
-              }
-            })
-            .withFailureHandler((err) => {
-              console.error("Batch Save Error:", err);
-              saveQueue.current = [...batchItems, ...saveQueue.current];
-              setSaveStatus('error');
-              isProcessing.current = false;
-              alert("저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.\n" + err);
-            })
-            .updateBatchSpecialTimetable(batchItems);
-        };
-
-        const handleUpdate = (r, c, value) => {
-          if (!cachedData[activeTab]) return;
-
-          const semKey = semester === 1 ? 'sem1' : 'sem2';
-          const currentTabData = { ...cachedData[activeTab] };
-          const currentSemData = { ...currentTabData[semKey] };
-          
-          const newBottom = [...currentSemData.bottom];
-          newBottom[r] = [...newBottom[r]];
-          newBottom[r][c] = value;
-          currentSemData.bottom = newBottom;
-
-          const recalculatedSemData = recalculateTopTable(currentSemData);
-          currentTabData[semKey] = recalculatedSemData;
-
-          setCachedData(prev => ({
-            ...prev,
-            [activeTab]: currentTabData
-          }));
-
-          const existingIndex = saveQueue.current.findIndex(
-            item => item.sheetName === activeTab && item.semester === semester && item.r === r && item.c === c
-          );
-          const newItem = {
-            sheetName: activeTab,
-            semester: semester,
-            r: r,
-            c: c,
-            value: value
-          };
-
-          if (existingIndex !== -1) {
-            saveQueue.current[existingIndex] = newItem;
-          } else {
-            saveQueue.current.push(newItem);
-          }
-
-          setSaveStatus('unsaved');
-        };
-
-        const handleDirectInputCommit = (r, c, e) => {
-          const newVal = e.target.value;
-          handleUpdate(r, c, newVal);
-          setEditingCell(null);
-        };
-
-        const getColorClass = (val, options) => {
-          if (!val) return '';
-          const idx = options.indexOf(val);
-          if (idx >= 0) return `bg-color-${idx % 10}`;
-          return '';
-        };
-
-        const getTextStyle = (val) => {
-          if (typeof val === 'string' && val.length <= 2) return 'text-bold-red';
-          return '';
-        };
-
-        const currentTabData = cachedData[activeTab];
-        let top, bottom, options, title, validOptions;
-        if (currentTabData) {
-          const currentSemData = semester === 1 ? currentTabData.sem1 : currentTabData.sem2;
-          ({ top, bottom, options, title } = currentSemData);
-          validOptions = options.filter(opt => opt && opt !== '');
-        }
-
-        const weekDays = ['월', '화', '수', '목', '금'];
-
-        return (
-          <div className="flex flex-col h-screen overflow-hidden font-sans text-slate-800 bg-slate-50">
-            {loading && (
-              <div className="loader-container">
-                <div className="progress-bar"></div>
-              </div>
-            )}
-
-            <header className="bg-white border-b border-slate-200 shadow-sm z-50 shrink-0">
-              <div className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <h1 className="text-xl font-bold text-indigo-700">전담 시간표</h1>
-                  
-                  <div className="ml-4">
-                    {saveStatus === 'unsaved' && (
-                      <button onClick={executeBatchSave} className="save-btn animate-bounce-short">
-                        <div className="unsaved-dot"></div>
-                        <span>저장하기 ({saveQueue.current.length})</span>
-                      </button>
-                    )}
-                    {saveStatus === 'saving' && (
-                      <span className="status-saving">
-                        <IconSync/> 저장 중...
-                      </span>
-                    )}
-                    {saveStatus === 'saved' && (
-                      <span className="status-saved">
-                        <IconCheck/> 모든 내용 저장됨
-                      </span>
-                    )}
-                     {saveStatus === 'error' && (
-                      <button onClick={executeBatchSave} className="save-btn bg-red-500 hover:bg-red-600">
-                        <IconSync/> 재시도
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <button onClick={() => setSemester(1)} className={`px-4 py-1.5 rounded-full text-sm font-bold transition ${semester===1 ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>1학기</button>
-                  <button onClick={() => setSemester(2)} className={`px-4 py-1.5 rounded-full text-sm font-bold transition ${semester===2 ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>2학기</button>
-                </div>
-              </div>
-              <div className="flex overflow-x-auto px-4 pb-0 space-x-1">
-                {tabs.map(tab => (
-                  <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-3 border-b-2 text-sm font-medium whitespace-nowrap ${activeTab === tab ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-                    {tab}
-                  </button>
-                ))}
-              </div>
-            </header>
-
-            <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
-              {initialLoaded && tabs.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-2"><p>등록된 전담교사가 없습니다.</p><p className="text-sm">학년 관리자 &gt; 학년 기초 설정 &gt; 전담교사에서 과목·담당학급·교사를 등록하세요.</p></div>
-              ) : !initialLoaded || !currentTabData ? (
-                <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-4">
-                  <p>모든 시간표 데이터를 불러오는 중입니다...</p>
-                  <p className="text-sm text-slate-300">잠시만 기다려주세요</p>
-                </div>
-              ) : (
-                <>
-                  <section className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="p-3 bg-indigo-50 border-b border-indigo-100 font-bold text-indigo-900">
-                      {semester}학기 시수 편차
-                    </div>
-                    <div className="overflow-x-auto p-4">
-                      <table className="table-auto-layout border-collapse">
-                        <thead>
-                          <tr>
-                            <th colSpan={top[0].length} className="bg-slate-50 p-2 font-bold text-lg border">{title}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {top.map((row, rIdx) => (
-                            <tr key={rIdx}>
-                              {row.map((cell, cIdx) => {
-                                let cellClass = "border p-2 whitespace-nowrap ";
-                                if (cIdx === 0) cellClass += "bg-slate-50 font-bold ";
-                                if (rIdx === 0 && cIdx > 0) {
-                                  cellClass += getColorClass(cell, options) + " ";
-                                }
-                                if (rIdx === 2 && cIdx > 0) {
-                                  const targetVal = parseFloat(top[1][cIdx]) || 0;
-                                  const currentVal = parseFloat(cell) || 0;
-                                  if (targetVal && targetVal !== currentVal) {
-                                    cellClass += "font-bold text-red-600 ";
-                                  } else {
-                                    cellClass += "text-gray-900 ";
-                                  }
-                                }
-                                return <td key={cIdx} className={cellClass}>{cell}</td>;
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
-
-                  <section className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
-                    <div className="p-3 bg-indigo-50 border-b border-indigo-100 font-bold text-indigo-900 shrink-0">
-                      {semester}학기 {activeTab} 시간표
-                    </div>
-                    
-                    <div className="overflow-auto flex-1 relative">
-                      <table className="border-collapse" style={{ tableLayout: 'fixed', minWidth: 'max-content' }}>
-                        <thead className="bg-white">
-                          <tr style={{ height: '30px' }}>
-                            <th colSpan="32" className="sticky-header-1 border p-2 bg-slate-100 font-bold text-lg z-30">
-                              {title}
-                            </th>
-                          </tr>
-                          <tr style={{ height: '30px' }}>
-                            <th className="sticky-col-1 sticky-header-2 sticky-corner bg-slate-50 border p-1 z-40" colSpan="2" style={{width: '120px'}}></th>
-                            {weekDays.map(day => (
-                              <th key={day} colSpan="6" className="sticky-header-2 border p-1 bg-slate-100 font-bold text-base">{day}</th>
-                            ))}
-                          </tr>
-                          <tr className="bg-slate-50 font-bold" style={{ height: '30px' }}>
-                            <th className="sticky-col-1 sticky-header-3 sticky-corner border p-1 bg-slate-50" style={{width: '40px', left:0}}>주</th>
-                            <th className="sticky-col-2 sticky-header-3 sticky-corner border p-1 bg-slate-50" style={{width: '80px', left:'40px'}}>기간</th>
-                            {weekDays.map(d => (
-                              Array.from({length: 6}, (_, i) => i + 1).map(num => (
-                                <th key={`${d}-${num}`} className="sticky-header-3 border p-1 bg-slate-50 cell-fixed">{num}</th>
-                              ))
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {bottom.map((row, rIdx) => (
-                            <tr key={rIdx} className="hover:bg-slate-50">
-                              {row.map((cell, cIdx) => {
-                                if (cIdx === 0) return <td key={cIdx} className="sticky-col-1 border p-1 bg-slate-50 font-bold text-center text-xs" style={{width:'40px', left:0}}>{cell}</td>;
-                                if (cIdx === 1) return <td key={cIdx} className="sticky-col-2 border p-1 bg-slate-50 font-medium text-xs text-center" style={{width:'80px', left:'40px'}}>{cell}</td>;
-
-                                const colorClass = getColorClass(cell, options);
-                                const textClass = getTextStyle(cell);
-                                const isEditing = editingCell?.r === rIdx && editingCell?.c === cIdx;
-
-                                return (
-                                  <td key={cIdx} className={`border p-0 ${!isEditing ? colorClass : ''} ${!isEditing ? textClass : ''}`}>
-                                    {isEditing ? (
-                                      <input 
-                                        type="text"
-                                        className="cell-input"
-                                        defaultValue={cell}
-                                        maxLength={1}
-                                        autoFocus
-                                        onBlur={(e) => handleDirectInputCommit(rIdx, cIdx, e)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') handleDirectInputCommit(rIdx, cIdx, e);
-                                        }}
-                                      />
-                                    ) : (
-                                      <select 
-                                        className="cell-fixed bg-transparent outline-none text-center appearance-none cursor-pointer"
-                                        value={cell || ''}
-                                        onChange={(e) => {
-                                          if (e.target.value === 'direct_input') {
-                                            setEditingCell({r: rIdx, c: cIdx});
-                                          } else {
-                                            handleUpdate(rIdx, cIdx, e.target.value);
-                                          }
-                                        }}
-                                      >
-                                        <option value=""></option>
-                                        {validOptions.map((opt, i) => (
-                                          <option key={i} value={opt}>{opt}</option>
-                                        ))}
-                                        {!validOptions.includes(cell) && cell && <option value={cell}>{cell}</option>}
-                                        
-                                      </select>
-                                    )}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
-                </>
-              )}
-            </main>
-          </div>
-        );
-      };
-
-      const root = ReactDOM.createRoot(document.getElementById('root'));
-      root.render(<SpecialTimetableApp />);
-    </script>
+    <script>const{useState,useEffect,useRef}=React,IconCheck=()=>React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",className:"h-5 w-5",fill:"none",viewBox:"0 0 24 24",stroke:"currentColor",strokeWidth:2},React.createElement("path",{strokeLinecap:"round",strokeLinejoin:"round",d:"M5 13l4 4L19 7"})),IconSync=()=>React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",className:"h-5 w-5 spin-icon",fill:"none",viewBox:"0 0 24 24",stroke:"currentColor",strokeWidth:2},React.createElement("path",{strokeLinecap:"round",strokeLinejoin:"round",d:"M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"})),IconSave=()=>React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",className:"h-5 w-5",fill:"none",viewBox:"0 0 24 24",stroke:"currentColor",strokeWidth:2},React.createElement("path",{strokeLinecap:"round",strokeLinejoin:"round",d:"M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"})),SpecialTimetableApp=()=>{const[i,T]=useState(""),[w,g]=useState(null),[d,v]=useState(1),[y,R]=useState({}),[P,S]=useState(!1),[j,U]=useState(!1),[m,h]=useState("saved"),c=useRef([]),N=useRef(!1),[b,D]=useState(null),V=Object.keys(y);useEffect(()=>{const t=new Date().getMonth()+1;t>=2&&t<=7?v(1):v(2),window.SERVER_DATA_RAW&&window.SERVER_DATA_RAW.success?B(window.SERVER_DATA_RAW):_()},[]),useEffect(()=>{const e=t=>{if(m==="unsaved"||m==="saving"||c.current.length>0)return t.preventDefault(),t.returnValue="\uC800\uC7A5\uB418\uC9C0 \uC54A\uC740 \uBCC0\uACBD\uC0AC\uD56D\uC774 \uC788\uC2B5\uB2C8\uB2E4.",t.returnValue};return window.addEventListener("beforeunload",e),()=>window.removeEventListener("beforeunload",e)},[m]);const B=e=>{const t={};Object.keys(e.data).forEach(s=>{t[s]=J(e.data[s])}),R(t),T(s=>s&&t[s]?s:Object.keys(t)[0]||""),e.currentSemester&&v(e.currentSemester),U(!0)},_=()=>{S(!0),google.script.run.withSuccessHandler(e=>{const t=JSON.parse(e);t.success?B(t):alert("\uB85C\uB4DC \uC2E4\uD328: "+t.error),S(!1)}).withFailureHandler(e=>{alert("\uC11C\uBC84 \uC624\uB958: "+e),S(!1)}).getAllTimetableData()},J=e=>{const t={...e};return t.sem1=E(t.sem1),t.sem2=E(t.sem2),t};useEffect(()=>{D(null)},[i]);const E=e=>{const{top:t,bottom:s,options:a}=e,n={};a.forEach(o=>{o&&(n[o]=0)}),s.forEach(o=>{o.forEach((l,p)=>{p>1&&l&&n.hasOwnProperty(l)&&n[l]++})});const r=t.map(o=>[...o]);if(r.length<3&&r.push(new Array(r[0].length).fill("")),r[2]){r[2][0]="\uBC30\uC815";for(let o=1;o<r[0].length;o++){const l=r[0][o],p=n[l]||0;r[2][o]=p}}return{...e,top:r}},O=()=>{if(c.current.length===0){h("saved");return}N.current=!0,h("saving");const e=[...c.current];c.current=[],google.script.run.withSuccessHandler(()=>{c.current.length===0?(N.current=!1,h("saved")):(N.current=!1,h("unsaved"))}).withFailureHandler(t=>{console.error("Batch Save Error:",t),c.current=[...e,...c.current],h("error"),N.current=!1,alert(`\uC800\uC7A5 \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.
+`+t)}).updateBatchSpecialTimetable(e)},F=(e,t,s)=>{if(!y[i])return;const a=d===1?"sem1":"sem2",n={...y[i]},r={...n[a]},o=[...r.bottom];o[e]=[...o[e]],o[e][t]=s,r.bottom=o;const l=E(r);n[a]=l,R(f=>({...f,[i]:n}));const p=c.current.findIndex(f=>f.sheetName===i&&f.semester===d&&f.r===e&&f.c===t),K={sheetName:i,semester:d,r:e,c:t,value:s};p!==-1?c.current[p]=K:c.current.push(K),h("unsaved")},H=(e,t,s)=>{const a=s.target.value;F(e,t,a),D(null)},$=(e,t)=>{if(!e)return"";const s=t.indexOf(e);return s>=0?`bg-color-${s%10}`:""},W=()=>{const e=w;g(null),google.script.run.withSuccessHandler(()=>{_()}).saveSpaceName(e.tab,e.value)};let C={};const Q=e=>e?C[e]?"text-bold-red":"text-bold-black":"",x=y[i];let u,M,k,A,L;x&&({top:u,bottom:M,options:k,title:A}=d===1?x.sem1:x.sem2,L=k.filter(t=>t&&t!==""),C={},(u[0]||[]).slice(1).forEach((t,s)=>{const a=parseFloat(u[1][s+1])||0,n=parseFloat(u[2][s+1])||0;C[t]=!!a&&a!==n}));const z=["\uC6D4","\uD654","\uC218","\uBAA9","\uAE08"];return React.createElement("div",{className:"flex flex-col h-screen overflow-hidden font-sans text-slate-800 bg-slate-50"},P&&React.createElement("div",{className:"loader-container"},React.createElement("div",{className:"progress-bar"})),React.createElement("header",{className:"bg-white border-b border-slate-200 shadow-sm z-50 shrink-0"},React.createElement("div",{className:"p-4 flex items-center justify-between"},React.createElement("div",{className:"flex items-center gap-4"},React.createElement("h1",{className:"text-xl font-bold text-indigo-700"},"\uC804\uB2F4 \uC2DC\uAC04\uD45C"),React.createElement("div",{className:"ml-4"},m==="unsaved"&&React.createElement("button",{onClick:O,className:"save-btn animate-bounce-short"},React.createElement("div",{className:"unsaved-dot"}),React.createElement("span",null,"\uC800\uC7A5\uD558\uAE30 (",c.current.length,")")),m==="saving"&&React.createElement("span",{className:"status-saving"},React.createElement(IconSync,null)," \uC800\uC7A5 \uC911..."),m==="saved"&&React.createElement("span",{className:"status-saved"},React.createElement(IconCheck,null)," \uBAA8\uB4E0 \uB0B4\uC6A9 \uC800\uC7A5\uB428"),m==="error"&&React.createElement("button",{onClick:O,className:"save-btn bg-red-500 hover:bg-red-600"},React.createElement(IconSync,null)," \uC7AC\uC2DC\uB3C4"))),React.createElement("div",{className:"flex gap-2"},React.createElement("button",{onClick:()=>v(1),className:`px-4 py-1.5 rounded-full text-sm font-bold transition ${d===1?"bg-indigo-600 text-white":"bg-slate-100 text-slate-600"}`},"1\uD559\uAE30"),React.createElement("button",{onClick:()=>v(2),className:`px-4 py-1.5 rounded-full text-sm font-bold transition ${d===2?"bg-indigo-600 text-white":"bg-slate-100 text-slate-600"}`},"2\uD559\uAE30"))),React.createElement("div",{className:"flex overflow-x-auto px-4 pb-0 space-x-1"},V.map(e=>React.createElement("button",{key:e,onClick:()=>T(e),className:`px-4 py-3 border-b-2 text-sm font-medium whitespace-nowrap ${i===e?"border-indigo-600 text-indigo-700":"border-transparent text-slate-500 hover:text-slate-700"}`},e)))),React.createElement("main",{className:"flex-1 overflow-y-auto p-4 lg:p-6 space-y-6"},j&&V.length===0?React.createElement("div",{className:"flex flex-col items-center justify-center h-64 text-slate-400 space-y-2"},React.createElement("p",null,"\uB4F1\uB85D\uB41C \uC804\uB2F4\uAD50\uC0AC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4."),React.createElement("p",{className:"text-sm"},"\uD559\uB144 \uAD00\uB9AC\uC790 > \uD559\uB144 \uAE30\uCD08 \uC124\uC815 > \uC804\uB2F4\uAD50\uC0AC\uC5D0\uC11C \uACFC\uBAA9\xB7\uB2F4\uB2F9\uD559\uAE09\xB7\uAD50\uC0AC\uB97C \uB4F1\uB85D\uD558\uC138\uC694.")):!j||!x?React.createElement("div",{className:"flex flex-col items-center justify-center h-64 text-slate-400 space-y-4"},React.createElement("p",null,"\uBAA8\uB4E0 \uC2DC\uAC04\uD45C \uB370\uC774\uD130\uB97C \uBD88\uB7EC\uC624\uB294 \uC911\uC785\uB2C8\uB2E4..."),React.createElement("p",{className:"text-sm text-slate-300"},"\uC7A0\uC2DC\uB9CC \uAE30\uB2E4\uB824\uC8FC\uC138\uC694")):React.createElement(React.Fragment,null,React.createElement("section",{className:"bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"},React.createElement("div",{className:"p-3 bg-indigo-50 border-b border-indigo-100 font-bold text-indigo-900"},d,"\uD559\uAE30 \uC2DC\uC218 \uD3B8\uCC28"),React.createElement("div",{className:"overflow-x-auto p-4"},React.createElement("table",{className:"border-collapse",style:{tableLayout:"fixed",width:"100%"}},React.createElement("colgroup",null,React.createElement("col",{style:{width:"5rem"}}),u[0].slice(1).map((e,t)=>React.createElement("col",{key:t}))),React.createElement("thead",null,React.createElement("tr",null,React.createElement("th",{colSpan:u[0].length,className:"bg-slate-50 p-2 font-bold text-lg border"},A,React.createElement("button",{className:"ml-2 text-base align-middle opacity-60 hover:opacity-100",title:"\uACF5\uAC04 \uC774\uB984",onClick:()=>g({tab:i,value:x.space||""})},"\u270F\uFE0F")))),React.createElement("tbody",null,u.map((e,t)=>React.createElement("tr",{key:t},e.map((s,a)=>{let n="border p-2 whitespace-nowrap ";if(a===0&&(n+="bg-slate-50 font-bold "),t===0&&a>0&&(n+=$(s,k)+" "),t===2&&a>0){const r=parseFloat(u[1][a])||0,o=parseFloat(s)||0;r&&r!==o?n+="font-bold text-red-600 ":n+="text-gray-900 "}return React.createElement("td",{key:a,className:n},s)}))))))),React.createElement("section",{className:"bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]"},React.createElement("div",{className:"p-3 bg-indigo-50 border-b border-indigo-100 font-bold text-indigo-900 shrink-0"},d,"\uD559\uAE30 ",i," \uC2DC\uAC04\uD45C"),React.createElement("div",{className:"overflow-auto flex-1 relative"},React.createElement("table",{className:"border-collapse",style:{tableLayout:"fixed",width:"100%",minWidth:"960px"}},React.createElement("colgroup",null,React.createElement("col",{style:{width:"40px"}}),React.createElement("col",{style:{width:"80px"}}),Array.from({length:30},(e,t)=>React.createElement("col",{key:t}))),React.createElement("thead",{className:"bg-white"},React.createElement("tr",{style:{height:"30px"}},React.createElement("th",{colSpan:"32",className:"sticky-header-1 border p-2 bg-slate-100 font-bold text-lg z-30"},A)),React.createElement("tr",{style:{height:"30px"}},React.createElement("th",{className:"sticky-col-1 sticky-header-2 sticky-corner bg-slate-50 border p-1 z-40",colSpan:"2",style:{width:"120px"}}),z.map(e=>React.createElement("th",{key:e,colSpan:"6",className:"sticky-header-2 border p-1 bg-slate-100 font-bold text-base"},e))),React.createElement("tr",{className:"bg-slate-50 font-bold",style:{height:"30px"}},React.createElement("th",{className:"sticky-col-1 sticky-header-3 sticky-corner border p-1 bg-slate-50",style:{width:"40px",left:0}},"\uC8FC"),React.createElement("th",{className:"sticky-col-2 sticky-header-3 sticky-corner border p-1 bg-slate-50",style:{width:"80px",left:"40px"}},"\uAE30\uAC04"),z.map(e=>Array.from({length:6},(t,s)=>s+1).map(t=>React.createElement("th",{key:`${e}-${t}`,className:"sticky-header-3 border p-1 bg-slate-50 cell-fixed"},t))))),React.createElement("tbody",null,M.map((e,t)=>React.createElement("tr",{key:t,className:"hover:bg-slate-50"},e.map((s,a)=>{if(a===0)return React.createElement("td",{key:a,className:"sticky-col-1 border p-1 bg-slate-50 font-bold text-center text-xs",style:{width:"40px",left:0}},s);if(a===1)return React.createElement("td",{key:a,className:"sticky-col-2 border p-1 bg-slate-50 font-medium text-xs text-center",style:{width:"80px",left:"40px"}},s);const n=$(s,k),r=Q(s),o=(b==null?void 0:b.r)===t&&(b==null?void 0:b.c)===a;return React.createElement("td",{key:a,className:`border p-0 ${o?"":n} ${o?"":r}`},o?React.createElement("input",{type:"text",className:"cell-input",defaultValue:s,maxLength:1,autoFocus:!0,onBlur:l=>H(t,a,l),onKeyDown:l=>{l.key==="Enter"&&H(t,a,l)}}):React.createElement("select",{className:"cell-fixed bg-transparent outline-none text-center appearance-none cursor-pointer",value:s||"",onChange:l=>{l.target.value==="direct_input"?D({r:t,c:a}):F(t,a,l.target.value)}},React.createElement("option",{value:""}),L.map((l,p)=>React.createElement("option",{key:p,value:l},l)),!L.includes(s)&&s&&React.createElement("option",{value:s},s)))}))))))))),w&&React.createElement("div",{className:"fixed inset-0 z-[200] bg-black/40 flex items-center justify-center p-4",onClick:()=>g(null)},React.createElement("div",{className:"bg-white rounded-xl shadow-xl p-5 w-full max-w-sm space-y-3",onClick:e=>e.stopPropagation()},React.createElement("h3",{className:"font-bold"},"\uACF5\uAC04 \uC774\uB984"),React.createElement("input",{autoFocus:!0,className:"w-full border rounded-lg px-3 py-2",placeholder:"\uACF5\uAC04\uC774\uB984",value:w.value,onChange:e=>g({...w,value:e.target.value}),onKeyDown:e=>{e.key==="Enter"&&W()}}),React.createElement("div",{className:"flex justify-end gap-2"},React.createElement("button",{className:"px-4 py-2 rounded-lg bg-slate-100 text-sm font-semibold",onClick:()=>g(null)},"\uCDE8\uC18C"),React.createElement("button",{className:"px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold",onClick:W},"\uC800\uC7A5")))))},root=ReactDOM.createRoot(document.getElementById("root"));root.render(React.createElement(SpecialTimetableApp,null));
+</script>
   </body>
 </html>

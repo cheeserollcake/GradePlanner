@@ -15,7 +15,7 @@
 
   async function getGeneral() {
     const today = new Date();
-    const g = Object.assign({ year: yearOf(today), classCount: 10, classNames: [], homerooms: [], specials: [] }, await getCfg('general', {}));
+    const g = Object.assign({ year: yearOf(today), grade: 6, classCount: 10, classNames: [], homerooms: [], specials: [] }, await getCfg('general', {}));
     g.classNames = Array.from({ length: g.classCount }, (_, i) => (g.classNames && g.classNames[i]) || `${i + 1}반`);
     if (!Array.isArray(g.homerooms)) g.homerooms = [];
     if (!g.homerooms.length && g.homeroom && typeof g.homeroom === 'object') {   // 이전 형식({학급: 교사}) 변환
@@ -133,7 +133,7 @@
   // ------------------------------------------------------------ 학기(1학기, 여름방학, 2학기, 겨울방학)
   const SEM_NAMES = ['1학기', '여름방학', '2학기', '겨울방학'];
   async function getSemesterRows(year) {
-    invalidate('data_basic'); const r = yearRange(year);
+    const r = yearRange(year);
     const rows = (await getCol('data_basic')).filter((x) => str(x.semester).trim() && inRange(toDate(x.semester_start_date), r));
     const out = {}; rows.forEach((x) => { out[str(x.semester).trim()] = { id: x._id, start: toDate(x.semester_start_date), end: toDate(x.semester_end_date) }; });
     return out;

@@ -23,6 +23,7 @@
   function autosave(fn, msg) { queue = queue.then(fn).then(() => toast(msg || '저장되었습니다.')).catch((e) => { console.error(e); toast('저장 실패: ' + e.message, true); }); return queue; }
   // 화면을 다시 그리는 도중 blur/change 이벤트가 겹쳐 다시 그리기가 중첩되는 것을 막습니다.
   const guardDraw = (fn) => { let busy = false; return () => { if (busy) return; busy = true; try { fn(); } finally { busy = false; } }; };
+  const notifyMeta = () => { try { parent.postMessage('gp-meta-changed', '*'); } catch (e) { /* 단독 실행 */ } };
   const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
   // ================================================================ 로그인 (페이지에 들어올 때마다 비밀번호를 묻습니다)
@@ -135,6 +136,7 @@
     };
     const saveGeneral = () => autosave(async () => {
       const gs = cleanCopy(); validate(gs); const old = await APP.getGeneral();
+      gs.specials.forEach((e) => { if (!e.space) { const m = old.specials.find((o) => o.subject === e.subject && o.teacher === e.teacher); if (m && m.space) e.space = m.space; } });   // 전담 시간표에서 입력한 공간 이름 보존
       await APP.syncTeachers(old, gs); await APP.saveGeneral(gs);
     });
     const saveGeneralSoon = debounce(saveGeneral, 350);
@@ -172,6 +174,7 @@
 
       view.innerHTML = '<div class="space-y-5">' +
         '<div class="' + CARD + '"><h2 class="font-bold text-lg">학년도 설정</h2><div class="flex flex-wrap items-center gap-2"><input id="year" type="number" value="' + g.year + '" class="' + INP + ' w-28"><span class="text-sm">학년도</span>' +
+        '<span class="text-sm font-semibold ml-3">학년</span><select id="grade" class="' + INP + '">' + [1, 2, 3, 4, 5, 6].map((n) => '<option value="' + n + '" ' + (n === (g.grade || 6) ? 'selected' : '') + '>' + n + '학년</option>').join('') + '</select>' +
         '<button id="saveYear" class="' + BTN_P + '">이 학년도로 설정하기</button><span class="text-sm text-slate-500">' + appDate(range().start) + ' ~ ' + appDate(range().end) + '</span></div>' +
         '<div class="space-y-2 pt-2 border-t"><p class="text-xs text-slate-400">날짜를 입력하면 바로 저장됩니다. (시작·종료를 모두 지우면 삭제됩니다)</p>' + semHtml + '</div></div>' +
         '<div class="' + CARD + '"><h2 class="font-bold text-lg">기초 일정</h2><div class="flex flex-wrap gap-2 items-center">' +
@@ -191,9 +194,10 @@
     });
 
     const bind = () => {
+      $('grade').onchange = () => { g.grade = parseInt($('grade').value, 10) || 6; saveGeneral().then(() => notifyMeta()); };
       $('saveYear').onclick = () => guard(async () => {
         const y = parseInt($('year').value, 10); if (!(y >= 2000 && y <= 2100)) throw new Error('올바른 연도를 입력하세요.');
-        g.year = y; await APP.saveGeneral(cleanCopy()); await loadYearData(); draw();
+        g.year = y; await APP.saveGeneral(cleanCopy()); await loadYearData(); draw(); notifyMeta();
       }, g.year + '학년도로 설정되었습니다.');
 
       // 학기·방학: 날짜를 입력하면 바로 저장
