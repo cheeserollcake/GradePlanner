@@ -139,7 +139,8 @@
       gs.specials.forEach((e) => { if (!e.space) { const m = old.specials.find((o) => o.subject === e.subject && o.teacher === e.teacher); if (m && m.space) e.space = m.space; } });   // 전담 시간표에서 입력한 공간 이름 보존
       await APP.syncTeachers(old, gs); await APP.saveGeneral(gs);
     });
-    const saveGeneralSoon = debounce(saveGeneral, 350);
+    let pendingTimer = null;
+    const saveGeneralSoon = () => { clearTimeout(pendingTimer); pendingTimer = setTimeout(saveGeneral, 350); };
     const listOf = (kind) => (kind === 'hr' ? g.homerooms : g.specials);
 
     const termUI = (kind, i, e) => {
@@ -195,10 +196,17 @@
 
     const bind = () => {
       $('grade').onchange = () => { g.grade = parseInt($('grade').value, 10) || 6; saveGeneral().then(() => notifyMeta()); };
-      $('saveYear').onclick = () => guard(async () => {
-        const y = parseInt($('year').value, 10); if (!(y >= 2000 && y <= 2100)) throw new Error('올바른 연도를 입력하세요.');
-        g.year = y; await APP.saveGeneral(cleanCopy()); await loadYearData(); draw(); notifyMeta();
-      }, g.year + '학년도로 설정되었습니다.');
+      $('saveYear').onclick = async () => {
+        try {
+          const y = parseInt($('year').value, 10); if (!(y >= 2000 && y <= 2100)) throw new Error('올바른 연도를 입력하세요.');
+          if (y !== g.year) {
+            clearTimeout(pendingTimer); await saveGeneral();            // 이전 학년도 입력을 먼저 저장
+            await APP.setYear(y);                                         // 새 학년도: 담임/전담교사, 공간 개방 설정은 빈 상태로 시작
+            g = await APP.getGeneral(); ensureHr(); await loadYearData(); draw();
+          }
+          notifyMeta(); toast(y + '학년도로 설정되었습니다.');
+        } catch (e) { console.error(e); toast('실패: ' + e.message, true); }
+      };
 
       // 학기·방학: 날짜를 입력하면 바로 저장
       APP.SEM_NAMES.forEach((n) => {
@@ -284,9 +292,9 @@
   }
 
   // ================================================================ 3) 공간 개방 설정
-  let openQueue = Promise.resolve();
-  function mutateOpen(fn) {
-    openQueue = openQueue.then(async () => { const c = Object.assign({ sem1: {}, sem2: {}, exceptions: [], closeExceptions: [], colors: {} }, await GP.getCfg('space_open', {})); fn(c); await GP.setCfg('space_open', c); }).catch((e) => toast('저장 실패: ' + e.message, true));
+  let openQueue = Promise.resolve(), openYear = null;
+  function mutateOpen(fn) {   // 공간 개방 설정은 학년도별로 저장됩니다.
+    openQueue = openQueue.then(async () => { const c = await GP.loadOpen(openYear); fn(c); await GP.saveOpen(openYear, c); }).catch((e) => toast('저장 실패: ' + e.message, true));
     return openQueue;
   }
   async function renderSpace() {
@@ -294,8 +302,7 @@
     let gym = (await GP.readList('list_gym')).map((i) => ({ orig: i.value, value: i.value }));
     let room = (await GP.readList('list_room')).map((i) => ({ orig: i.value, value: i.value }));
     let times = (await GP.readList('list_time')).map((i) => i.value); if (!times.length) times = [1, 2, 3, 4, 5, 6].map((n) => n + '교시');
-    let cfg = Object.assign({ sem1: {}, sem2: {}, exceptions: [], closeExceptions: [], colors: {} }, await GP.getCfg('space_open', {}));
-    const gen = await APP.getGeneral(); const sems = await APP.getSemesterRows(gen.year);
+    const gen = await APP.getGeneral(); openYear = gen.year; let cfg = await GP.loadOpen(openYear); const sems = await APP.getSemesterRows(gen.year);
     const today = new Date(); const inS = (n) => sems[n] && today >= sems[n].start && today <= sems[n].end;
     let sub = 'gym', lastDate = ymd(today); const open = { sem1: !inS('2학기'), sem2: !!inS('2학기') };
     const colorOf = (idx, name) => cfg.colors[name] || PALETTE[idx % PALETTE.length];
@@ -346,7 +353,7 @@
         ['exceptions', 'closeExceptions'].forEach((n) => { c[n] = (c[n] || []).map((e) => (renamed[e.space] ? Object.assign({}, e, { space: renamed[e.space] }) : e)).filter((e) => removed.indexOf(e.space) < 0); });
         Object.keys(renamed).forEach((o) => { if (c.colors[o]) { c.colors[renamed[o]] = c.colors[o]; delete c.colors[o]; } });
       });
-      cfg = Object.assign(cfg, await GP.getCfg('space_open', {}));
+      cfg = await GP.loadOpen(openYear);
       arr(key).forEach((x) => { if (x.value.trim()) x.orig = x.value.trim(); });
       drawTables();
     });
@@ -388,8 +395,9 @@
       '<label class="text-sm font-semibold">페이지 접근 비밀번호<span class="block text-xs font-normal text-slate-400">학생 명렬표, 내선번호 등에 공통 적용</span><input id="pwAccess" value="' + esc(pw.access) + '" class="' + INP + ' w-full mt-1"></label>' +
       '<label class="text-sm font-semibold">관리자 페이지 비밀번호<span class="block text-xs font-normal text-slate-400">이 관리자 페이지 접근용</span><input id="pwAdmin" value="' + esc(pw.admin) + '" class="' + INP + ' w-full mt-1"></label></div>' +
       '<div class="text-right"><button id="savePw" class="' + BTN_P + '">비밀번호 저장</button></div></div>' +
-      '<div class="' + CARD + ' border-red-200"><h2 class="font-bold text-lg text-red-700">데이터 삭제</h2><p class="text-sm text-slate-500">선택한 학년도의 날짜 데이터(학교 행사, 학년 일정, 각종 시간표, 학기·휴일 설정, 학습준비물)를 삭제합니다.</p>' +
-      '<div class="flex gap-2 items-center"><select id="delYear" class="' + INP + '">' + years.map((y) => '<option value="' + y + '">' + y + '학년도</option>').join('') + '</select><button id="delBtn" class="' + BTN + ' bg-red-600 text-white hover:bg-red-700">과거 데이터 삭제</button></div></div></div>' +
+      '<div class="' + CARD + ' border-red-200"><h2 class="font-bold text-lg text-red-700">데이터 삭제</h2><p class="text-sm text-slate-500">선택한 학년도(2월 1일~다음 해 2월 말일)의 데이터를 삭제합니다.<br><b>날짜로 구분되는 데이터:</b> 학교 행사, 학년 일정, 추가된 일정, 체육 공간·특별실·전담 시간표, 학기·방학·휴일 설정, 학습준비물(연도), 담임·전담교사 매칭, 공간 개방 설정<br><b>작성일이 그 학년도인 데이터:</b> 학생 명렬표, 개요 비고, 예산, 강좌 범주, 이미지·파일(특별실·교실배치도·내선번호)<br><b>삭제되지 않음:</b> 쇼핑몰 ID, 바로가기, 비밀번호, 학급·과목·교시·공간 목록</p>' +
+      '<div class="flex gap-2 items-center"><select id="delYear" class="' + INP + '">' + years.map((y) => '<option value="' + y + '">' + y + '학년도</option>').join('') + '</select><button id="delBtn" class="' + BTN + ' bg-red-600 text-white hover:bg-red-700">과거 데이터 삭제</button></div></div>' +
+      '<div class="' + CARD + '"><h2 class="font-bold text-lg">임시 저장 데이터 새로고침</h2><p class="text-sm text-slate-500">속도와 사용량을 줄이려고 기기에 저장해 둔 데이터는 앱에서 저장할 때마다 자동으로 갱신됩니다. 파이어베이스 콘솔에서 데이터를 직접 고쳤다면 이 버튼으로 모든 기기가 새로 받게 하세요.</p><button id="resetCache" class="' + BTN_G + '">모든 기기 데이터 새로고침</button></div></div>' +
       '<div id="dm" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50"><div class="bg-white rounded-2xl p-5 w-full max-w-md space-y-3"><h3 class="font-bold text-lg text-red-700">정말 삭제할까요?</h3>' +
       '<p class="text-sm text-slate-600"><b id="dmY"></b> 데이터는 <b>삭제하면 복구할 수 없습니다.</b> 계속하려면 아래에 <b>과거 데이터 삭제</b> 를 입력하세요.</p><input id="dmIn" class="' + INP + ' w-full" placeholder="과거 데이터 삭제">' +
       '<div class="flex justify-end gap-2"><button id="dmNo" class="' + BTN_G + '">취소</button><button id="dmYes" disabled class="' + BTN + ' bg-red-600 text-white disabled:opacity-40">삭제</button></div></div></div>';
@@ -397,6 +405,7 @@
       const a = $('pwAccess').value.trim(), b = $('pwAdmin').value.trim(); if (!a || !b) throw new Error('비밀번호를 입력하세요.');
       await GP.setPw({ access: a, admin: b });
     }, '비밀번호가 저장되었습니다.');
+    $('resetCache').onclick = () => guard(() => GP.resetCaches(), '모든 기기가 다음에 열 때 데이터를 새로 받습니다.');
     const modal = $('dm'); const show = (v) => { modal.classList.toggle('hidden', !v); modal.classList.toggle('flex', v); };
     $('delBtn').onclick = () => { $('dmY').textContent = $('delYear').value + '학년도'; $('dmIn').value = ''; $('dmYes').disabled = true; show(true); };
     $('dmNo').onclick = () => show(false); $('dmIn').oninput = () => { $('dmYes').disabled = $('dmIn').value.trim() !== '과거 데이터 삭제'; };

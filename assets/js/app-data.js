@@ -6,23 +6,19 @@
   'use strict';
   const G = window.GP;
   const { getCol, invalidate, getCfg, setCfg, toDate, ymd, appDate, addDays, eachDay, num, str, natural, commit, newId, readList, writeList } = G;
-  const DEL = () => firebase.firestore.FieldValue.delete();
+  const DEL = () => G.DELETE;
 
   // ------------------------------------------------------------ 학년도 / 일반 설정
   const yearRange = (y) => ({ start: new Date(y, 1, 1), end: new Date(y + 1, 2, 0) }); // 2/1 ~ 다음해 2월 말일
   const yearOf = (d) => (d.getMonth() >= 1 ? d.getFullYear() : d.getFullYear() - 1);
   const inRange = (d, r) => d && d >= r.start && d <= r.end;
 
-  async function getGeneral() {
-    const today = new Date();
-    const g = Object.assign({ year: yearOf(today), grade: 6, classCount: 10, classNames: [], homerooms: [], specials: [] }, await getCfg('general', {}));
-    g.classNames = Array.from({ length: g.classCount }, (_, i) => (g.classNames && g.classNames[i]) || `${i + 1}반`);
-    if (!Array.isArray(g.homerooms)) g.homerooms = [];
-    if (!g.homerooms.length && g.homeroom && typeof g.homeroom === 'object') {   // 이전 형식({학급: 교사}) 변환
-      Object.keys(g.homeroom).forEach((c) => { if (str(g.homeroom[c]).trim()) g.homerooms.push({ className: c, teacher: g.homeroom[c], terms: ['1학기', '2학기'], period: null }); });
-    }
-    delete g.homeroom; if (!Array.isArray(g.specials)) g.specials = [];
-    return g;
+  const getGeneral = () => G.loadGeneral();                      // 학년도별 담임/전담교사 포함
+  const saveGeneral = (g) => G.saveGeneral(g);
+  // 학년도 변경: 이전 학년도 설정은 그대로 보관하고, 새 학년도의 담임/전담교사/공간 개방 설정은 비어 있는 상태로 시작
+  async function setYear(year) {
+    const cur = await G.loadGeneral(); await G.saveGeneral(cur);   // 이전 형식의 데이터가 있으면 현재 학년도 것으로 먼저 옮김
+    cur.year = year; await G.setCfg('general', { year, grade: cur.grade, classCount: cur.classCount, classNames: cur.classNames, legacyMigrated: true });
   }
   // 학기/기간 매칭: entry = {terms:[...], period:{start,end}|null}, sems = {학기이름:{start,end}}
   function entryApplies(e, date, sems) {
@@ -34,7 +30,6 @@
     const now = list.filter((e) => entryApplies(e, date, sems));
     return [...new Set((now.length ? now : list).map((e) => str(e.teacher).trim()))].join(' / ');
   }
-  async function saveGeneral(g) { await setCfg('general', g); }
 
   // ------------------------------------------------------------ 휴일 (공휴일 + data_basic.holiday)
   async function holidayMap() {
@@ -87,7 +82,7 @@
   // ------------------------------------------------------------ 하루 일정 수정 (연필 아이콘)
   const sameDay = (a, b) => a && b && ymd(a) === ymd(b);
   async function getDayState(d) {
-    ['data_task_school', 'data_task_memo', 'data_basic'].forEach(invalidate);
+    G.fresh();
     const [ts, tm, basic] = await Promise.all([getCol('data_task_school'), getCol('data_task_memo'), getCol('data_basic')]);
     const single = (rows, fs, fe, fn) => rows.filter((r) => { const a = toDate(r[fs]), b = toDate(r[fe]); return sameDay(a, d) && (!b || sameDay(b, d)) && str(r[fn]).trim(); });
     const range = (rows, fs, fe, fn) => rows.filter((r) => { const a = toDate(r[fs]), b = toDate(r[fe]); return a && b && !sameDay(a, b) && a <= d && b >= d && str(r[fn]).trim(); });
@@ -130,6 +125,35 @@
     ['data_task_school', 'data_task_memo', 'data_basic'].forEach(invalidate);
   }
 
+
+  // ------------------------------------------------------------ 오늘 날짜 / 여름방학식 / 겨울방학식 카드 (홈, 개요)
+  //  방학식 날짜는 data_task_school 에서 task_school_name 에 '여름방학식', '겨울방학식'이 들어 있는 행의 task_school_date_start 입니다.
+  async function getVacations(year) {
+    const r = yearRange(year); const ts = await getCol('data_task_school');
+    const find = (kw) => ts.filter((x) => str(x.task_school_name).indexOf(kw) >= 0).map((x) => toDate(x.task_school_date_start)).filter((d) => d && inRange(d, r)).sort((a, b) => a - b)[0] || null;
+    return { summer: find('여름방학식'), winter: find('겨울방학식') };
+  }
+  const DAYK = ['일', '월', '화', '수', '목', '금', '토'];
+  const fmtDate = (d) => d.getFullYear() + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + String(d.getDate()).padStart(2, '0') + ' (' + DAYK[d.getDay()] + ')';
+  const dday = (target, now) => { const t = now || new Date(); const today = new Date(t.getFullYear(), t.getMonth(), t.getDate()); const d = Math.round((target - today) / 86400000); return d === 0 ? 'D-Day' : d > 0 ? 'D-' + d : 'D+' + (-d); };
+  const clockText = () => { const t = new Date(); const h = t.getHours(); return (h % 12 || 12) + ':' + String(t.getMinutes()).padStart(2, '0') + ' (' + (h < 12 ? '오전' : '오후') + ')'; };
+  async function renderDayCards(box, year) {
+    const v = await getVacations(year); const today = new Date();
+    const card = (cls, title, main, sub, subId) => '<div class="gpcard ' + cls + '"><div class="gpt">' + title + '</div><div class="gpd">' + main + '</div>' + sub + '</div>';
+    const vac = (title, cls, d) => card(cls, title, d ? fmtDate(d) : '-', d ? '<span class="gpp">' + dday(d) + '</span>' : '<span class="gpp">일정 없음</span>');
+    box.innerHTML = '<style>.gpgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px}' +
+      '.gpcard{border-radius:18px;padding:18px 10px;text-align:center;box-shadow:0 2px 10px rgba(15,23,42,.06);border:1px solid rgba(255,255,255,.8)}' +
+      '.gpt{font-size:13px;font-weight:600;margin-bottom:6px}.gpd{font-size:22px;font-weight:800;letter-spacing:-.3px}' +
+      '.gpp{display:inline-block;margin-top:8px;padding:2px 12px;border-radius:999px;background:rgba(255,255,255,.8);font-size:12px;font-weight:700}' +
+      '.gptime{margin-top:6px;font-size:14px;font-weight:700}' +
+      '.gpc1{background:linear-gradient(135deg,#ecfdf5,#ccfbf1);color:#134e4a}.gpc1 .gpt{color:#3f6f6a}' +
+      '.gpc2{background:linear-gradient(135deg,#fff7ed,#fef3c7);color:#7c2d12}.gpc2 .gpt{color:#9a5b3a}' +
+      '.gpc3{background:linear-gradient(135deg,#eff6ff,#e0e7ff);color:#312e81}.gpc3 .gpt{color:#5b5fa8}</style>' +
+      '<div class="gpgrid">' + card('gpc1', '오늘 날짜', fmtDate(today), '<div class="gptime" id="gp-clock">' + clockText() + '</div>') +
+      vac('여름방학식', 'gpc2', v.summer) + vac('겨울방학식', 'gpc3', v.winter) + '</div>';
+    clearInterval(box._t); box._t = setInterval(() => { const c = box.querySelector('#gp-clock'); if (c) c.textContent = clockText(); }, 15000);
+  }
+
   // ------------------------------------------------------------ 학기(1학기, 여름방학, 2학기, 겨울방학)
   const SEM_NAMES = ['1학기', '여름방학', '2학기', '겨울방학'];
   async function getSemesterRows(year) {
@@ -158,7 +182,7 @@
   //  학교 행사 → data_task_school(task_school_name / _date_start / _date_end)
   //  휴일      → data_basic(holiday / holiday_start_date / holiday_end_date)
   async function listBaseItems(year) {
-    ['data_task_school', 'data_basic'].forEach(invalidate); const r = yearRange(year);
+    G.fresh(); const r = yearRange(year);
     const ts = (await getCol('data_task_school')).map((x) => ({ kind: 'school', id: x._id, name: str(x.task_school_name), start: toDate(x.task_school_date_start), end: toDate(x.task_school_date_end) }));
     const hol = (await getCol('data_basic')).filter((x) => str(x.holiday).trim() && toDate(x.holiday_start_date))
       .map((x) => ({ kind: 'holiday', id: x._id, name: str(x.holiday), start: toDate(x.holiday_start_date), end: toDate(x.holiday_end_date) }));
@@ -202,28 +226,71 @@
     (await getCol('data_basic')).forEach((r) => { const d = toDate(r.semester_start_date); if (d) ys.add(yearOf(d)); });
     return [...ys].sort((a, b) => a - b);
   }
+  // ---- 작성일(처음 만든 날짜) 확인: 날짜 필드가 없는 데이터(학생 명렬표, 예산, 개요 비고, 강좌 범주, 이미지·파일)는
+  //      작성일이 그 학년도인 것을 지웁니다.
+  //      Firestore 문서는 REST API 의 createTime(문서를 처음 만든 시각), Storage 파일은 메타데이터의 timeCreated 를 씁니다.
+  const restBase = () => { const c = window.FIREBASE_CONFIG; return 'https://firestore.googleapis.com/v1/projects/' + c.projectId + '/databases/(default)/documents'; };
+  async function createTimes(col) {   // 문서 ID -> 작성 시각
+    const key = encodeURIComponent(window.FIREBASE_CONFIG.apiKey); const out = new Map(); let token = '';
+    do {
+      const res = await fetch(restBase() + '/' + col + '?key=' + key + '&pageSize=300&mask.fieldPaths=_' + (token ? '&pageToken=' + encodeURIComponent(token) : ''));
+      if (!res.ok) throw new Error('작성일을 확인하지 못했습니다. (' + col + ', ' + res.status + ')');
+      const j = await res.json();
+      (j.documents || []).forEach((d) => out.set(decodeURIComponent(d.name.split('/').pop()), new Date(d.createTime)));
+      token = j.nextPageToken || '';
+    } while (token);
+    return out;
+  }
+  async function docCreateTime(col, id) {
+    const res = await fetch(restBase() + '/' + col + '/' + encodeURIComponent(id) + '?key=' + encodeURIComponent(window.FIREBASE_CONFIG.apiKey) + '&mask.fieldPaths=_');
+    if (res.status === 404) return null; if (!res.ok) throw new Error('작성일을 확인하지 못했습니다. (' + col + '/' + id + ', ' + res.status + ')');
+    const j = await res.json(); return j.createTime ? new Date(j.createTime) : null;
+  }
+  async function storageFilesIn(folder, r) {
+    if (!G.storage) return []; const hit = [];
+    const list = await G.storage.ref(folder).listAll();
+    for (const it of list.items) { const m = await it.getMetadata(); if (inRange(toDate(new Date(m.timeCreated)), r)) hit.push(it); }
+    return hit;
+  }
+
   async function deleteYear(year) {
     const r = yearRange(year); const ops = []; const summary = {};
+    const created = (d) => !!d && inRange(toDate(d), r);
+    // 1) 날짜 필드로 구분되는 데이터
     for (const [c, f] of Object.entries(DATE_FIELDS)) {
-      invalidate(c); const hit = (await getCol(c)).filter((x) => inRange(toDate(x[f]), r));
+      const hit = (await getCol(c)).filter((x) => inRange(toDate(x[f]), r));
       hit.forEach((x) => ops.push({ type: 'delete', col: c, id: x._id })); summary[c] = hit.length;
     }
-    invalidate('data_basic'); const basic = await getCol('data_basic');
+    const basic = await getCol('data_basic');
     const semRows = basic.filter((x) => str(x.semester).trim() && inRange(toDate(x.semester_start_date), r));
     const holRows = basic.filter((x) => str(x.holiday).trim() && inRange(toDate(x.holiday_start_date), r));
-    const strip = (x, keys) => {
-      const others = Object.keys(x).filter((k) => k !== '_id' && !keys.includes(k) && !/_order$/.test(k));
-      return others.length ? { type: 'update', col: 'data_basic', id: x._id, data: Object.fromEntries(keys.map((k) => [k, DEL()])) } : { type: 'delete', col: 'data_basic', id: x._id };
-    };
-    semRows.forEach((x) => ops.push(strip(x, ['semester', 'semester_start_date', 'semester_end_date'])));
-    holRows.forEach((x) => { if (!semRows.includes(x)) ops.push(strip(x, ['holiday', 'holiday_start_date', 'holiday_end_date'])); });
+    semRows.forEach((x) => ops.push(...basicStripOps([x], ['semester', 'semester_start_date', 'semester_end_date'])));
+    holRows.forEach((x) => { if (!semRows.includes(x)) ops.push(...basicStripOps([x], ['holiday', 'holiday_start_date', 'holiday_end_date'])); });
     summary.data_basic = semRows.length + holRows.length;
-    invalidate('data_supply'); const sup = (await getCol('data_supply')).filter((x) => num(x.supply_year) === year);
+    const sup = (await getCol('data_supply')).filter((x) => { const m = str(x.supply_year).match(/\d{4}/); return !!m && parseInt(m[0], 10) === year; });   // 예: '2026년'
     sup.forEach((x) => ops.push({ type: 'delete', col: 'data_supply', id: x._id })); summary.data_supply = sup.length;
-    await commit(ops); Object.keys(DATE_FIELDS).concat(['data_basic', 'data_supply']).forEach(invalidate);
+    ['year_' + year, 'space_open_' + year].forEach((id) => ops.push({ type: 'delete', col: 'app_config', id }));   // 그 학년도의 담임/전담교사, 공간 개방 설정
+    summary.app_config = 2;
+    // 2) 작성일이 그 학년도인 데이터 (먼저 모두 확인하고, 하나라도 확인하지 못하면 아무것도 지우지 않습니다)
+    for (const col of ['data_student', 'data_budget', 'data_overview']) {
+      const times = await createTimes(col); let n = 0;
+      times.forEach((t, id) => { if (created(t)) { ops.push({ type: 'delete', col, id }); n++; } });
+      summary[col] = n;
+    }
+    const groups = await getCfg('course_groups', []);
+    const docT = groups.some((g) => !g.createdAt) ? await docCreateTime('app_config', 'course_groups') : null;   // 작성일이 기록되지 않은 범주는 설정 문서의 작성일을 따름
+    const keep = groups.filter((g) => !created(g.createdAt ? new Date(g.createdAt) : docT));
+    summary.course_groups = groups.length - keep.length;
+    if (keep.length !== groups.length) ops.push({ type: 'set', col: 'app_config', id: 'course_groups', data: { json: JSON.stringify(keep), updatedAt: new Date().toISOString() } });
+    const files = []; for (const folder of ['special_room', 'classroom', 'extension']) (await storageFilesIn(folder, r)).forEach((it) => files.push(it));
+    summary.files = files.length;
+    const ext = await getCfg('ext_file', null); if (ext && files.some((it) => it.fullPath === ext.path)) ops.push({ type: 'delete', col: 'app_config', id: 'ext_file' });
+    // 3) 실제 삭제
+    await commit(ops);
+    for (const it of files) await it.delete();
     return summary;
   }
 
-  window.APP = { yearRange, yearOf, inRange, getGeneral, saveGeneral, holidayMap, buildSchedule, getDayState, saveDay, SEM_NAMES, getSemesterRows, saveSemesters,
+  window.APP = { dday, fmtDate, setYear, getVacations, renderDayCards, yearRange, yearOf, inRange, getGeneral, saveGeneral, holidayMap, buildSchedule, getDayState, saveDay, SEM_NAMES, getSemesterRows, saveSemesters,
     listBaseItems, addBaseItems, updateBaseItem, deleteBaseItem, clearSemester, entryApplies, homeroomFor, syncTeachers, teacherNames, setTeacherNames, ensureTeachers, detectYears, deleteYear };
 })();

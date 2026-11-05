@@ -111,7 +111,7 @@ for folder, (fname, key) in PAGES.items():
         html = R("const classContainer = document.getElementById('modal-form-classes');", "const classContainer = document.getElementById('modal-form-classes');\n            classContainer.innerHTML = '';\n            document.getElementById('modal-form-periods').innerHTML = '';")
         html = R("globalHolidays = response.holidays;\n                        \n                        // 로컬 스토리지 업데이트", "globalHolidays = response.holidays;\n                        applyServerMeta(response);\n                        \n                        // 로컬 스토리지 업데이트")
         html = R("function refreshData() {", "function applyServerMeta(res) {\n            if (res.year) { window.__YEAR__ = res.year; localStorage.setItem('gp_year', res.year); }\n            if (res.classCount && res.classCount !== classList.length) {\n                classList = Array.from({ length: res.classCount }, (_, i) => i + 1);\n                if (currentClass > classList.length) currentClass = 1;\n                renderUIComponents(); renderModalCheckboxes();\n            }\n        }\n\n        function refreshData() {")
-        html = R("const isUnmodifiable = ['강당', '다목', '운동장', '전담', '(휴)'].some(keyword => ev.course.includes(keyword));", "const isUnmodifiable = ev.source === 'gym' || ['강당', '다목', '운동장', '전담', '(휴)'].some(keyword => ev.course.includes(keyword));")
+        html = R("const isUnmodifiable = ['강당', '다목', '운동장', '전담', '(휴)'].some(keyword => ev.course.includes(keyword));", "const isUnmodifiable = ev.source === 'gym' || ev.source === 'sub' || ['강당', '다목', '운동장', '전담', '(휴)'].some(keyword => ev.course.includes(keyword));")
         a = html.index("function executeSave() {"); b = html.index("function showLoading(show)")
         html = html[:a] + r"""function executeSave() {
             const dateVal = document.getElementById('modal-form-date').value;
@@ -166,7 +166,10 @@ for folder, (fname, key) in PAGES.items():
                 select.appendChild(option);
                 return;
             }
-            // 범주는 항상 맨 위에 파란 볼드체로 고정
+            // '전체'는 항상 맨 위(기본값), 그다음 범주(파란 볼드)
+            const allOpt = document.createElement('option');
+            allOpt.value = '__ALL__'; allOpt.textContent = '전체'; allOpt.style.fontWeight = 'bold';
+            select.appendChild(allOpt);
             globalGroups.forEach(gr => {
                 const option = document.createElement('option');
                 option.value = 'group::' + gr.name;
@@ -181,7 +184,7 @@ for folder, (fname, key) in PAGES.items():
                 option.textContent = course;
                 select.appendChild(option);
             });
-            if (prev && Array.from(select.options).some(o => o.value === prev)) select.value = prev; else select.selectedIndex = 0;
+            if (prev && Array.from(select.options).some(o => o.value === prev)) select.value = prev; else select.value = '__ALL__';
         }
 
         // ---- 강좌 범주 관리 (연필 아이콘) ----
@@ -234,9 +237,9 @@ for folder, (fname, key) in PAGES.items():
 
         """ + html[b:]
         html = R("const selectedCourse = courseSelect ? courseSelect.value : '';", "const selectedCourse = courseSelect ? courseSelect.value : '';\n                const groupDef = selectedCourse.startsWith('group::') ? globalGroups.find(gr => 'group::' + gr.name === selectedCourse) : null;\n                const groupSet = groupDef ? new Set(groupDef.courses) : null;")
-        html = R("if (isAll) return true;", "if (groupSet) return groupSet.has(ev.course);\n                                        if (isAll) return true;")
+        html = R("if (isAll) return true;", "if (selectedCourse === '__ALL__') return true;\n                                        if (groupSet) return groupSet.has(ev.course);\n                                        if (isAll) return true;")
         html = R('<option value="" disabled selected>로딩 중...</option>\n                    </select>', '<option value="" disabled selected>로딩 중...</option>\n                    </select>\n                    <button onclick="openGroupModal()" class="px-2 py-1 bg-white border-2 border-gray-200 rounded-lg hover:bg-blue-50" title="강좌 범주 관리">✏️</button>')
-        html = R("</body>", '<div id="group-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex justify-center items-center p-4"><div class="bg-white rounded-xl shadow-xl w-full max-w-md p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-bold">강좌 범주 관리</h3><button onclick="closeGroupModal()" class="text-gray-400 text-lg">✕</button></div><div id="group-modal-body"></div></div></div>\n</body>')
+        html = R("</body>", '<div id="group-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex justify-center items-center p-4"><div class="bg-white rounded-xl shadow-xl w-full max-w-md p-4 max-h-[90vh] overflow-y-auto"><div class="flex justify-between items-center mb-3"><h3 class="font-bold">강좌 범주 관리</h3><button onclick="closeGroupModal()" class="text-gray-400 text-lg">✕</button></div><div id="group-modal-body"></div></div></div>\n</body>')
     if key == "p07":   # 공간·개방 설정을 관리자 페이지 설정(이름 기준)에서 가져옴
         R = lambda a, b: must_replace(html, a, b, fname)
         html = R('const classOptions = [', 'let classOptions = [')
@@ -247,7 +250,7 @@ for folder, (fname, key) in PAGES.items():
           "const semester = (selectedMonth >= 3 && selectedMonth <= 7) ? 'sem1' : 'sem2';\n      const semKeyOf = (dt) => { const sems = settings?.semesters || []; const iso = getLocalISODate(dt); const s1 = sems.find(x => x.name === '1학기'); const s2 = sems.find(x => x.name === '2학기'); if (s2 && iso >= s2.start && iso <= s2.end) return 'sem2'; if (s1 && iso >= s1.start && iso <= s1.end) return 'sem1'; return semester; };")
         html = R("const isoDate = getLocalISODate(dayObj);", "const isoDate = getLocalISODate(dayObj);\n                      const semester = semKeyOf(dayObj);")
         html = R("const headerClass = tableType === 'sports' ? 'sticky-header-sports' : 'sticky-header-com';",
-          "const headerClass = tableType === 'sports' ? 'sticky-header-sports' : 'sticky-header-com';\n      const colW = 62 + spaces.length * 50;\n      const tdStyle = { width: colW + 10, minWidth: colW + 10, maxWidth: colW + 10 };\n      const tblStyle = { width: colW, minWidth: colW, maxWidth: colW };\n      const gridStyle = { display: 'grid', gridTemplateColumns: '1.3fr repeat(' + spaces.length + ', 1fr)', width: '100%' };\n      const periodCount = (settings?.times?.length || 6);")
+          "const headerClass = tableType === 'sports' ? 'sticky-header-sports' : 'sticky-header-com';\n      const colW = 62 + spaces.length * 54;\n      const tdStyle = { width: colW + 10, minWidth: colW + 10, maxWidth: colW + 10 };\n      const tblStyle = { width: colW, minWidth: colW, maxWidth: colW };\n      const gridStyle = { display: 'grid', gridTemplateColumns: '1.3fr repeat(' + spaces.length + ', 1fr)', width: '100%' };\n      const periodCount = (settings?.times?.length || 6);")
         html = R("<th key={wd} className={`${headerClass} p-3 text-center font-extrabold`}>", "<th key={wd} style={tdStyle} className={`${headerClass} p-3 text-center font-extrabold`}>")
         html = R("<td key={dIdx} className={`border-r bg-slate-50 ${tdWidthClass}`}></td>", "<td key={dIdx} style={tdStyle} className={`border-r bg-slate-50 ${tdWidthClass}`}></td>")
         html = R("<td key={dIdx} className={`border-r p-1 align-top ${tdWidthClass} ${isHoliday ? 'bg-holiday' : ''}`}>", "<td key={dIdx} style={tdStyle} className={`border-r p-1 align-top ${tdWidthClass} ${isHoliday ? 'bg-holiday' : ''}`}>")
@@ -255,7 +258,7 @@ for folder, (fname, key) in PAGES.items():
         html = R("<div className={`${gridRowClass} bg-slate-200 text-center text-[10pt] font-bold border-b border-slate-300`}>", "<div style={gridStyle} className={`${gridRowClass} bg-slate-200 text-center text-[10pt] font-bold border-b border-slate-300`}>")
         html = R("{[1,2,3,4,5,6].map(period => (", "{Array.from({ length: periodCount }, (_, i) => i + 1).map(period => (")
         html = R("<div key={period} className={`${gridRowClass} border-b last:border-0 border-slate-200 h-8`}>", "<div key={period} style={gridStyle} className={`${gridRowClass} border-b last:border-0 border-slate-200 h-8`}>")
-        html = R("<div key={i} className={`grid-col ${i < spaces.length - 1 ? 'border-r border-slate-300' : ''}`}>{sp}</div>", "<div key={i} style={{ backgroundColor: (settings?.colors || {})[sp] }} className={`grid-col ${i < spaces.length - 1 ? 'border-r border-slate-300' : ''}`}>{sp}</div>")
+        html = R("<div key={i} className={`grid-col ${i < spaces.length - 1 ? 'border-r border-slate-300' : ''}`}>{sp}</div>", "<div key={i} style={{ backgroundColor: (settings?.colors || {})[sp], whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'keep-all', lineHeight: 1.15, fontSize: '9pt', padding: '2px 1px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className={`grid-col ${i < spaces.length - 1 ? 'border-r border-slate-300' : ''}`}><span>{String(sp).split(/(?=\\()/).map((t, k) => <React.Fragment key={k}>{k > 0 && <br />}{t}</React.Fragment>)}</span></div>")
         a = html.index("// 다목의 경우 팝업 및 병합 표시 특별 처리"); b = html.index("// 일반 공간 처리")
         html = html[:a] + html[b:]
         html = R("const globalSpaceIdx = spaceIndices[localIdx];", "const globalSpaceIdx = spName;")

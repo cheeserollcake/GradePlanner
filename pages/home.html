@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>홈</title>
-  <script>window.__GP_SWR__ = true;</script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
@@ -24,6 +23,7 @@
 </head>
 <body class="p-4 md:p-6 text-slate-800">
 <div class="max-w-6xl mx-auto space-y-4">
+  <div id="dayCards"></div>
   <div class="flex items-end justify-between">
     <div><h1 class="text-2xl font-bold">주요 일정</h1><p id="range" class="text-sm text-slate-500 mt-1"></p></div>
     <button id="reload" class="text-sm px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50">새로고침</button>
@@ -45,10 +45,11 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 async function load(fresh) {
   const body = document.getElementById('body'), msg = document.getElementById('msg');
   try {
-    if (fresh) ['data_task_school','data_task_memo','data_add_timetable','data_basic'].forEach(GP.invalidate);
+    if (fresh) GP.fresh();   // 다른 사람이 바꿨는지 확인(1건 읽기)
     const t = new Date(); const today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
     const end = GP.addDays(today, 6);
     document.getElementById('range').textContent = GP.appDate(today) + ' ~ ' + GP.appDate(end);
+    APP.getGeneral().then((g) => APP.renderDayCards(document.getElementById('dayCards'), g.year));
     const rows = await APP.buildSchedule(today, end);
     body.innerHTML = rows.map((r) => {
       const cls = (r.isHoliday || r.dow === 0) ? 'row-sun' : r.dow === 6 ? 'row-sat' : '';
@@ -59,7 +60,6 @@ async function load(fresh) {
   } catch (e) { console.error(e); msg.textContent = '일정을 불러오지 못했습니다: ' + e.message; msg.classList.remove('hidden'); }
 }
 document.getElementById('reload').onclick = () => load(true); load(false);
-let _t; window.addEventListener('gp:data', () => { clearTimeout(_t); _t = setTimeout(() => load(false), 150); });
 </script>
 </body>
 </html>

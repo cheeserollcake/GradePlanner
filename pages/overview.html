@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>학년 개요</title>
-  <script>window.__GP_SWR__ = true;</script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
@@ -30,6 +29,8 @@
     <h2 class="font-bold text-lg">학년 개요</h2>
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto"><table class="w-full text-sm text-center" id="info"></table></div>
   </section>
+
+  <section id="dayCards"></section>
 
   <section class="space-y-2">
     <h2 class="font-bold text-lg">학년 예산</h2>
@@ -95,12 +96,15 @@ async function renderInfo() {
   const all = cnt(() => true), m = cnt((s) => GP.str(s.student_gender) === '남성'), f = cnt((s) => GP.str(s.student_gender) === '여성');
   const th = 'p-2 border-b border-r bg-slate-100 font-bold', td = 'p-2 border-b border-r';
   const numRow = (label, a) => '<tr><td class="' + th + ' w-24">' + label + '</td>' + a.map((v) => '<td class="' + td + '">' + v + '</td>').join('') + '<td class="' + td + ' font-bold">' + sum(a) + '</td></tr>';
-  const memoRow = () => '<tr><td class="' + th + '">비고</td>' + names.map((_, i) => '<td class="' + td + '"><input data-c="' + (i + 1) + '" value="' + esc((ovMap.r5 || {})['c' + (i + 1)] || '') + '" class="memo w-full text-center bg-transparent border-b border-dashed border-slate-300 focus:outline-none focus:border-indigo-500"></td>').join('') + '<td class="' + td + '"></td></tr>';
+  const memoRow = () => '<tr><td class="' + th + '">비고</td>' + names.map((_, i) => '<td class="' + td + '"><input data-c="' + (i + 1) + '" value="' + esc((ovMap['r5_' + general.year] || ovMap.r5 || {})['c' + (i + 1)] || '') + '" class="memo w-full text-center bg-transparent border-b border-dashed border-slate-300 focus:outline-none focus:border-indigo-500"></td>').join('') + '<td class="' + td + '"></td></tr>';
   const homeRow = () => '<tr><td class="' + th + '">담임</td>' + names.map((c) => '<td class="' + td + '">' + esc(APP.homeroomFor(general, c, todayDate(), semRows)) + '</td>').join('') + '<td class="' + td + '"></td></tr>';
   document.getElementById('info').innerHTML = '<thead><tr><th class="' + th + '">구분</th>' + names.map((c) => '<th class="' + th + '">' + esc(c) + '</th>').join('') + '<th class="' + th + '">계</th></tr></thead><tbody>' +
     numRow('학생수', all) + numRow('남', m) + numRow('여', f) + memoRow() + homeRow() + '</tbody>';
   document.querySelectorAll('.memo').forEach((inp) => inp.onchange = async () => {
-    await GP.db.collection('data_overview').doc('r5').set({ ['c' + inp.dataset.c]: inp.value }, { merge: true }); GP.invalidate('data_overview');
+    // 비고는 학년도별 문서(r5_<학년도>)에 저장합니다. 이전 형식(r5)이 있으면 처음 수정할 때 현재 학년도로 옮깁니다.
+    const key = 'r5_' + general.year, cur = ovMap[key], legacy = ovMap.r5, field = 'c' + inp.dataset.c;
+    if (!cur && legacy) { const data = Object.assign({}, legacy); delete data._id; data[field] = inp.value; await GP.commit([{ type: 'set', col: 'data_overview', id: key, data }, { type: 'delete', col: 'data_overview', id: 'r5' }]); ovMap[key] = Object.assign({ _id: key }, data); delete ovMap.r5; }
+    else { await GP.commit([{ type: 'set', merge: true, col: 'data_overview', id: key, data: { [field]: inp.value } }]); ovMap[key] = Object.assign({}, cur || { _id: key }, { [field]: inp.value }); }
   });
 }
 async function renderCards() {
@@ -138,12 +142,12 @@ function applyFilter(f, keepScroll) {
 }
 async function load(keepScroll, fresh) {
   const sc = document.getElementById('scroller'); const prev = sc.scrollTop;
-  if (fresh) ['data_task_school','data_task_memo','data_add_timetable','data_basic','data_student','data_overview','data_budget'].forEach(GP.invalidate);
+  if (fresh) GP.fresh();   // 다른 사람이 바꿨는지 확인(1건 읽기)
   general = await APP.getGeneral(); semRows = await APP.getSemesterRows(general.year);
   const r = APP.yearRange(general.year);
   document.getElementById('yearLabel').textContent = general.year + '학년도';
   document.getElementById('gradeLabel').textContent = general.grade;
-  renderInfo(); renderCards();   // 일정 계산과 동시에 진행
+  renderInfo(); renderCards(); APP.renderDayCards(document.getElementById('dayCards'), general.year);   // 일정 계산과 동시에 진행
   rows = await APP.buildSchedule(r.start, r.end);
   renderRows(); applyFilter(filter, keepScroll); if (keepScroll) sc.scrollTop = prev;
 }
@@ -176,7 +180,6 @@ document.getElementById('mSave').onclick = async () => {
 };
 document.querySelectorAll('#filters button').forEach((b) => b.onclick = () => applyFilter(b.dataset.f));
 load(false, false).catch((e) => { console.error(e); alert('데이터를 불러오지 못했습니다: ' + e.message); });
-let _t; window.addEventListener('gp:data', () => { clearTimeout(_t); _t = setTimeout(() => load(true, false), 200); });
 </script>
 </body>
 </html>

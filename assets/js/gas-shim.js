@@ -64,47 +64,66 @@
   const classNo = (s) => { const m = str(s).match(/\d+/); return m ? parseInt(m[0], 10) : NaN; };
   const natural = (a, b) => String(a).localeCompare(String(b), 'ko', { numeric: true });
 
-  // ---------------------------------------------------------------- Firestore 유틸
-  const cache = {};
+  // ---------------------------------------------------------------- Firestore 유틸 (읽기 최소화)
+  // Firestore 무료 한도는 "읽은 문서 수"(하루 5만 건)로 줄어듭니다. 컬렉션을 통째로 읽는 이 앱이 화면을 열 때마다 수천 건을
+  // 읽지 않도록 다음 방식을 씁니다.
+  //  1) 컬렉션별 변경 번호를 app_meta/version 문서 1건에 둡니다.  화면을 열면 이 문서 1건만 읽습니다.
+  //  2) 번호가 같으면 이 기기(localStorage)에 저장해 둔 사본을 쓰고, 번호가 달라진 컬렉션만 새로 받습니다.
+  //  3) 이 앱에서 저장하면 번호를 올리고 사본도 같이 고쳐서, 저장 직후 다시 읽지 않습니다.
+  const cache = {};            // 컬렉션 이름 -> Promise(rows)   (화면이 열려 있는 동안의 메모리 사본)
+  const loadedVer = {};        // 컬렉션 이름 -> 메모리 사본이 해당하는 변경 번호
+  let versions = null;         // Promise(변경 번호 객체)
+  const CACHE_TTL = 6 * 3600 * 1000;   // 안전장치: 6시간이 지나면 번호가 같아도 다시 받습니다.
+  const DELETE = firebase.firestore.FieldValue.delete();
   const LS = (() => { try { localStorage.setItem('__gp', '1'); localStorage.removeItem('__gp'); return localStorage; } catch (e) { return null; } })();
   const lsKey = (n) => 'gp_c_' + n;
-  const fetchCol = (name) => db.collection(name).get().then((snap) =>
-    snap.docs.map((d) => Object.assign({ _id: d.id }, d.data())).sort((a, b) => (a._id < b._id ? -1 : a._id > b._id ? 1 : 0)));
-  // window.__GP_SWR__ 를 켠 화면(홈, 개요)은 지난번 데이터를 먼저 보여주고, 서버에서 새로 받아 달라졌으면 'gp:data' 이벤트로 알려 줍니다.
+  const idcmp = (a, b) => (a._id < b._id ? -1 : a._id > b._id ? 1 : 0);
+  const saveLocal = (name, v, rows) => { if (!LS) return; try { LS.setItem(lsKey(name), JSON.stringify({ v, t: Date.now(), rows })); } catch (e) { /* 용량 초과: 사본 없이 동작 */ } };
+  const fetchCol = (name) => db.collection(name).get().then((snap) => snap.docs.map((d) => Object.assign({ _id: d.id }, d.data())).sort(idcmp));
+  const getVersions = () => versions || (versions = db.collection('app_meta').doc('version').get().then((s) => (s.exists ? s.data() : {})).catch((e) => { console.warn('version read failed', e); return null; }));
+  // 다른 사람이 바꿨는지 다시 확인하고 싶을 때(1건 읽기). 바뀐 컬렉션만 새로 받습니다.
+  function fresh() { versions = null; Object.keys(cache).forEach((k) => delete cache[k]); Object.keys(loadedVer).forEach((k) => delete loadedVer[k]); }
+  const invalidate = () => { /* 저장할 때 사본을 함께 고치므로 따로 비울 필요가 없습니다. 최신 확인은 fresh() */ };
+
   function getCol(name, force) {
     if (!force && cache[name]) return cache[name];
-    if (!force && window.__GP_SWR__ && LS) {
-      try {
-        const raw = LS.getItem(lsKey(name));
-        if (raw) {
-          cache[name] = Promise.resolve(JSON.parse(raw));
-          fetchCol(name).then((fresh) => {
-            const txt = JSON.stringify(fresh);
-            if (txt !== raw) { try { LS.setItem(lsKey(name), txt); } catch (e) { /* 용량 초과 */ } cache[name] = Promise.resolve(fresh); window.dispatchEvent(new CustomEvent('gp:data', { detail: name })); }
-          }).catch((e) => console.warn('background refresh failed', name, e));
-          return cache[name];
-        }
-      } catch (e) { /* 저장된 사본을 읽지 못하면 서버에서 받습니다 */ }
-    }
-    cache[name] = fetchCol(name).then((rows) => { if (window.__GP_SWR__ && LS) { try { LS.setItem(lsKey(name), JSON.stringify(rows)); } catch (e) { /* 용량 초과 */ } } return rows; });
+    cache[name] = (async () => {
+      const vers = force ? null : await getVersions();
+      const want = vers ? Number(vers[name] || 0) : null;
+      if (vers && LS) {
+        try { const loc = JSON.parse(LS.getItem(lsKey(name))); if (loc && Number(loc.v) === want && Date.now() - loc.t < CACHE_TTL) { loadedVer[name] = want; return loc.rows; } } catch (e) { /* 사본 없음 */ }
+      }
+      const rows = await fetchCol(name);
+      loadedVer[name] = want; if (want !== null) saveLocal(name, want, rows);
+      return rows;
+    })();
     return cache[name];
   }
-  const invalidate = (name) => { delete cache[name]; try { if (LS) LS.removeItem(lsKey(name)); } catch (e) { /* ignore */ } };
 
-  async function getCfg(key, def) {
-    try {
-      const s = await db.collection('app_config').doc(key).get();
-      if (s.exists && s.data() && s.data().json) return JSON.parse(s.data().json);
-    } catch (e) { console.warn('config read failed', key, e); }
-    return def;
-  }
-  async function setCfg(key, obj) {
-    await db.collection('app_config').doc(key).set({ json: JSON.stringify(obj), updatedAt: TS.now() });
-    return true;
+  const deepMerge = (t, d) => {
+    Object.keys(d).forEach((k) => {
+      const v = d[k];
+      if (v === DELETE) delete t[k];
+      else if (v && typeof v === 'object' && !Array.isArray(v) && typeof v.toDate !== 'function' && t[k] && typeof t[k] === 'object' && !Array.isArray(t[k])) deepMerge(t[k], v);
+      else t[k] = v;
+    });
+    return t;
+  };
+  function applyOps(rows, ops) {   // 저장한 내용을 메모리/기기 사본에도 똑같이 반영
+    const m = new Map(rows.map((r) => [r._id, r]));
+    ops.forEach((o) => {
+      const cur = m.get(o.id);
+      if (o.type === 'delete') m.delete(o.id);
+      else if (o.type === 'update') { if (cur) { const n = Object.assign({}, cur); Object.keys(o.data).forEach((k) => { if (o.data[k] === DELETE) delete n[k]; else n[k] = o.data[k]; }); m.set(o.id, n); } }
+      else if (o.merge) { const n = deepMerge(JSON.parse(JSON.stringify(cur || {})), o.data); n._id = o.id; m.set(o.id, n); }
+      else { const n = {}; Object.keys(o.data).forEach((k) => { if (o.data[k] !== DELETE) n[k] = o.data[k]; }); n._id = o.id; m.set(o.id, n); }
+    });
+    return [...m.values()].sort(idcmp);
   }
 
   async function commit(ops) {
-    // ops: [{type:'set'|'update'|'delete', col, id, data}]
+    // ops: [{type:'set'|'update'|'delete', col, id, data, merge}]
+    if (!ops || !ops.length) return;
     for (let i = 0; i < ops.length; i += 400) {
       const batch = db.batch();
       ops.slice(i, i + 400).forEach((o) => {
@@ -115,8 +134,68 @@
       });
       await batch.commit();
     }
+    const cols = [...new Set(ops.map((o) => o.col))];
+    const inc = {}; cols.forEach((c) => { inc[c] = firebase.firestore.FieldValue.increment(1); });
+    let after = null;
+    try { const ref = db.collection('app_meta').doc('version'); await ref.set(inc, { merge: true }); after = (await ref.get()).data() || {}; } catch (e) { console.warn('version bump failed', e); }
+    versions = after ? Promise.resolve(after) : null;
+    for (const c of cols) {
+      // 우리가 알던 번호 바로 다음 번호면 그 사이 다른 사람의 저장이 없었던 것 → 사본을 직접 고침. 아니면 다음에 새로 받음.
+      if (after && cache[c] && loadedVer[c] !== undefined && loadedVer[c] !== null && Number(after[c] || 0) === loadedVer[c] + 1) {
+        const rows = applyOps(await cache[c], ops.filter((o) => o.col === c));
+        cache[c] = Promise.resolve(rows); loadedVer[c] = Number(after[c]); saveLocal(c, loadedVer[c], rows);
+      } else { delete cache[c]; delete loadedVer[c]; }
+    }
   }
   const newId = (col) => db.collection(col).doc().id;
+  const ALL_COLS = ['app_config', 'data_basic', 'data_task_school', 'data_task_memo', 'data_student', 'data_sub_timetable', 'data_add_timetable', 'data_gym_timetable', 'data_room_timetable', 'data_budget', 'data_supply', 'data_overview', 'data_basic_timetable', 'data_mall', 'data_links'];
+  // 파이어베이스 콘솔에서 직접 고친 뒤 모든 기기가 새로 받게 하려면 호출합니다.
+  async function resetCaches() {
+    const inc = {}; ALL_COLS.forEach((c) => { inc[c] = firebase.firestore.FieldValue.increment(1); });
+    await db.collection('app_meta').doc('version').set(inc, { merge: true }); fresh();
+  }
+
+  // ---------------------------------------------------------------- 설정 문서(app_config)
+  async function getCfg(key, def) {
+    try { const r = (await getCol('app_config')).find((x) => x._id === key); if (r && r.json) return JSON.parse(r.json); } catch (e) { console.warn('config read failed', key, e); }
+    return def;
+  }
+  async function setCfg(key, obj) { await commit([{ type: 'set', col: 'app_config', id: key, data: { json: JSON.stringify(obj), updatedAt: new Date().toISOString() } }]); return true; }
+  const delCfg = (key) => commit([{ type: 'delete', col: 'app_config', id: key }]);
+
+  // 학년도별로 따로 보관하는 설정: 담임/전담교사 매칭(year_<학년도>), 공간 개방 설정(space_open_<학년도>)
+  //  - 학년도를 바꾸면 새 학년도의 담임/전담교사/공간 개방 설정은 비어 있는 상태로 시작합니다.
+  //  - 학년도 구분이 없던 이전 데이터는 처음 저장할 때 그 당시 학년도의 것으로 옮깁니다.
+  const yearNow = () => { const n = new Date(); return n.getMonth() >= 1 ? n.getFullYear() : n.getFullYear() - 1; };
+  async function loadGeneral() {
+    const base = Object.assign({ year: yearNow(), grade: 6, classCount: 10, classNames: [] }, await getCfg('general', {}));
+    const yd = await getCfg('year_' + base.year, null);
+    let homerooms = [], specials = [];
+    if (yd) { homerooms = yd.homerooms || []; specials = yd.specials || []; }
+    else if (!base.legacyMigrated) {
+      specials = base.specials || []; homerooms = base.homerooms || [];
+      if (!homerooms.length && base.homeroom && typeof base.homeroom === 'object') {
+        Object.keys(base.homeroom).forEach((c) => { if (str(base.homeroom[c]).trim()) homerooms.push({ className: c, teacher: base.homeroom[c], terms: ['1학기', '2학기'], period: null }); });
+      }
+    }
+    const classNames = Array.from({ length: base.classCount }, (_, i) => (base.classNames && base.classNames[i]) || `${i + 1}반`);
+    return { year: base.year, grade: base.grade || 6, classCount: base.classCount, classNames, homerooms: Array.isArray(homerooms) ? homerooms : [], specials: Array.isArray(specials) ? specials : [], legacyMigrated: !!base.legacyMigrated };
+  }
+  async function loadOpen(year) {
+    const base = await getCfg('space_open', {}); const yd = await getCfg('space_open_' + year, null);
+    const gen = await getCfg('general', {}); const src = yd || (!gen.legacyMigrated ? base : {});
+    return { sem1: src.sem1 || {}, sem2: src.sem2 || {}, exceptions: src.exceptions || [], closeExceptions: src.closeExceptions || [], colors: base.colors || {} };
+  }
+  async function saveOpen(year, o) {
+    await setCfg('space_open_' + year, { sem1: o.sem1 || {}, sem2: o.sem2 || {}, exceptions: o.exceptions || [], closeExceptions: o.closeExceptions || [] });
+    await setCfg('space_open', { colors: o.colors || {} });   // 이전 형식(학년도 구분 없음)의 설정은 여기서 정리됩니다.
+  }
+  async function saveGeneral(g) {
+    const gen = await getCfg('general', {});
+    if (!gen.legacyMigrated) { const o = await loadOpen(g.year); await saveOpen(g.year, o); }   // 이전 데이터 이전
+    await setCfg('general', { year: g.year, grade: g.grade || 6, classCount: g.classCount, classNames: g.classNames, legacyMigrated: true });
+    await setCfg('year_' + g.year, { homerooms: g.homerooms || [], specials: g.specials || [] });
+  }
 
   // ---------------------------------------------------------------- 기본 설정 / 휴일
   const SUBJECTS_DEFAULT = ['국어', '수학', '사회', '도덕', '음악', '미술', '체육', '실과', '창체', '영어', '과학'];
@@ -338,9 +417,8 @@
   }
   // items: [{value, extra:{필드:값}}]  -> data_basic 에 반영(없어진 값은 삭제, 새 값은 추가)
   async function writeList(field, items) {
-    invalidate('data_basic');
     const rows = await getCol('data_basic');
-    const DEL = firebase.firestore.FieldValue.delete();
+    const DEL = DELETE;
     const cur = rows.filter((r) => str(r[field]).trim());
     const holder = new Map();
     cur.forEach((r) => { const v = str(r[field]).trim(); if (!holder.has(v)) holder.set(v, r); });
@@ -382,12 +460,12 @@
   // 관리자 페이지의 공간 개방 설정(app_config/space_open)을 특별실 시간표 화면에 전달합니다. (공간 이름 기준)
   const PALETTE = ['#CFE2F3', '#FCE5CD', '#D9EAD3', '#FFFEB5', '#E4D7F5'];
   async function specialSettingsForPage07() {
-    const cfg = Object.assign({ sem1: {}, sem2: {}, exceptions: [], closeExceptions: [], colors: {} }, await getCfg('space_open', {}));
+    const g = await generalCfg(); const cfg = await loadOpen(g.year);
     const gym = (await readList('list_gym')).map((i) => i.value), room = (await readList('list_room')).map((i) => i.value);
     let times = (await readList('list_time')).map((i) => i.value); if (!times.length) times = [1, 2, 3, 4, 5, 6].map((n) => n + '교시');
     const colors = {}; [gym, room].forEach((list) => list.forEach((n, i) => { colors[n] = cfg.colors[n] || PALETTE[i % PALETTE.length]; }));
     const fixEx = (arr) => (arr || []).map((e) => ({ date: e.date, period: parseInt(e.period, 10), space: e.space }));
-    const g = await generalCfg(); const sems = await semestersOfYear(g.year);
+    const sems = await semestersOfYear(g.year);
     return { sem1: cfg.sem1 || {}, sem2: cfg.sem2 || {}, exceptions: fixEx(cfg.exceptions), closeExceptions: fixEx(cfg.closeExceptions),
       gymSpaces: gym, roomSpaces: room, times, colors, classNames: g.classNames, year: g.year,
       semesters: sems.map((x) => ({ name: x.name, start: ymd(x.start), end: ymd(x.end) })) };
@@ -438,14 +516,12 @@
     try {
       if (params.type === 'overview_edit') {
         const col = parseInt(params.colIndex, 10) + 1;
-        await db.collection('data_overview').doc(params.rowId).set({ ['c' + col]: params.value }, { merge: true });
-        invalidate('data_overview');
+        await commit([{ type: 'set', merge: true, col: 'data_overview', id: params.rowId, data: { ['c' + col]: params.value } }]);
       } else if (params.type === 'overview_schedule_edit') {
         await setMemoForDate(params.rowIndex, params.value);
       } else if (params.type === 'basic_timetable_edit') {
         const id = 'class_' + params.classNum;
-        await db.collection('data_basic_timetable').doc(id).set({ class: Number(params.classNum), cells: { [`${params.r}_${params.c}`]: params.value } }, { merge: true });
-        invalidate('data_basic_timetable');
+        await commit([{ type: 'set', merge: true, col: 'data_basic_timetable', id, data: { class: Number(params.classNum), cells: { [`${params.r}_${params.c}`]: params.value } } }]);
       }
       return JSON.stringify({ success: true });
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
@@ -494,17 +570,15 @@
       const f = fieldMap[params.field]; if (!f) return JSON.stringify({ success: true });
       const n = Number(params.classNum); const no = Number(params.rowIndex);
       const list = await classStudents(n); const s = list.find((x) => num(x.student_num) === no);
-      if (s) await db.collection('data_student').doc(s._id).update({ [f]: params.value });
-      else await db.collection('data_student').add({ student_class: n, student_num: no, student_name: '', student_gender: '', student_memo: '', student_birth: '', [f]: params.value });
-      invalidate('data_student');
+      if (s) await commit([{ type: 'update', col: 'data_student', id: s._id, data: { [f]: params.value } }]);
+      else await commit([{ type: 'set', col: 'data_student', id: newId('data_student'), data: { student_class: n, student_num: no, student_name: '', student_gender: '', student_memo: '', student_birth: '', [f]: params.value } }]);
       return JSON.stringify({ success: true });
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
   };
   SERVER.deleteStudent = async function (params) {
     try {
       const list = await classStudents(Number(params.classNum)); const s = list.find((x) => num(x.student_num) === Number(params.rowIndex));
-      if (s) await db.collection('data_student').doc(s._id).delete();
-      invalidate('data_student');
+      if (s) await commit([{ type: 'delete', col: 'data_student', id: s._id }]);
       return JSON.stringify({ success: true });
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
   };
@@ -561,8 +635,7 @@
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
   }
   SERVER.deleteBasicTimetable = async function (params) {
-    await db.collection('data_basic_timetable').doc('class_' + params.classNum).set({ class: Number(params.classNum), cells: {} });
-    invalidate('data_basic_timetable');
+    await commit([{ type: 'set', col: 'data_basic_timetable', id: 'class_' + params.classNum, data: { class: Number(params.classNum), cells: {} } }]);
     return JSON.stringify({ success: true });
   };
 
@@ -590,12 +663,7 @@
   // 관리자 페이지 > 학년 기초 설정 > 전담교사 의 매칭 정보(app_config/general.specials)를 탭으로 사용합니다.
   //   탭 = 과목 + 교사,  표에 나오는 반 = 그 교사의 담당학급(학기·기간에 해당하는 것만)
   const yearBounds = (y) => ({ start: new Date(y, 1, 1), end: new Date(y + 1, 2, 0) });
-  async function generalCfg() {
-    const now = new Date();
-    const g = Object.assign({ year: now.getMonth() >= 1 ? now.getFullYear() : now.getFullYear() - 1, classCount: 10, classNames: [], homeroom: {}, specials: [] }, await getCfg('general', {}));
-    g.classNames = Array.from({ length: g.classCount }, (_, i) => (g.classNames && g.classNames[i]) || `${i + 1}반`);
-    return g;
-  }
+  async function generalCfg() { return loadGeneral(); }   // 학년도별 담임/전담교사 포함
   async function semestersOfYear(year) {
     const b = yearBounds(year);
     return (await getSemesters()).filter((x) => x.name.indexOf('방학') < 0 && x.start >= b.start && x.start <= b.end);
@@ -650,7 +718,7 @@
   }
   SERVER.getAllTimetableData = async function () {
     try {
-      invalidate('data_sub_timetable'); invalidate('data_basic');
+      fresh();
       const g = await generalCfg(); const tabs = await specialTabs(g); const sems = await semestersOfYear(g.year);
       const times = await periodLabels(); const sub = await getCol('data_sub_timetable'); const subCfg = await getSubjectConfig(); const data = {};
       for (const tab of tabs.values()) data[tab.label] = { space: tab.space, sem1: await teacherGrid(g, tab, 1, sems, times, sub, subCfg), sem2: await teacherGrid(g, tab, 2, sems, times, sub, subCfg) };
@@ -660,9 +728,9 @@
   };
   SERVER.saveSpaceName = async function (label, space) {
     try {
-      const g = await getCfg('general', {}); const m = str(label).match(/^(.*)\((.*)\)$/); if (!m) return JSON.stringify({ success: false });
-      (g.specials || []).forEach((e) => { if (e.subject === m[1] && e.teacher === m[2]) e.space = str(space).trim(); });
-      await setCfg('general', g); return JSON.stringify({ success: true });
+      const g = await loadGeneral(); const m = str(label).match(/^(.*)\((.*)\)$/); if (!m) return JSON.stringify({ success: false });
+      g.specials.forEach((e) => { if (e.subject === m[1] && e.teacher === m[2]) e.space = str(space).trim(); });
+      await saveGeneral(g); return JSON.stringify({ success: true });
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
   };
   SERVER.updateBatchSpecialTimetable = async function (list) {
@@ -762,7 +830,7 @@
   SERVER.getAllData = async function (isRefresh) {
     const page = (window.__GP_PAGE__ || '');
     try {
-      if (isRefresh) ['data_add_timetable', 'data_gym_timetable', 'data_sub_timetable', 'data_basic'].forEach(invalidate);
+      if (isRefresh) fresh();
       const g = await generalCfg();
       if (page === 'p08') {
         const [hol, rawEvents] = await Promise.all([getHolidayMap(), groupedEvents()]);
@@ -779,15 +847,18 @@
   };
   SERVER.saveCourseGroups = async function (groups) {
     try {
-      const clean = (groups || []).map((x) => ({ name: str(x.name).trim(), courses: [...new Set((x.courses || []).map((c) => str(c).trim()).filter(Boolean))] })).filter((x) => x.name);
+      const prev = await getCfg('course_groups', []); const was = {}; prev.forEach((g) => { if (g.createdAt) was[g.name] = g.createdAt; });
+      const clean = (groups || []).map((x) => ({ name: str(x.name).trim(), courses: [...new Set((x.courses || []).map((c) => str(c).trim()).filter(Boolean))], createdAt: was[str(x.name).trim()] || x.createdAt || new Date().toISOString() })).filter((x) => x.name);   // 작성일 기록(학년도 삭제 기준)
       await setCfg('course_groups', clean); return { success: true, groups: clean };
     } catch (e) { return { success: false, error: e.toString() }; }
   };
-  // 수정/삭제/추가: 일정의 출처(source)에 맞는 컬렉션을 고칩니다. 같은 일정으로 묶인 모든 반이 함께 바뀝니다.
+  // 수정/삭제/추가: 추가된 일정(add)만 고칩니다. 같은 일정으로 묶인 모든 반이 함께 바뀝니다. (전담·체육 공간 일정은 각자의 시간표 페이지에서 수정)
   SERVER.modifyScheduleData = async function (action, oldData, newData) {
     try {
       const source = (oldData && oldData.source) || 'add'; const def = EV_SOURCES[source]; if (!def) return { success: false, error: '알 수 없는 일정입니다.' };
-      Object.values(EV_SOURCES).forEach((x) => invalidate(x.col));
+      if (source === 'sub') return { success: false, error: '전담 시간표는 반별 일정에서 수정할 수 없습니다. 전담 시간표 페이지에서 수정해 주세요.' };
+      if (source === 'gym') return { success: false, error: '체육 공간 일정은 특별실 시간표 페이지에서 수정해 주세요.' };
+      fresh();
       const rows = await getCol(def.col);
       const tuples = (d) => { const out = []; if (!d) return out; csvList(d.classes).forEach((c) => csvList(d.periods).forEach((p) => out.push({ date: ymd(toDate(d.date)), cls: c, per: p, name: str(d.course).trim() }))); return out; };
       const key = (t) => [t.date, t.cls, t.per, t.name].join('|');
@@ -797,31 +868,6 @@
       const oldKeys = new Set(oldT.map(key)), newKeys = new Set(newT.map(key));
       if ((action === 'edit' || action === 'delete') && !oldT.some((t) => byKey.has(key(t)))) return { success: false, error: '해당 일정을 찾을 수 없습니다. 새로고침 후 다시 시도해 주세요.' };
       if (action !== 'delete' && !newT.length) return { success: false, error: '날짜, 학급, 교시, 내용을 모두 입력해 주세요.' };
-
-      // 전담 시간표: 같은 반이 같은 시간에 둘 이상이거나, 같은 교사의 다른 반이 같은 시간에 있으면 저장하지 않습니다.
-      if (source === 'sub' && action !== 'delete') {
-        const g = await generalCfg(); const specials = g.specials || [];
-        const teacherOf = (subject, cls) => { const e = specials.find((sp) => sp.subject === subject && (sp.classes || []).indexOf(cls) >= 0); return e ? e.teacher : ''; };
-        const removed = new Set([...oldKeys].filter((k) => !newKeys.has(k)));
-        const slotRows = (t) => rows.filter((r) => { const d = toDate(r[def.d]); return d && ymd(d) === t.date && str(r[def.t]).trim() === t.per && !removed.has(rowKey(r)); });
-        const fresh = newT.filter((t) => !byKey.has(key(t)));
-        const clashMsg = (cls, name) => `${cls} ${name}${josa(name, '이/가')} 이미 배정되어 있습니다.`;
-        for (const t of fresh) {
-          const others = slotRows(t);
-          const same = others.find((r) => str(r[def.c]).trim() === t.cls);
-          if (same) return { success: false, error: clashMsg(t.cls, str(same[def.n]).trim()) };
-          const tc = teacherOf(t.name, t.cls);
-          if (tc) { const clash = others.find((r) => str(r[def.n]).trim() === t.name && str(r[def.c]).trim() !== t.cls && teacherOf(t.name, str(r[def.c]).trim()) === tc); if (clash) return { success: false, error: clashMsg(str(clash[def.c]).trim(), t.name) }; }
-        }
-        for (let i = 0; i < newT.length; i++) for (let j = i + 1; j < newT.length; j++) {
-          const a = newT[i], b = newT[j];
-          if (a.date === b.date && a.per === b.per) {
-            if (a.cls === b.cls && a.name !== b.name) return { success: false, error: clashMsg(a.cls, a.name) };
-            const ta = teacherOf(a.name, a.cls);
-            if (a.name === b.name && a.cls !== b.cls && ta && ta === teacherOf(b.name, b.cls)) return { success: false, error: clashMsg(b.cls, b.name) };
-          }
-        }
-      }
 
       const ops = [];
       if (action !== 'add') oldT.forEach((t) => { const k = key(t); if (!newKeys.has(k)) (byKey.get(k) || []).forEach((r) => ops.push({ type: 'delete', col: def.col, id: r._id })); });
@@ -872,17 +918,17 @@
     return { mall: str(f.mallName), id: str(f.mallId), pw: str(f.mallPw), url, note: str(f.note) };
   };
   SERVER.addData = async function (f) {
-    const rows = await getCol('data_mall', true);
+    const rows = await getCol('data_mall');
     const next = rows.reduce((m, r) => Math.max(m, Number(r._id) || 0), 5) + 1;
-    await db.collection('data_mall').doc(String(next)).set(mallDoc(f)); invalidate('data_mall');
+    await commit([{ type: 'set', col: 'data_mall', id: String(next), data: mallDoc(f) }]);
     return { success: true, message: '저장되었습니다.' };
   };
   SERVER.updateData = async function (rowIndex, f) {
-    await db.collection('data_mall').doc(String(rowIndex)).set(mallDoc(f)); invalidate('data_mall');
+    await commit([{ type: 'set', col: 'data_mall', id: String(rowIndex), data: mallDoc(f) }]);
     return { success: true, message: '저장되었습니다.' };
   };
   SERVER.deleteData = async function (rowIndex) {
-    await db.collection('data_mall').doc(String(rowIndex)).delete(); invalidate('data_mall');
+    await commit([{ type: 'delete', col: 'data_mall', id: String(rowIndex) }]);
     return { success: true, message: '삭제되었습니다.' };
   };
 
@@ -907,5 +953,5 @@
 
   // 직접 Firestore를 쓰는 새 페이지(예산/바로가기/교실배치도)를 위한 공용 도구
   window.GP = { db, storage, TS, getCol, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
-    getPw, setPw, readList, writeList, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
+    getPw, setPw, readList, writeList, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
 })();

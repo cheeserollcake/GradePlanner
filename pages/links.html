@@ -22,17 +22,17 @@
 <script>
 const esc=(s)=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 async function load(){
-  GP.invalidate('data_links'); const rows=(await GP.getCol('data_links')).sort((a,b)=>(a.order||0)-(b.order||0));
+  const rows=(await GP.getCol('data_links')).sort((a,b)=>(a.order||0)-(b.order||0));
   document.getElementById('empty').classList.toggle('hidden',rows.length>0);
   document.getElementById('list').innerHTML=rows.map(r=>'<div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center justify-between gap-2">'+
    '<a class="font-bold text-blue-600 hover:underline break-all" target="_blank" rel="noopener" href="'+esc(r.url)+'">'+esc(r.name||r.url)+'</a>'+
    '<button data-id="'+r._id+'" class="del text-xs text-slate-400 hover:text-red-600">삭제</button></div>').join('');
-  document.querySelectorAll('.del').forEach(b=>b.onclick=async()=>{ if(confirm('삭제할까요?')){ await GP.db.collection('data_links').doc(b.dataset.id).delete(); load(); }});
+  document.querySelectorAll('.del').forEach(b=>b.onclick=async()=>{ if(confirm('삭제할까요?')){ await GP.commit([{type:'delete',col:'data_links',id:b.dataset.id}]); load(); }});
 }
 document.getElementById('add').onclick=async()=>{
   const name=prompt('이름'); if(!name) return; let url=prompt('주소(URL)'); if(!url) return;
   if(!/^https?:\/\//i.test(url)) url='https://'+url;
-  const rows=await GP.getCol('data_links'); await GP.db.collection('data_links').add({name,url,order:rows.length+1}); load();
+  const rows=await GP.getCol('data_links'); await GP.commit([{type:'set',col:'data_links',id:GP.newId('data_links'),data:{name,url,order:rows.length+1}}]); load();
 };
 load();
 </script></body></html>

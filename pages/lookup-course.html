@@ -231,7 +231,10 @@
                 select.appendChild(option);
                 return;
             }
-            // 범주는 항상 맨 위에 파란 볼드체로 고정
+            // '전체'는 항상 맨 위(기본값), 그다음 범주(파란 볼드)
+            const allOpt = document.createElement('option');
+            allOpt.value = '__ALL__'; allOpt.textContent = '전체'; allOpt.style.fontWeight = 'bold';
+            select.appendChild(allOpt);
             globalGroups.forEach(gr => {
                 const option = document.createElement('option');
                 option.value = 'group::' + gr.name;
@@ -246,7 +249,7 @@
                 option.textContent = course;
                 select.appendChild(option);
             });
-            if (prev && Array.from(select.options).some(o => o.value === prev)) select.value = prev; else select.selectedIndex = 0;
+            if (prev && Array.from(select.options).some(o => o.value === prev)) select.value = prev; else select.value = '__ALL__';
         }
 
         // ---- 강좌 범주 관리 (연필 아이콘) ----
@@ -408,6 +411,7 @@
                                         if (!ev.period.includes(String(p))) return false;
                                         if (!selectedCourse) return false;
 
+                                        if (selectedCourse === '__ALL__') return true;
                                         if (groupSet) return groupSet.has(ev.course);
                                         if (isAll) return true;
                                         if (isPartial) return ev.course.includes(selectedCourse);
@@ -447,6 +451,6 @@
             if(el) el.style.display = show ? 'flex' : 'none'; 
         }
     </script>
-<div id="group-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex justify-center items-center p-4"><div class="bg-white rounded-xl shadow-xl w-full max-w-md p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-bold">강좌 범주 관리</h3><button onclick="closeGroupModal()" class="text-gray-400 text-lg">✕</button></div><div id="group-modal-body"></div></div></div>
+<div id="group-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex justify-center items-center p-4"><div class="bg-white rounded-xl shadow-xl w-full max-w-md p-4 max-h-[90vh] overflow-y-auto"><div class="flex justify-between items-center mb-3"><h3 class="font-bold">강좌 범주 관리</h3><button onclick="closeGroupModal()" class="text-gray-400 text-lg">✕</button></div><div id="group-modal-body"></div></div></div>
 </body>
 </html>

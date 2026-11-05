@@ -10,6 +10,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
   <script src="../assets/js/firebase-config.js"></script>
   <script src="../assets/js/gas-shim.js"></script>
+  <script src="../assets/js/app-data.js"></script>
+  <script src="../assets/js/xlsx-lite.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
@@ -26,6 +28,12 @@
         <button id="tab-supply" class="px-4 py-1.5 rounded-full text-sm font-bold bg-slate-100 text-slate-600">학습준비물</button>
       </div>
     </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <button id="btn-xlsx" class="px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700">⬇ 엑셀로 내보내기</button>
+      <button id="btn-gsheet" class="px-4 py-2 rounded-lg text-sm font-semibold bg-white border border-slate-300 hover:bg-slate-50">구글 스프레드시트로 내보내기</button>
+      <span class="text-xs text-slate-400">현재 보고 있는 탭·필터 기준 · 엑셀은 로그인 없이 바로 받고, 스프레드시트는 구글 로그인이 필요합니다.</span>
+    </div>
+    <div id="exportMsg" class="text-sm hidden"></div>
     <div id="cards" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"></div>
     <div class="flex flex-wrap items-center gap-2" id="filters"></div>
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto"><table class="w-full" id="tbl"></table></div>
@@ -69,16 +77,94 @@ function render() {
       html += '<tr><td>' + esc(r.supply_year) + '</td><td>' + esc(r.supply_semester) + '</td><td>' + esc(r.supply_sub) + '</td><td>' + esc(r.supply_class) + '</td><td>' + esc(r.supply_product) + '</td><td>' + esc(r.supply_spec) + '</td><td>' + esc(r.supply_unit) + '</td><td class="text-right">' + fmt(num(r.supply_price)) + '</td><td class="text-right">' + fmt(num(r.supply_class_num)) + '</td><td class="text-right font-semibold">' + fmt(amt) + '</td><td>' + link(r.supply_link) + '</td></tr>'; });
     html += '</tbody><tfoot><tr><th colspan="9" class="text-right">합계</th><th class="text-right">' + fmt(sum) + '</th><th></th></tr></tfoot>';
   }
+  window.__rows = rows;
   tbl.innerHTML = html; msg.classList.toggle('hidden', rows.length > 0);
   f.querySelectorAll('select').forEach((s) => s.addEventListener('change', () => { filters[s.dataset.k] = s.value; render(); }));
   document.getElementById('cards').style.display = mode === 'budget' ? '' : 'none';
 }
+
+// ======================= 내보내기 (엑셀 / 구글 스프레드시트) =======================
+const exportMsg = (html, kind) => { const m = document.getElementById('exportMsg'); m.className = 'text-sm rounded-lg px-3 py-2 ' + (kind === 'err' ? 'bg-red-50 text-red-700' : kind === 'ok' ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600'); m.innerHTML = html; };
+const H = (t) => ({ v: t, s: 'header' }), T = (v) => ({ v: str(v), s: 'text' }), N = (v) => ({ v: num(v), s: 'int' });
+const linkCell = (u) => { u = str(u).trim(); if (!u) return T(''); if (u.length > 250) return { v: u, s: 'text' }; return { v: '링크', s: 'link', f: 'HYPERLINK("' + u.replace(/"/g, '""') + '","링크")' }; };   // 엑셀 수식 문자열 한도(255자) 때문에 긴 주소는 글자로 넣음
+const totalRow = (n, cols, sumCol, label) => { const r = []; for (let i = 0; i < cols; i++) r.push({ v: '', s: 'totalLabel' }); r[0] = { v: label || '합계', s: 'totalLabel' }; return r; };
+
+async function buildExport() {
+  const g = await APP.getGeneral(); const label = g.year + '학년도';
+  const rows = window.__rows || [];
+  if (mode === 'budget') {
+    const n = rows.length; let sum = 0;
+    const body = rows.map((r, i) => { const x = i + 2; const amt = num(r.budget_num) * num(r.budget_price); sum += amt;
+      return [T(r.budget_name), T(r.budget_product), T(r.budget_spec), N(r.budget_num), N(r.budget_price), { v: amt, s: 'int', f: 'D' + x + '*E' + x }, linkCell(r.budget_link), T(r.budget_pumui), T(r.budget_progress), T(r.budget_memo)]; });
+    const tot = totalRow(n, 10); tot[5] = { v: sum, s: 'totalNum' }; if (n) tot[5].f = 'SUM(F2:F' + (n + 1) + ')';
+    const sheet1 = { name: '예산 내역', widths: [18, 26, 22, 8, 11, 13, 8, 12, 12, 18], freezeRow: 1, filter: true, filterRows: n + 1, rows: [['예산종류', '품명', '규격/구입처', '수량', '단가', '금액', '링크', '품의상태', '완료상태', '비고'].map(H)].concat(body, [tot]) };
+    const cards = (await GP.buildBudgetCards()).filter((c) => !String(c.name).includes('친목회비'));
+    const crow = cards.map((c, i) => [T(c.name), N(c.assigned), N(c.used), { v: num(c.assigned) - num(c.used), s: 'int', f: 'B' + (i + 2) + '-C' + (i + 2) }]);
+    const ct = [{ v: '합계', s: 'totalLabel' }, { v: cards.reduce((a, c) => a + num(c.assigned), 0), s: 'totalNum' }, { v: cards.reduce((a, c) => a + num(c.used), 0), s: 'totalNum' }, { v: cards.reduce((a, c) => a + num(c.assigned) - num(c.used), 0), s: 'totalNum' }];
+    if (cards.length) { ct[1].f = 'SUM(B2:B' + (cards.length + 1) + ')'; ct[2].f = 'SUM(C2:C' + (cards.length + 1) + ')'; ct[3].f = 'SUM(D2:D' + (cards.length + 1) + ')'; }
+    const sheet2 = { name: '예산 현황', widths: [26, 14, 14, 14], freezeRow: 1, rows: [['예산', '배정액', '사용액', '잔액'].map(H)].concat(crow, [ct]) };
+    return { fileName: '예산내역_' + label, title: label + ' ' + g.grade + '학년 예산 내역', sheets: [sheet1, sheet2] };
+  }
+  const n = rows.length; let sum = 0;
+  const body = rows.map((r, i) => { const x = i + 2; const amt = num(r.supply_price) * num(r.supply_class_num); sum += amt;
+    return [T(r.supply_year), T(r.supply_semester), T(r.supply_sub), T(r.supply_class), T(r.supply_product), T(r.supply_spec), T(r.supply_unit), N(r.supply_price), N(r.supply_class_num), { v: amt, s: 'int', f: 'H' + x + '*I' + x }, linkCell(r.supply_link)]; });
+  const tot = totalRow(n, 11); tot[9] = { v: sum, s: 'totalNum' }; if (n) tot[9].f = 'SUM(J2:J' + (n + 1) + ')';
+  const sheet = { name: '학습준비물', widths: [9, 8, 9, 11, 28, 24, 8, 11, 8, 13, 8], freezeRow: 1, filter: true, filterRows: n + 1, rows: [['연도', '학기', '교과', '대상', '품명', '규격', '단위', '단가', '수량', '금액', '링크'].map(H)].concat(body, [tot]) };
+  return { fileName: '학습준비물_' + label, title: label + ' ' + g.grade + '학년 학습준비물', sheets: [sheet] };
+}
+
+async function exportXlsx() {
+  const btn = document.getElementById('btn-xlsx'); btn.disabled = true;
+  try {
+    const ex = await buildExport(); const blob = XlsxLite.toBlob(ex.sheets);
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = ex.fileName + '.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    exportMsg('엑셀 파일(' + esc(ex.fileName) + '.xlsx)을 내려받았습니다.', 'ok');
+  } catch (e) { console.error(e); exportMsg('엑셀로 내보내지 못했습니다: ' + esc(e.message), 'err'); }
+  btn.disabled = false;
+}
+
+const loadScript = (src) => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('구글 로그인 도구를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.')); document.head.appendChild(s); });
+function googleError(e) {
+  const code = (e && e.code) || '';
+  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return '로그인 창이 닫혀서 취소되었습니다.';
+  if (code === 'auth/popup-blocked') return '브라우저가 로그인 창을 막았습니다. 팝업을 허용한 뒤 다시 눌러 주세요.';
+  if (code === 'auth/unauthorized-domain') return '이 사이트 주소(' + location.hostname + ')가 Firebase 승인된 도메인에 없습니다. Firebase 콘솔 > Authentication > 설정 > 승인된 도메인에 추가해 주세요.';
+  if (code === 'auth/operation-not-allowed') return 'Firebase 콘솔 > Authentication > 로그인 방법에서 Google 로그인을 사용 설정해 주세요.';
+  return (e && e.message) || String(e);
+}
+async function sheetsError(res) {
+  let body = {}; try { body = await res.json(); } catch (e) { /* 본문 없음 */ }
+  const msg = (body.error && body.error.message) || ''; const reason = JSON.stringify(body.error || {});
+  if (res.status === 403 && /SERVICE_DISABLED|has not been used|is disabled/i.test(reason)) return 'Google Sheets API가 사용 설정되어 있지 않습니다. Google Cloud 콘솔의 이 프로젝트(gradeplanner-d5499)에서 "Google Sheets API"를 사용 설정해 주세요.';
+  if (res.status === 403) return '구글 계정 권한이 부족합니다. 로그인 창에서 "Google 드라이브 파일 만들기" 권한을 허용했는지 확인해 주세요. (' + msg + ')';
+  if (res.status === 401) return '구글 로그인이 만료되었습니다. 다시 시도해 주세요.';
+  return '스프레드시트를 만들지 못했습니다. (' + res.status + ') ' + msg;
+}
+async function exportGoogle() {
+  const btn = document.getElementById('btn-gsheet'); btn.disabled = true; let signedIn = false;
+  try {
+    exportMsg('구글 로그인 창을 여는 중입니다...');
+    const ex = await buildExport();
+    if (!firebase.auth) await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js');
+    const provider = new firebase.auth.GoogleAuthProvider(); provider.addScope('https://www.googleapis.com/auth/drive.file'); provider.setCustomParameters({ prompt: 'select_account' });
+    const result = await firebase.auth().signInWithPopup(provider); signedIn = true;
+    const token = result && result.credential && result.credential.accessToken; if (!token) throw new Error('구글 권한(액세스 토큰)을 받지 못했습니다. 다시 시도해 주세요.');
+    exportMsg('스프레드시트를 만드는 중입니다...');
+    const res = await fetch('https://sheets.googleapis.com/v4/spreadsheets', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(XlsxLite.toSheetsRequest(ex.title, ex.sheets)) });
+    if (!res.ok) throw new Error(await sheetsError(res));
+    const j = await res.json();
+    exportMsg('스프레드시트를 만들었습니다. <a class="underline font-semibold" target="_blank" rel="noopener" href="' + esc(j.spreadsheetUrl) + '">' + esc(ex.title) + ' 열기</a> (내 구글 드라이브에 저장됨)', 'ok');
+  } catch (e) { console.error(e); exportMsg('스프레드시트로 내보내지 못했습니다: ' + esc(googleError(e)), 'err'); }
+  if (signedIn) { try { await firebase.auth().signOut(); } catch (e) { /* 무시 */ } }   // 이 사이트에는 로그인 상태를 남기지 않습니다.
+  btn.disabled = false;
+}
+document.getElementById('btn-xlsx').onclick = exportXlsx; document.getElementById('btn-gsheet').onclick = exportGoogle;
 (async function init() {
   document.getElementById('tab-budget').onclick = () => setMode('budget');
   document.getElementById('tab-supply').onclick = () => setMode('supply');
   try {
     [budgetRows, supplyRows] = await Promise.all([getCol('data_budget'), getCol('data_supply')]);
-    window.__GP_PAGE__ = 'p02'; const full = JSON.parse(await GP.SERVER.getInitialData()); window.__GP_PAGE__ = 'budget';
+    const full = { budget: await GP.buildBudgetCards() };
     document.getElementById('cards').innerHTML = (full.budget || []).filter((c) => !String(c.name).includes('친목회비')).map((c) =>
       '<div class="bg-white border border-slate-200 rounded-xl p-3 shadow-sm"><div class="font-bold text-sm border-b pb-1 mb-1">' + esc(c.name) + '</div>' +
       '<div class="flex justify-between text-xs"><span>배정액</span><b>' + fmt(c.assigned) + '</b></div>' +
