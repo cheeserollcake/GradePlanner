@@ -81,7 +81,7 @@ for folder, (fname, key) in PAGES.items():
         html = re.sub(r"\.cell-input \{[^}]*\}", ".cell-input {\n        width: 100%; height: 30px;\n        text-align: center; border: 2px solid #4f46e5; outline: none;\n        font-size: 13pt; font-weight: bold; background: white;\n      }", html, count=1)
         # 상단 표: 첫 열 너비 제한, 나머지 균등 / 하단 표: 주·기간 고정, 나머지 균등(데스크톱에서 가로 스크롤 없음)
         html = must_replace(html, '<table className="table-auto-layout border-collapse">',
-          '<table className="border-collapse" style={{ tableLayout: \'fixed\', width: \'100%\' }}>\n                        <colgroup><col style={{ width: \'5rem\' }} />{top[0].slice(1).map((_, i) => <col key={i} />)}</colgroup>', fname)
+          '<table className="border-collapse" style={{ tableLayout: \'fixed\', width: \'100%\', maxWidth: \'1230px\' }}>\n                        <colgroup><col style={{ width: \'5rem\' }} />{top[0].slice(1).map((_, i) => <col key={i} />)}</colgroup>', fname)
         html = must_replace(html, "<table className=\"border-collapse\" style={{ tableLayout: 'fixed', minWidth: 'max-content' }}>",
           "<table className=\"border-collapse\" style={{ tableLayout: 'fixed', width: '100%', minWidth: '960px' }}>\n                        <colgroup><col style={{ width: '40px' }} /><col style={{ width: '80px' }} />{Array.from({ length: 30 }, (_, i) => <col key={i} />)}</colgroup>", fname)
         # 제목 옆 연필: 공간 이름(교사명/공간이름)
@@ -306,7 +306,7 @@ for folder, (fname, key) in PAGES.items():
           "const semester = (selectedMonth >= 3 && selectedMonth <= 7) ? 'sem1' : 'sem2';\n      const semKeyOf = (dt) => { const sems = settings?.semesters || []; const iso = getLocalISODate(dt); const s1 = sems.find(x => x.name === '1학기'); const s2 = sems.find(x => x.name === '2학기'); if (s2 && iso >= s2.start && iso <= s2.end) return 'sem2'; if (s1 && iso >= s1.start && iso <= s1.end) return 'sem1'; return semester; };")
         html = R("const isoDate = getLocalISODate(dayObj);", "const isoDate = getLocalISODate(dayObj);\n                      const semester = semKeyOf(dayObj);")
         html = R("const headerClass = tableType === 'sports' ? 'sticky-header-sports' : 'sticky-header-com';",
-          "const headerClass = tableType === 'sports' ? 'sticky-header-sports' : 'sticky-header-com';\n      const colW = 62 + spaces.length * 54;\n      const tdStyle = { width: colW + 10, minWidth: colW + 10, maxWidth: colW + 10 };\n      const tblStyle = { width: colW, minWidth: colW, maxWidth: colW };\n      const gridStyle = { display: 'grid', gridTemplateColumns: '1.3fr repeat(' + spaces.length + ', 1fr)', width: '100%' };\n      const periodCount = (settings?.times?.length || 6);")
+          "const headerClass = tableType === 'sports' ? 'sticky-header-sports' : 'sticky-header-com';\n      const colW = 62 + spaces.length * 54;\n      const tdStyle = {};\n      const tblStyle = {};\n      const gridStyle = { display: 'grid', gridTemplateColumns: '1.3fr repeat(' + spaces.length + ', 1fr)', width: '100%' };\n      const periodCount = (settings?.times?.length || 6);")
         html = R("<th key={wd} className={`${headerClass} p-3 text-center font-extrabold`}>", "<th key={wd} style={tdStyle} className={`${headerClass} p-3 text-center font-extrabold`}>")
         html = R("<td key={dIdx} className={`border-r bg-slate-50 ${tdWidthClass}`}></td>", "<td key={dIdx} style={tdStyle} className={`border-r bg-slate-50 ${tdWidthClass}`}></td>")
         html = R("<td key={dIdx} className={`border-r p-1 align-top ${tdWidthClass} ${isHoliday ? 'bg-holiday' : ''}`}>", "<td key={dIdx} style={tdStyle} className={`border-r p-1 align-top ${tdWidthClass} ${isHoliday ? 'bg-holiday' : ''}`}>")
@@ -327,6 +327,65 @@ for folder, (fname, key) in PAGES.items():
         html = R("spaces={['컴1', '컴2', '음악']}", "spaces={settings.roomSpaces || []}")
         html = R("spaceIndices={[5, 6, 7]}", "spaceIndices={[]}")
         html = R("setSettings(prev => ({ ...prev, ...(res.settings || {}) }));", "if (res.settings && res.settings.classNames) classOptions = res.settings.classNames.concat(['불가']);\n            setSettings(prev => ({ ...prev, ...(res.settings || {}) }));")
+    if key == "p05":   # 처음 열면 오늘이 속한 달을 보여줌
+        html = must_replace(html, "const isMergedCell = (r, c) => {", "useEffect(() => { fetchMonthData(new Date().getMonth() + 1); }, []);\n\n        const isMergedCell = (r, c) => {", fname)
+    if key == "p07":   # 저장 버튼 없이 바로 저장 / 데스크톱에서 가로 스크롤 없는 표 / 이미지 업로드 개선
+        R = lambda a, b: must_replace(html, a, b, fname)
+        html = R("</style>", ".scroll-container { overflow-x: auto; }\n    .scroll-container > table { display: table !important; width: 100% !important; min-width: 760px; }\n    td.td-sports, td.td-com, th.sticky-header-sports, th.sticky-header-com { width: 20% !important; min-width: 0 !important; max-width: none !important; }\n    .table-fixed-sports, .table-fixed-com { width: 100% !important; min-width: 0 !important; max-width: none !important; }\n  </style>")
+        # (1) 체육 공간·컴실 등: 반을 고르면 바로 저장
+        html = R("const handleCellChange = (key, val) => {\n        setUnsavedChanges(prev => ({ ...prev, [key]: val }));\n      };",
+                 "const handleCellChange = (key, val) => {\n        setUnsavedChanges(prev => ({ ...prev, [key]: val }));\n        onSave({ [key]: val }, () => setUnsavedChanges(prev => { const n = { ...prev }; if (n[key] === val) delete n[key]; return n; }));\n      };")
+        html = re.sub(r'<button onClick=\{handleSave\} className="flex items-center gap-1 bg-green-600[\s\S]*?</button>', '', html, count=1)
+        a = html.index("onSave={(unsaved, cb) => {"); b = html.index("}} \n              onLoading={setLoading} \n            />}", a) + len("}} \n")
+        html = html[:a] + "onSave={(unsaved, cb) => window.__saveSchedule(unsaved, cb, setSchedule)}\n              " + html[b:]
+        a = html.index("onSave={(unsaved, cb) => {"); b = html.index("}} \n              onLoading={setLoading} \n            />}", a) + len("}} \n")
+        html = html[:a] + "onSave={(unsaved, cb) => window.__saveSchedule(unsaved, cb, setSchedule)}\n              " + html[b:]
+        html = R("const App = () => {", """let __saveQ = Promise.resolve();
+    window.__saveSchedule = (unsaved, cb, setSchedule) => {   // 한 칸씩 순서대로 저장
+      __saveQ = __saveQ.then(() => new Promise((resolve) => {
+        const updates = Object.keys(unsaved).map(key => { const parts = key.split('_'); return { date: parts[0], period: parts[1], space: parts[2], className: unsaved[key] }; });
+        google.script.run.withSuccessHandler(res => {
+          if (res && res.success) setSchedule(p => { const next = { ...p }; Object.keys(unsaved).forEach(k => { if (unsaved[k] === "") delete next[k]; else next[k] = unsaved[k]; }); return next; });
+          else alert((res && res.error) || '저장하지 못했습니다.');
+          cb(); resolve();
+        }).withFailureHandler(err => { alert('저장하지 못했습니다: ' + err); cb(); resolve(); }).saveScheduleData(updates);
+      }));
+    };
+
+    const App = () => {""")
+        # (2) 특별실 비밀번호: 목록에 추가·수정·삭제하면 바로 저장
+        html = R("const [form, setForm] = useState({ id: null, name: '', pwd: '', note: '' });", "const [form, setForm] = useState({ id: null, name: '', pwd: '', note: '' });\n      const persist = (list) => onSave(list, () => {});")
+        html = R("""        if (form.id) {
+          setPwdList(pwdList.map(item => item.id === form.id ? { ...form } : item));
+        } else {
+          setPwdList([...pwdList, { ...form, id: Date.now() }]);
+        }""", """        const next = form.id ? pwdList.map(item => item.id === form.id ? { ...form } : item) : [...pwdList, { ...form, id: Date.now() }];
+        setPwdList(next); persist(next);""")
+        html = R("          setPwdList(pwdList.filter(item => item.id !== id));", "          const next = pwdList.filter(item => item.id !== id);\n          setPwdList(next); persist(next);")
+        html = re.sub(r'<button onClick=\{handleSave\} className="bg-indigo-600[^>]*>저장하기</button>', '<span className="text-xs text-slate-400 self-center">추가·수정·삭제하면 바로 저장됩니다</span>', html, count=1)
+        html = R("google.script.run.withSuccessHandler(() => { setPasswords(newPwds); alert('특별실 비밀번호가 저장되었습니다.'); cb(); }).saveRoomPasswords(newPwds);",
+                 "google.script.run.withSuccessHandler((res) => { if (res && res.success === false) alert('저장하지 못했습니다: ' + res.error); else setPasswords(newPwds); cb(); }).withFailureHandler((e) => { alert('저장하지 못했습니다: ' + e); cb(); }).saveRoomPasswords(newPwds);")
+        # (3) 시간표 이미지: 바로 올리고(압축 후 Blob 업로드) 실패하면 이유를 알려 줌
+        a = html.index('<input type="file" className="hidden" accept="image/*" onChange={async (e) => {'); b = html.index("}} />", a) + len("}} />")
+        html = html[:a] + r"""<input type="file" className="hidden" accept="image/*" onChange={(e) => {
+                const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+                onLoading(true);
+                const done = () => onLoading(false);
+                const readFail = () => { alert('이미지를 읽지 못했습니다. 다른 사진으로 시도해 주세요.'); done(); };
+                const url = URL.createObjectURL(file); const img = new Image();
+                img.onerror = () => { URL.revokeObjectURL(url); readFail(); };
+                img.onload = () => {
+                  URL.revokeObjectURL(url);
+                  const MAX = 1600; let { width, height } = img;
+                  if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
+                  const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+                  canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                  canvas.toBlob((blob) => { if (!blob) return readFail(); onUpload(blob, file.name.replace(/\.[^.]+$/, '') + '.jpg', 'image/jpeg', done); }, 'image/jpeg', 0.82);
+                };
+                img.src = url;
+              }} />""" + html[b:]
+        html = R("onUpload={(base64, name, type, cb) => { google.script.run.withSuccessHandler(()=>{fetchImages(); cb();}).uploadImage(base64, name, type); }}",
+                 "onUpload={(data, name, type, cb) => { google.script.run.withSuccessHandler((res)=>{ if (res && res.success === false) alert('업로드하지 못했습니다: ' + res.error); else if (res && res.item) setImages(prev => [...prev, res.item]); else fetchImages(); cb(); }).withFailureHandler((e)=>{ alert('업로드하지 못했습니다: ' + e); cb(); }).uploadImage(data, name, type); }}")
     if key == "p07":   # 구글 이미지 크기 접미사 제거
         html = must_replace(html, 'img.url + "=s800"', 'img.url', fname)
     if key == "p10":   # 구글 드라이브 미리보기 -> Firebase Storage 주소

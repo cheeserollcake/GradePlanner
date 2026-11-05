@@ -17,18 +17,37 @@
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     /* ---- 구글 스프레드시트 느낌의 표 ---- */
     #gridWrap { overflow:auto; max-height:70vh; background:#fff; border:1px solid #cbd5e1; border-radius:8px; }
-    table.sheet { border-collapse:separate; border-spacing:0; table-layout:fixed; font-size:14px; min-width:100%; }
+    table.sheet { border-collapse:separate; border-spacing:0; table-layout:fixed; font-size:14px; width:100%; }
     .sheet th, .sheet td { border-right:1px solid #d9dde3; border-bottom:1px solid #d9dde3; padding:0; background:#fff; position:relative; }
     .sheet thead th { background:#f1f3f4; color:#5f6368; text-align:center; position:sticky; z-index:3; font-weight:400; }
     .sheet thead tr.letters th { top:0; height:22px; font-size:12px; }
     .sheet thead tr.heads th { top:22px; height:32px; font-weight:700; color:#202124; background:#f8f9fa; border-bottom:2px solid #9aa0a6; }
-    .sheet .rn { width:44px; min-width:44px; background:#f1f3f4; color:#5f6368; text-align:center; font-size:12px; position:sticky; left:0; z-index:2; font-weight:400; }
+    .sheet .rn { width:68px; min-width:68px; background:#f1f3f4; color:#5f6368; text-align:center; font-size:12px; position:sticky; left:0; z-index:2; font-weight:400; }
     .sheet thead .rn { z-index:4; }
-    .sheet .rn button { display:none; color:#b91c1c; font-size:13px; line-height:1; }
-    .sheet tr:hover .rn span { display:none; }
-    .sheet tr:hover .rn button { display:inline; }
-    .sheet tr.blank:hover .rn span { display:inline; } .sheet tr.blank:hover .rn button { display:none; }
-    .sheet input.cell { width:100%; height:32px; border:0; padding:4px 8px; background:transparent; outline:none; font:inherit; color:#202124; text-overflow:ellipsis; }
+    .sheet .rn .rtools { display:none; align-items:center; justify-content:center; gap:3px; height:32px; }
+    .sheet .rn .rtools > * { font-style:normal; font-size:13px; line-height:1; padding:2px; border-radius:4px; cursor:pointer; background:transparent; border:0; }
+    .sheet .rn .rtools > *:hover { background:#dbe4f3; }
+    .sheet .rn .grip { cursor:grab; color:#6b7280; letter-spacing:-2px; }
+    .sheet .rn button[data-del] { color:#b91c1c; }
+    .sheet tbody tr:hover .rn span { display:none; }
+    .sheet tbody tr:hover .rn .rtools { display:flex; }
+    .sheet tbody tr.blank:hover .rn span { display:inline; }
+    .sheet tr.dragging { opacity:.35; }
+    .sheet tr.drop-before > * { box-shadow:inset 0 3px 0 #1a73e8; }
+    .sheet tr.drop-after > * { box-shadow:inset 0 -3px 0 #1a73e8; }
+    .rsz { position:absolute; top:0; right:-3px; width:7px; height:100%; cursor:col-resize; z-index:6; }
+    .sheet th:last-child .rsz { right:0; }
+    .rsz:hover, body.resizing .rsz.on { background:rgba(26,115,232,.45); }
+    body.resizing { cursor:col-resize; user-select:none; }
+    .pop { position:fixed; z-index:60; background:#fff; border:1px solid #cbd5e1; border-radius:10px; padding:8px; box-shadow:0 8px 24px rgba(0,0,0,.18); display:none; width:176px; flex-wrap:wrap; gap:6px; }
+    .pop button.sw { width:30px; height:30px; border-radius:8px; border:2px solid #fff; box-shadow:0 0 0 1px #cbd5e1; }
+    .pop button.sw:hover { box-shadow:0 0 0 2px #1a73e8; }
+    .pop button.none { width:100%; font-size:12px; padding:4px; border:1px solid #cbd5e1; border-radius:6px; color:#475569; }
+    /* 행 색 (커서가 있는 행 강조보다 먼저 선언해 둠) */
+    .sheet tbody tr.colored td { background:var(--rc); }
+    .sheet tbody tr.colored td.calc { background:var(--rc); }
+    .sheet tbody tr.colored td.linkc a, .sheet tbody tr.colored .attbtn { background:var(--rc); }
+    .sheet input.cell { width:100%; box-sizing:border-box; height:32px; border:0; padding:4px 8px; background:transparent; outline:none; font:inherit; color:#202124; text-overflow:ellipsis; }
     .sheet input.cell.num { text-align:right; }
     .sheet td:focus-within { outline:2px solid #1a73e8; outline-offset:-2px; z-index:1; }
     .sheet td.calc { padding:4px 8px; text-align:right; background:#f8fafc; font-weight:600; height:32px; }
@@ -66,8 +85,10 @@
     <div class="flex flex-wrap items-center gap-2" id="filters"></div>
     <div class="flex flex-wrap items-center gap-2 hidden" id="sheetTools"></div>
     <div id="gridWrap"></div>
-    <p class="text-xs text-slate-400">표의 칸을 눌러 바로 고치면 자동으로 저장됩니다. 맨 아래 빈 줄에 입력하면 새 줄이 추가되고, 구글 스프레드시트·엑셀에서 복사한 여러 칸을 붙여넣을 수도 있습니다. (Enter: 아래 칸, Tab: 오른쪽 칸, Esc: 되돌리기)</p>
+    <p class="text-xs text-slate-400">표의 칸을 눌러 바로 고치면 자동으로 저장됩니다. 맨 아래 빈 줄에 입력하면 새 줄이 추가되고, 구글 스프레드시트·엑셀에서 복사한 여러 칸을 붙여넣을 수도 있습니다. (Enter: 아래 칸, Tab: 오른쪽 칸, Esc: 되돌리기) · 줄에 마우스를 올리면 ⠿(끌어서 순서 변경) 🎨(줄 색깔) ✕(삭제)가 나타나고, 위쪽 A·B·C 칸의 경계선을 끌면 열 너비를 바꿀 수 있습니다.</p>
   </div>
+
+  <div id="colorPop" class="pop"></div>
 
   <!-- 예산 페이지 추가 -->
   <div id="addModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50">
@@ -131,7 +152,13 @@ let sheets = [];                 // 추가한 예산 페이지: [{ id, name, col
 let data = { budget: [], supply: [], sheetRows: [] };
 let mode = 'budget', filters = {}, lists = null, seq = 0;
 
+let colWidths = {};   // { 표종류id: { 열키: 상대 너비 } }  (모두가 같은 너비로 봅니다)
+const RN = 68;
 const kindOf = (m) => {
+  const k = rawKind(m); const saved = colWidths[k.id] || {};
+  return Object.assign({}, k, { cols: k.cols.map((c) => { const w = saved[c.k || 'calc']; return w > 0 ? Object.assign({}, c, { w }) : c; }) });
+};
+const rawKind = (m) => {
   if (m === 'budget' || m === 'supply') return BUILTIN[m];
   const s = sheets.find((x) => 'sheet:' + x.id === m); if (!s) return BUILTIN.budget;
   return { id: 'sheet:' + s.id, name: s.name, col: SHEET_COL, custom: s, cols: s.cols.map((c) => ({ k: 'f_' + c.id, label: c.name, w: c.name.trim() === '비고' ? 190 : 150, cid: c.id, attach: c.name.trim() === '비고' ? 1 : 0 })), filters: [] };
@@ -233,8 +260,10 @@ function cellHtml(kind, c, ci, r, listIds) {
     (c.attach ? attBtn(ci, files.length) : '') + (c.t === 'link' && v ? '<a href="' + esc(/^https?:/i.test(v) ? v : 'https://' + v) + '" target="_blank" rel="noopener" tabindex="-1" title="링크 열기">↗</a>' : '') + '</td>';
 }
 const attBtn = (ci, n) => '<button class="attbtn" data-att="' + ci + '" title="이미지·파일 첨부" tabindex="-1">📎' + (n ? '<b>' + n + '</b>' : '') + '</button>';
+const rtoolsHtml = () => '<div class="rtools"><i class="grip" draggable="true" title="끌어서 순서 변경">⠿</i><button data-color title="행 색깔">🎨</button><button data-del title="이 줄 삭제">✕</button></div>';
 function rowHtml(kind, r, idx, listIds) {
-  return '<tr data-id="' + (r ? esc(r._id) : '') + '" class="' + (r ? '' : 'blank') + '"><th class="rn"><span>' + (idx + 2) + '</span>' + (r ? '<button data-del title="이 줄 삭제">✕</button>' : '') + '</th>' +
+  const col = r && r.row_color ? String(r.row_color) : '';
+  return '<tr data-id="' + (r ? esc(r._id) : '') + '" class="' + (r ? '' : 'blank') + (col ? ' colored' : '') + '"' + (col ? ' style="--rc:' + esc(col) + '"' : '') + '><th class="rn"><span>' + (idx + 2) + '</span>' + (r ? rtoolsHtml() : '') + '</th>' +
     kind.cols.map((c, ci) => cellHtml(kind, c, ci, r, listIds)).join('') + '</tr>';
 }
 function renderGrid() {
@@ -245,16 +274,27 @@ function renderGrid() {
     if (c.k === 'budget_name' && lists) vals = [...new Set(lists.budgets.map((b) => b.name).concat(vals))];
     dl += '<datalist id="dl' + ci + '">' + vals.slice(0, 80).map((v) => '<option value="' + esc(v) + '">').join('') + '</datalist>'; });
   const calcIdx = kind.cols.findIndex((c) => c.t === 'calc');
-  const head = '<tr class="letters"><th class="rn"></th>' + kind.cols.map((c, ci) => '<th>' + COLN(ci) + '</th>').join('') + '</tr>' +
+  const head = '<tr class="letters"><th class="rn"></th>' + kind.cols.map((c, ci) => '<th>' + COLN(ci) + '<span class="rsz" data-rsz="' + ci + '" title="끌어서 열 너비 조절"></span></th>').join('') + '</tr>' +
     '<tr class="heads"><th class="rn">1</th>' + kind.cols.map((c, ci) => kind.custom
       ? '<th><input class="hcell" data-h="' + ci + '" value="' + esc(c.label) + '">' + (kind.cols.length > 1 ? '<button class="colx" data-colx="' + ci + '" title="열 삭제">✕</button>' : '') + '</th>'
       : '<th>' + esc(c.label) + '</th>').join('') + '</tr>';
   const sum = calcIdx >= 0 ? rows.reduce((a, r) => a + kind.cols[calcIdx].calc(r), 0) : 0;
   const foot = calcIdx >= 0 ? '<tfoot><tr><th class="rn"></th>' + kind.cols.map((c, ci) => ci === 0 ? '<td colspan="' + calcIdx + '" style="text-align:right">합계</td>' : ci < calcIdx ? '' : ci === calcIdx ? '<td id="sumCell" style="text-align:right">' + fmt(sum) + '</td>' : '<td></td>').join('') + '</tr></tfoot>' : '';
-  $('gridWrap').innerHTML = dl + '<table class="sheet" style="width:max(100%,' + (44 + kind.cols.reduce((a, c) => a + c.w, 0)) + 'px)"><colgroup><col style="width:44px">' + kind.cols.map((c) => '<col style="width:' + c.w + 'px">').join('') + '</colgroup>' +
+  $('gridWrap').innerHTML = dl + '<table class="sheet"><colgroup><col style="width:' + RN + 'px">' + kind.cols.map((c, ci) => '<col data-ci="' + ci + '">').join('') + '</colgroup>' +
     '<thead>' + head + '</thead><tbody>' + rows.map((r, i) => rowHtml(kind, r, i, listIds)).join('') + rowHtml(kind, null, rows.length, listIds) + '</tbody>' + foot + '</table>';
-  $('gridWrap')._listIds = listIds;
+  $('gridWrap')._listIds = listIds; layoutCols();
 }
+
+// ---- 열 너비: 데스크톱에서는 화면 폭에 딱 맞게(가로 스크롤 없음), 좁은 화면에서는 원래 폭으로 ----
+function layoutCols() {
+  const t = document.querySelector('#gridWrap table.sheet'); if (!t) return;
+  const kind = kindOf(mode), wrap = $('gridWrap'); const nat = kind.cols.reduce((a, c) => a + c.w, 0);
+  const fit = wrap.clientWidth >= 900; const avail = wrap.clientWidth - RN - 2; const scale = fit ? avail / nat : 1;
+  const cols = t.querySelectorAll('col[data-ci]');
+  kind.cols.forEach((c, i) => { cols[i].style.width = Math.max(44, Math.floor(c.w * scale)) + 'px'; });
+  t.style.width = fit ? '100%' : (RN + nat) + 'px';
+}
+window.addEventListener('resize', layoutCols);
 
 // ---- 합계·금액 칸을 입력하는 즉시 다시 계산 ----
 function recalcRow(tr) {
@@ -270,7 +310,7 @@ function materializeRow(tr, kind, field, val) {
   const doc = blankDoc(kind, presetFor(kind)); if (field) doc[field] = val; const id = GP.newId(kind.col);
   (kind.custom ? data.sheetRows : kind.col === 'data_budget' ? data.budget : data.supply).push(Object.assign({ _id: id }, doc));
   tr.dataset.id = id; tr.classList.remove('blank');
-  tr.querySelector('.rn').insertAdjacentHTML('beforeend', '<button data-del title="이 줄 삭제">✕</button>');
+  tr.querySelector('.rn').insertAdjacentHTML('beforeend', rtoolsHtml());
   kind.cols.forEach((cc, ci) => { if (cc.k && cc.k !== field && doc[cc.k]) { const i2 = tr.querySelector('input[data-ci="' + ci + '"]'); if (i2 && !i2.value) i2.value = doc[cc.k]; } });   // 걸러 보는 중이면 미리 채운 값 표시
   tr.insertAdjacentHTML('afterend', rowHtml(kind, null, 0, $('gridWrap')._listIds)); renumber();
   enqueue(() => commit([{ type: 'set', col: kind.col, id, data: doc }]));
@@ -367,6 +407,75 @@ gw.addEventListener('paste', (e) => {
   const inp = e.target; if (!inp.matches || !inp.matches('input.cell')) return;
   const text = (e.clipboardData || window.clipboardData).getData('text'); if (!/[\t\n]/.test(text.replace(/\n$/, ''))) return;
   e.preventDefault(); pasteGrid(inp, text);
+});
+
+// ======================= 줄 끌어서 순서 바꾸기 / 줄 색깔 / 열 너비 =======================
+let dragId = null, dropInfo = null;
+const clearDropMarks = () => document.querySelectorAll('#gridWrap tr.drop-before, #gridWrap tr.drop-after').forEach((t) => t.classList.remove('drop-before', 'drop-after'));
+function moveRow(id, targetId, after) {
+  const kind = kindOf(mode); const list = allRows(kind).slice().sort(byOrder);
+  const from = list.findIndex((r) => r._id === id); if (from < 0 || id === targetId) return;
+  const row = list.splice(from, 1)[0];
+  let idx = list.length;
+  if (targetId) { const t = list.findIndex((r) => r._id === targetId); if (t >= 0) idx = after ? t + 1 : t; }
+  list.splice(idx, 0, row);
+  const prev = list[idx - 1], next = list[idx + 1]; const ops = [];
+  let cand = null;
+  if (prev && next) { const m = (ord(prev) + ord(next)) / 2; if (m > ord(prev) && m < ord(next)) cand = m; }
+  else if (prev) cand = ord(prev) + 1000; else if (next) cand = ord(next) - 1000; else return;
+  if (cand !== null) { if (row.row_order === cand) return; row.row_order = cand; ops.push({ type: 'set', merge: true, col: kind.col, id: row._id, data: { row_order: cand } }); }
+  else list.forEach((r, i) => { const o = (i + 1) * 1000; if (ord(r) !== o || typeof r.row_order !== 'number') { r.row_order = o; ops.push({ type: 'set', merge: true, col: kind.col, id: r._id, data: { row_order: o } }); } });   // 순서값이 겹치면 처음부터 다시 매김
+  enqueue(() => commit(ops)); renderGrid();
+}
+gw.addEventListener('dragstart', (e) => {
+  const g = e.target.closest && e.target.closest('.grip'); if (!g) return;
+  const tr = g.closest('tr'); dragId = tr.dataset.id; dropInfo = null;
+  e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); try { e.dataTransfer.setDragImage(tr, 24, 16); } catch (x) { /* 무시 */ }
+  setTimeout(() => tr.classList.add('dragging'), 0);
+});
+gw.addEventListener('dragover', (e) => {
+  if (!dragId) return; const tr = e.target.closest && e.target.closest('tbody tr'); if (!tr) return;
+  e.preventDefault(); clearDropMarks(); if (tr.dataset.id === dragId) { dropInfo = null; return; }
+  const r = tr.getBoundingClientRect(); const blank = tr.classList.contains('blank'); const after = !blank && e.clientY > r.top + r.height / 2;
+  tr.classList.add(after ? 'drop-after' : 'drop-before'); dropInfo = { target: blank ? null : tr.dataset.id, after };
+});
+gw.addEventListener('drop', (e) => { if (!dragId) return; e.preventDefault(); const id = dragId, info = dropInfo; dragId = null; dropInfo = null; clearDropMarks(); if (info) moveRow(id, info.target, info.after); });
+gw.addEventListener('dragend', () => { dragId = null; dropInfo = null; clearDropMarks(); document.querySelectorAll('#gridWrap tr.dragging').forEach((t) => t.classList.remove('dragging')); });
+
+const PALETTE = [['#fee2e2', '빨강'], ['#ffedd5', '주황'], ['#fef9c3', '노랑'], ['#dcfce7', '초록'], ['#dbeafe', '파랑'], ['#ede9fe', '보라'], ['#fce7f3', '분홍'], ['#e5e7eb', '회색']];
+let colorFor = null;
+function openColor(btn) {
+  const tr = btn.closest('tr'); colorFor = tr.dataset.id; const pop = $('colorPop'); const r = btn.getBoundingClientRect();
+  pop.innerHTML = PALETTE.map(([c, n]) => '<button class="sw" data-c="' + c + '" title="' + n + '" style="background:' + c + '"></button>').join('') + '<button class="none" data-c="">색 없음</button>';
+  pop.style.display = 'flex'; pop.style.left = Math.min(r.left, window.innerWidth - 190) + 'px'; pop.style.top = (r.bottom + 4) + 'px';
+}
+function setRowColor(id, color) {
+  const kind = kindOf(mode), row = findRow(kind, id); if (!row) return;
+  row.row_color = color; const tr = document.querySelector('#gridWrap tr[data-id="' + CSS.escape(id) + '"]');
+  if (tr) { tr.classList.toggle('colored', !!color); if (color) tr.style.setProperty('--rc', color); else tr.style.removeProperty('--rc'); }
+  enqueue(() => commit([{ type: 'set', merge: true, col: kind.col, id, data: { row_color: color } }]));
+}
+$('colorPop').addEventListener('click', (e) => { const b = e.target.closest('[data-c]'); if (!b) return; if (colorFor) setRowColor(colorFor, b.dataset.c); $('colorPop').style.display = 'none'; colorFor = null; });
+document.addEventListener('mousedown', (e) => { if (!e.target.closest('#colorPop') && !e.target.closest('[data-color]')) $('colorPop').style.display = 'none'; });
+gw.addEventListener('click', (e) => { const b = e.target.closest('[data-color]'); if (b) openColor(b); });
+gw.addEventListener('scroll', () => { $('colorPop').style.display = 'none'; });
+
+let rsz = null;
+gw.addEventListener('mousedown', (e) => {
+  const h = e.target.closest && e.target.closest('[data-rsz]'); if (!h) return; e.preventDefault();
+  const ci = +h.dataset.rsz, cols = [...document.querySelectorAll('#gridWrap col[data-ci]')]; const j = ci < cols.length - 1 ? ci + 1 : ci - 1; if (j < 0) return;
+  rsz = { ci, j, x: e.clientX, cols, pxs: cols.map((c) => parseFloat(c.style.width)) }; h.classList.add('on'); document.body.classList.add('resizing');
+});
+document.addEventListener('mousemove', (e) => {
+  if (!rsz) return; const MIN = 44; let dx = e.clientX - rsz.x;
+  dx = Math.max(MIN - rsz.pxs[rsz.ci], Math.min(dx, rsz.pxs[rsz.j] - MIN));   // 옆 열과 폭을 주고받아 전체 너비는 그대로
+  rsz.cols[rsz.ci].style.width = (rsz.pxs[rsz.ci] + dx) + 'px'; rsz.cols[rsz.j].style.width = (rsz.pxs[rsz.j] - dx) + 'px';
+});
+document.addEventListener('mouseup', () => {
+  if (!rsz) return; const r = rsz; rsz = null; document.body.classList.remove('resizing'); document.querySelectorAll('.rsz.on').forEach((x) => x.classList.remove('on'));
+  const kind = kindOf(mode), saved = {}; kind.cols.forEach((c, i) => { saved[c.k || 'calc'] = Math.round(parseFloat(r.cols[i].style.width)); });
+  colWidths = Object.assign({}, colWidths, { [kind.id]: saved }); layoutCols();
+  enqueue(() => commit([{ type: 'set', col: 'app_config', id: 'budget_cols', data: { json: JSON.stringify(colWidths), updatedAt: new Date().toISOString() } }]));
 });
 
 // ======================= 비고 첨부 (이미지·파일) =======================
@@ -547,7 +656,7 @@ async function load(fresh) {
   if (fresh) GP.fresh();
   const [b, s, sr, cfg, ls] = await Promise.all([getCol('data_budget'), getCol('data_supply'), getCol(SHEET_COL), GP.getCfg('budget_sheets', { sheets: [] }), GP.getLists()]);
   data = { budget: b.map((r) => Object.assign({}, r)), supply: s.map((r) => Object.assign({}, r)), sheetRows: sr.map((r) => Object.assign({}, r)) };
-  sheets = Array.isArray(cfg.sheets) ? cfg.sheets : []; lists = ls;
+  sheets = Array.isArray(cfg.sheets) ? cfg.sheets : []; lists = ls; colWidths = (await GP.getCfg('budget_cols', {})) || {};
   if (mode !== 'budget' && mode !== 'supply' && !sheets.some((x) => 'sheet:' + x.id === mode)) mode = 'budget';
 }
 $('btn-refresh').onclick = async () => { if (pendingN) return; try { await load(true); renderAll(); } catch (e) { setState('error', e.message); } };

@@ -20,6 +20,8 @@
   firebase.initializeApp(window.FIREBASE_CONFIG);
   const db = firebase.firestore();
   const storage = firebase.storage ? firebase.storage() : null;
+  // 저장소에 연결이 안 될 때 10분 동안 재시도하며 멈춰 있지 않도록, 20초 안에 실패로 알려 줍니다.
+  try { if (storage) { storage.setMaxUploadRetryTime(20000); storage.setMaxOperationRetryTime(20000); } } catch (e) { /* 무시 */ }
   const TS = firebase.firestore.Timestamp;
 
   // ---------------------------------------------------------------- 날짜 유틸
@@ -847,9 +849,21 @@
       return items;
     } catch (e) { console.warn(e); return []; }
   };
-  SERVER.uploadImage = async function (data, name, mime) {
-    try { await storage.ref(`special_room/${Date.now()}_${safeName(name)}`).putString(data, 'base64', { contentType: mime }); return { success: true }; }
-    catch (e) { return { success: false, error: e.toString() }; }
+  const storageError = (e) => {
+    const c = (e && e.code) || '';
+    if (c === 'storage/retry-limit-exceeded' || c === 'storage/unknown' || /network|Failed to fetch/i.test(String(e && e.message))) return 'Firebase Storage에 연결하지 못했습니다. Firebase 콘솔 > Storage가 "시작하기"로 설정되어 있는지, 인터넷 연결이 정상인지 확인해 주세요. (' + (c || e) + ')';
+    if (c === 'storage/unauthorized') return 'Storage 보안 규칙이 업로드를 막고 있습니다. 프로젝트의 storage.rules 내용을 Firebase 콘솔 > Storage > 규칙에 게시해 주세요.';
+    if (c === 'storage/bucket-not-found' || c === 'storage/project-not-found') return 'Storage 버킷을 찾을 수 없습니다. Firebase 콘솔에서 Storage를 먼저 설정해 주세요.';
+    return String(e && e.message ? e.message : e);
+  };
+  SERVER.uploadImage = async function (data, name, mime) {   // data: Blob(권장) 또는 base64 문자열
+    try {
+      if (!storage) throw new Error('Storage를 사용할 수 없습니다.');
+      const ref = storage.ref(`special_room/${Date.now()}_${safeName(name)}`);
+      if (typeof data === 'string') await ref.putString(data, 'base64', { contentType: mime }); else await ref.put(data, { contentType: mime });
+      const url = await ref.getDownloadURL();
+      return { success: true, item: { id: ref.fullPath, url, name: ref.name } };
+    } catch (e) { console.warn(e); return { success: false, error: storageError(e) }; }
   };
   SERVER.deleteImage = async function (id) {
     try { await storage.ref(id).delete(); return { success: true }; } catch (e) { return { success: false, error: e.toString() }; }
@@ -864,18 +878,27 @@
   };
   const csvList = (v) => str(v).split(',').map((x) => x.trim()).filter(Boolean);
   const josa = (w, pair) => { const [a, b] = pair.split('/'); const code = str(w).trim().slice(-1).charCodeAt(0); return code >= 0xAC00 && code <= 0xD7A3 ? (((code - 0xAC00) % 28) ? a : b) : b; };
-  // 날짜·교시·내용이 같은 일정은 반을 묶어 하나의 일정으로 돌려줍니다. (예: 11월 2일 2교시 2반, 3반 심폐소생술)
+  // 같은 날짜·같은 이름의 일정은 하나의 항목으로 묶어서 돌려줍니다.
+  //  - 교시마다 학급 구성이 같으면 교시도 합칩니다. (예: 11월 2일 4·5교시 1, 4, 8, 9, 10반 심폐소생술 → 하나)
+  //  - 교시마다 학급 구성이 다르면 같은 학급 구성끼리만 묶습니다.
   async function groupedEvents() {
-    const groups = new Map();
+    const byPeriod = new Map();
     for (const [source, def] of Object.entries(EV_SOURCES)) {
       (await getCol(def.col)).forEach((r) => {
         const d = toDate(r[def.d]), cls = str(r[def.c]).trim(); if (!d || !cls) return;
         const per = str(r[def.t]).trim(), name = str(r[def.n]).trim(); const k = source + '|' + ymd(d) + '|' + per + '|' + name;
-        let g = groups.get(k); if (!g) { g = { source, date: ymd(d), periods: per, course: name, list: [] }; groups.set(k, g); }
+        let g = byPeriod.get(k); if (!g) { g = { source, date: ymd(d), per, course: name, list: [] }; byPeriod.set(k, g); }
         if (g.list.indexOf(cls) < 0) g.list.push(cls);
       });
     }
-    return [...groups.values()].map((g) => ({ date: g.date, classes: g.list.sort(natural).join(', '), periods: g.periods, course: g.course, source: g.source }));
+    const merged = new Map();
+    byPeriod.forEach((g) => {
+      const cls = g.list.sort(natural); const k = g.source + '|' + g.date + '|' + g.course + '|' + cls.join(',');
+      let m = merged.get(k); if (!m) { m = { source: g.source, date: g.date, course: g.course, classes: cls.join(', '), pers: [] }; merged.set(k, m); }
+      csvList(g.per).forEach((p) => { if (m.pers.indexOf(p) < 0) m.pers.push(p); });
+      if (!csvList(g.per).length && m.pers.indexOf('') < 0) m.pers.push('');
+    });
+    return [...merged.values()].map((m) => ({ date: m.date, classes: m.classes, periods: m.pers.sort(natural).join(', '), course: m.course, source: m.source }));
   }
   SERVER.getAllData = async function (isRefresh) {
     const page = (window.__GP_PAGE__ || '');
