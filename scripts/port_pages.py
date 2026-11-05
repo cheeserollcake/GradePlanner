@@ -81,7 +81,7 @@ for folder, (fname, key) in PAGES.items():
         html = re.sub(r"\.cell-input \{[^}]*\}", ".cell-input {\n        width: 100%; height: 30px;\n        text-align: center; border: 2px solid #4f46e5; outline: none;\n        font-size: 13pt; font-weight: bold; background: white;\n      }", html, count=1)
         # 상단 표: 첫 열 너비 제한, 나머지 균등 / 하단 표: 주·기간 고정, 나머지 균등(데스크톱에서 가로 스크롤 없음)
         html = must_replace(html, '<table className="table-auto-layout border-collapse">',
-          '<table className="border-collapse" style={{ tableLayout: \'fixed\', width: \'100%\', maxWidth: \'1230px\' }}>\n                        <colgroup><col style={{ width: \'5rem\' }} />{top[0].slice(1).map((_, i) => <col key={i} />)}</colgroup>', fname)
+          '<table className="border-collapse" style={{ tableLayout: \'fixed\', width: \'100%\', maxWidth: \'1230px\', margin: \'0 auto\' }}>\n                        <colgroup><col style={{ width: \'5rem\' }} />{top[0].slice(1).map((_, i) => <col key={i} />)}</colgroup>', fname)
         html = must_replace(html, "<table className=\"border-collapse\" style={{ tableLayout: 'fixed', minWidth: 'max-content' }}>",
           "<table className=\"border-collapse\" style={{ tableLayout: 'fixed', width: '100%', minWidth: '960px' }}>\n                        <colgroup><col style={{ width: '40px' }} /><col style={{ width: '80px' }} />{Array.from({ length: 30 }, (_, i) => <col key={i} />)}</colgroup>", fname)
         # 제목 옆 연필: 공간 이름(교사명/공간이름)
@@ -152,7 +152,7 @@ for folder, (fname, key) in PAGES.items():
         html = R("const classContainer = document.getElementById('modal-form-classes');", "const classContainer = document.getElementById('modal-form-classes');\n            classContainer.innerHTML = '';\n            document.getElementById('modal-form-periods').innerHTML = '';")
         html = R("globalHolidays = response.holidays;\n                        \n                        // 로컬 스토리지 업데이트", "globalHolidays = response.holidays;\n                        applyServerMeta(response);\n                        \n                        // 로컬 스토리지 업데이트")
         html = R("function refreshData() {", "function applyServerMeta(res) {\n            if (res.year) { window.__YEAR__ = res.year; localStorage.setItem('gp_year', res.year); }\n            if (res.classCount && res.classCount !== classList.length) {\n                classList = Array.from({ length: res.classCount }, (_, i) => i + 1);\n                if (currentClass > classList.length) currentClass = 1;\n                renderUIComponents(); renderModalCheckboxes();\n            }\n        }\n\n        function refreshData() {")
-        html = R("const isUnmodifiable = ['강당', '다목', '운동장', '전담', '(휴)'].some(keyword => ev.course.includes(keyword));", "const isUnmodifiable = ev.source === 'gym' || ev.source === 'sub' || ['강당', '다목', '운동장', '전담', '(휴)'].some(keyword => ev.course.includes(keyword));")
+        html = R("const isUnmodifiable = ['강당', '다목', '운동장', '전담', '(휴)'].some(keyword => ev.course.includes(keyword));", "const isUnmodifiable = ev.source === 'gym' || ev.source === 'room' || ev.source === 'sub' || ['강당', '다목', '운동장', '전담', '(휴)'].some(keyword => ev.course.includes(keyword));")
         a = html.index("function executeSave() {"); b = html.index("function showLoading(show)")
         html = html[:a] + r"""function executeSave() {
             const dateVal = document.getElementById('modal-form-date').value;
@@ -329,6 +329,101 @@ for folder, (fname, key) in PAGES.items():
         html = R("setSettings(prev => ({ ...prev, ...(res.settings || {}) }));", "if (res.settings && res.settings.classNames) classOptions = res.settings.classNames.concat(['불가']);\n            setSettings(prev => ({ ...prev, ...(res.settings || {}) }));")
     if key == "p05":   # 처음 열면 오늘이 속한 달을 보여줌
         html = must_replace(html, "const isMergedCell = (r, c) => {", "useEffect(() => { fetchMonthData(new Date().getMonth() + 1); }, []);\n\n        const isMergedCell = (r, c) => {", fname)
+    if key == "p03":   # 관리자 버튼 삭제 / 반별 명렬표 표 크기 제한 / 엑셀 다운로드
+        R = lambda a, b: must_replace(html, a, b, fname)
+        html = re.sub(r'\s*<button class="tab-link admin-btn"[^>]*>관리자</button>', '', html, count=1)
+        a = html.index("<!-- (C) 관리자 섹션 -->"); b = html.index("<!-- 4. 스크립트")
+        html = html[:a] + html[b:]
+        html = R("</style>", """.nl-table { table-layout: fixed; width: 100%; max-width: max(50%, 640px); margin: 0 auto; box-sizing: border-box; }
+      .xl-bar { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; padding:.75rem 1rem 0; }
+      .xl-bar button, .xl-bar select { font-size:.875rem; font-weight:600; padding:.45rem .9rem; border-radius:.5rem; border:1px solid #cbd5e1; background:#fff; color:#334155; }
+      .xl-bar button.xl { background:#059669; border-color:#059669; color:#fff; }
+      .xl-bar button.xl:hover { background:#047857; }
+      .xl-bar button:disabled { opacity:.5; cursor:wait; }
+    </style>""")
+        html = R("""<table className="w-full text-center border-collapse text-base table-fixed" style={{minWidth: '600px'}}>""", """<table className="nl-table text-center border-collapse text-base table-fixed">""")
+        html = R("""                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '23%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '23%' }} />
+                          <col style={{ width: '29%' }} />
+                          <col style={{ width: '5%' }} />""", """                          <col style={{ width: '3.4em' }} />
+                          <col />
+                          <col style={{ width: '3.4em' }} />
+                          <col />
+                          <col style={{ width: '17.5em' }} />
+                          <col style={{ width: '2.6em' }} />""")
+        html = R('<div id="root-grade"></div>', """<div class="xl-bar">
+        <button class="xl" id="xl-grade">⬇ 학년 전체 명렬표 엑셀</button>
+        <span style="color:#94a3b8">|</span>
+        <select id="xl-class"></select>
+        <button class="xl" id="xl-class-btn">⬇ 반별 명렬표 엑셀</button>
+        <span id="xl-msg" style="font-size:.8rem;color:#64748b"></span>
+      </div>
+      <div id="root-grade"></div>""")
+        html = R("<!-- 4. 스크립트", """<script src="../assets/js/xlsx-lite.js"></script>
+    <script>
+      (function () {
+        const GENDER = { '남성': 'male', '여성': 'female' };
+        const sel = document.getElementById('xl-class'), msg = document.getElementById('xl-msg');
+        sel.innerHTML = Array.from({ length: 10 }, (_, i) => '<option value="' + (i + 1) + '">' + (i + 1) + '반</option>').join('') + '<option value="all">전체 반 (반마다 시트)</option>';
+        const call = (name, ...args) => new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)[name](...args));
+        const save = (sheets, file) => {
+          const a = document.createElement('a'); a.href = URL.createObjectURL(XlsxLite.toBlob(sheets)); a.download = file + '.xlsx';
+          document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+        };
+        const busy = (on, t) => { document.getElementById('xl-grade').disabled = on; document.getElementById('xl-class-btn').disabled = on; msg.textContent = t || ''; };
+        function classSheet(n, data) {
+          const rows = [[{ v: n + '반 명렬표', s: 'title' }], ['번호', '이름', '성별', '기타', '생년월일'].map((v) => ({ v, s: 'totalLabel' }))];
+          data.slice(1).forEach((r) => { const st = GENDER[r[2]] || 'center'; rows.push([0, 1, 2, 3, 4].map((i) => ({ v: i === 0 ? Number(r[0]) : String(r[i] == null ? '' : r[i]), s: st }))); });
+          return { name: n + '반', widths: [8, 14, 8, 20, 18], freezeRow: 2, rows };
+        }
+        function gradeSheet(h) {
+          const rows = [], merges = [], widths = [], GAP = 1;
+          for (let c = 0; c < 5; c++) widths.push(6, 11, 7, 14, 2);
+          const ref = (r, c) => XlsxLite.colName(c) + (r + 1);
+          [[h.group1, 1], [h.group2, 6]].forEach(([g, start], gi) => {
+            const top = rows.length;
+            const r1 = [], r2 = [];
+            for (let c = 0; c < 5; c++) {
+              let m = 0, f = 0; g.forEach((row) => { const x = row.slice(c * 4, c * 4 + 4); if (x[1]) { if (x[2] === '남성') m++; if (x[2] === '여성') f++; } });
+              const base = c * 5;
+              [r1, r2].forEach((r) => { while (r.length < base) r.push(''); });
+              r1.push({ v: (start + c) + '반', s: 'totalLabel' }, { v: '', s: 'totalLabel' }, { v: '', s: 'totalLabel' }, { v: '', s: 'totalLabel' }, { v: '', s: 'default' });
+              r2.push({ v: '재적: ' + (m + f) + ' (남' + m + '/여' + f + ')', s: 'totalLabel' }, { v: '', s: 'totalLabel' }, { v: '', s: 'totalLabel' }, { v: '', s: 'totalLabel' }, { v: '', s: 'default' });
+              merges.push(ref(top, base) + ':' + ref(top, base + 3), ref(top + 1, base) + ':' + ref(top + 1, base + 3));
+            }
+            rows.push(r1, r2);
+            g.forEach((row) => {
+              const out = [];
+              for (let c = 0; c < 5; c++) { const x = row.slice(c * 4, c * 4 + 4); const st = GENDER[x[2]] || 'center'; x.forEach((v, i) => out.push({ v: i === 0 ? Number(v) : String(v == null ? '' : v), s: st })); out.push({ v: '', s: 'default' }); }
+              rows.push(out);
+            });
+            if (gi === 0) rows.push([]);
+          });
+          return { name: '학년 전체 명렬표', widths, rows, merges };
+        }
+        document.getElementById('xl-grade').onclick = async () => {
+          busy(true, '엑셀 파일을 만드는 중…');
+          try { const d = JSON.parse(await call('refreshGradeData', { sub: '가로 명렬표' })); const h = d.data || d.horizontal; save([gradeSheet(h)], '학년_전체_명렬표'); busy(false, '내려받았습니다.'); }
+          catch (e) { busy(false, ''); alert('엑셀을 만들지 못했습니다: ' + e); }
+        };
+        document.getElementById('xl-class-btn').onclick = async () => {
+          busy(true, '엑셀 파일을 만드는 중…');
+          try {
+            const get = async (n) => { const r = JSON.parse(await call('getClassData', n)); if (!r.success) throw new Error(r.error); return r.data; };
+            if (sel.value === 'all') {
+              const sheets = [];
+              for (let n = 1; n <= 10; n++) { const d = await get(n); if (d.slice(1).some((r) => String(r[1]).trim())) sheets.push(classSheet(n, d)); }
+              if (!sheets.length) throw new Error('명단이 입력된 반이 없습니다.');
+              save(sheets, '반별_명렬표_전체');
+            } else { const n = Number(sel.value); save([classSheet(n, await get(n))], n + '반_명렬표'); }
+            busy(false, '내려받았습니다.');
+          } catch (e) { busy(false, ''); alert('엑셀을 만들지 못했습니다: ' + (e.message || e)); }
+        };
+      })();
+    </script>
+    <!-- 4. 스크립트""")
     if key == "p07":   # 저장 버튼 없이 바로 저장 / 데스크톱에서 가로 스크롤 없는 표 / 이미지 업로드 개선
         R = lambda a, b: must_replace(html, a, b, fname)
         html = R("</style>", ".scroll-container { overflow-x: auto; }\n    .scroll-container > table { display: table !important; width: 100% !important; min-width: 760px; }\n    td.td-sports, td.td-com, th.sticky-header-sports, th.sticky-header-com { width: 20% !important; min-width: 0 !important; max-width: none !important; }\n    .table-fixed-sports, .table-fixed-com { width: 100% !important; min-width: 0 !important; max-width: none !important; }\n  </style>")
@@ -362,7 +457,10 @@ for folder, (fname, key) in PAGES.items():
         }""", """        const next = form.id ? pwdList.map(item => item.id === form.id ? { ...form } : item) : [...pwdList, { ...form, id: Date.now() }];
         setPwdList(next); persist(next);""")
         html = R("          setPwdList(pwdList.filter(item => item.id !== id));", "          const next = pwdList.filter(item => item.id !== id);\n          setPwdList(next); persist(next);")
-        html = re.sub(r'<button onClick=\{handleSave\} className="bg-indigo-600[^>]*>저장하기</button>', '<span className="text-xs text-slate-400 self-center">추가·수정·삭제하면 바로 저장됩니다</span>', html, count=1)
+        html = re.sub(r'<button onClick=\{handleSave\} className="bg-indigo-600[^>]*>저장하기</button>', '', html, count=1)
+        html = re.sub(r'<button onClick=\{onExit\} className="bg-slate-200[^>]*>닫기</button>', '', html, count=1)
+        html = R('<span className="hidden sm:inline">특별실 시간표</span>', '<span className="hidden sm:inline">시간표 이미지</span>')
+        html = R("const [authModal, setAuthModal] = useState(null);", "const [authModal, setAuthModal] = useState(null);\n      useEffect(() => { if (view !== 'password') setIsSpecialAuth(false); }, [view]);   // 다른 곳으로 나가면 비밀번호를 다시 묻습니다")
         html = R("google.script.run.withSuccessHandler(() => { setPasswords(newPwds); alert('특별실 비밀번호가 저장되었습니다.'); cb(); }).saveRoomPasswords(newPwds);",
                  "google.script.run.withSuccessHandler((res) => { if (res && res.success === false) alert('저장하지 못했습니다: ' + res.error); else setPasswords(newPwds); cb(); }).withFailureHandler((e) => { alert('저장하지 못했습니다: ' + e); cb(); }).saveRoomPasswords(newPwds);")
         # (3) 시간표 이미지: 바로 올리고(압축 후 Blob 업로드) 실패하면 이유를 알려 줌

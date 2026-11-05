@@ -694,7 +694,8 @@
   // ===== 시간표 데이터 모으기 (Page 05, 08, 09) =====
   const slotRow = (d, cls, per, name) => [isoLocal(d), cls, per, name];
   async function monthlyData() {
-    const [hol, gym, sub, add] = await Promise.all([getHolidayMap(), getCol('data_gym_timetable'), getCol('data_sub_timetable'), getCol('data_add_timetable')]);
+    const [hol, gym0, room, sub, add] = await Promise.all([getHolidayMap(), getCol('data_gym_timetable'), getCol('data_room_timetable'), getCol('data_sub_timetable'), getCol('data_add_timetable')]);
+    const gym = gym0.concat(room.map((r) => ({ gym_date: r.room_date, gym_class: r.room_class, gym_time: r.room_time, gym_place: r.room_place })));   // 컴실 등도 체육 공간과 같은 방식으로 표시
     const holidays = [...hol.entries()].sort().map(([k, v]) => [isoLocal(toDate(k)), v]);
     const rows = (list, fd, fc, ft, fn) => list.map((r) => ({ d: toDate(r[fd]), r })).filter((x) => x.d && str(x.r[fc]).trim())
       .map((x) => slotRow(x.d, str(x.r[fc]), str(x.r[ft]), str(x.r[fn])));
@@ -874,7 +875,8 @@
   const EV_SOURCES = {
     add: { col: 'data_add_timetable', d: 'add_date', c: 'add_class', t: 'add_time', n: 'add_name' },
     sub: { col: 'data_sub_timetable', d: 'sub_date', c: 'sub_class', t: 'sub_time', n: 'sub_name' },
-    gym: { col: 'data_gym_timetable', d: 'gym_date', c: 'gym_class', t: 'gym_time', n: 'gym_place' }
+    gym: { col: 'data_gym_timetable', d: 'gym_date', c: 'gym_class', t: 'gym_time', n: 'gym_place' },
+    room: { col: 'data_room_timetable', d: 'room_date', c: 'room_class', t: 'room_time', n: 'room_place' }
   };
   const csvList = (v) => str(v).split(',').map((x) => x.trim()).filter(Boolean);
   const josa = (w, pair) => { const [a, b] = pair.split('/'); const code = str(w).trim().slice(-1).charCodeAt(0); return code >= 0xAC00 && code <= 0xD7A3 ? (((code - 0xAC00) % 28) ? a : b) : b; };

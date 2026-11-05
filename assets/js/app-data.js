@@ -47,14 +47,30 @@
   }
 
   // ------------------------------------------------------------ 일정 만들기 (홈, 개요)
+  // 같은 이름의 일정끼리만 묶습니다. (같은 이름 + 같은 교시 구성인 반은 "1, 4반"처럼 합칩니다.)
+  // 정렬: 교시가 빠른 것 → 반이 빠른 것 순서. 예) 6반 1교시 튜터 → 2반 4교시 튜터
   function lecturerText(rows) {
-    const by = new Map();
+    const num = (v) => { const m = str(v).match(/\d+/); return m ? Number(m[0]) : 9999; };
+    const byName = new Map();
     rows.forEach((r) => {
-      const c = str(r.add_class).trim(); if (!by.has(c)) by.set(c, { times: new Set(), names: new Set() });
-      const o = by.get(c); if (str(r.add_time).trim()) o.times.add(str(r.add_time).trim()); if (str(r.add_name).trim()) o.names.add(str(r.add_name).trim());
+      const name = str(r.add_name).trim(), c = str(r.add_class).trim(), t = str(r.add_time).trim();
+      const o = byName.get(name) || byName.set(name, new Map()).get(name);
+      if (!o.has(c)) o.set(c, new Set()); if (t) o.get(c).add(t);
     });
-    return [...by.entries()].sort((a, b) => natural(a[0], b[0]))
-      .map(([c, o]) => [c, [...o.times].sort(natural).join(', '), [...o.names].join(', ')].filter(Boolean).join(' ')).join('\n');
+    const items = [];
+    byName.forEach((classes, name) => {
+      const groups = new Map();   // 교시 구성이 같은 반끼리 묶기
+      classes.forEach((times, c) => {
+        const ts = [...times].sort((a, b) => num(a) - num(b) || natural(a, b)); const k = ts.join(',');
+        if (!groups.has(k)) groups.set(k, { ts, cls: [] }); groups.get(k).cls.push(c);
+      });
+      groups.forEach((g) => {
+        g.cls.sort((a, b) => num(a) - num(b) || natural(a, b));
+        const clsText = g.cls.filter(Boolean).map((c, i, arr) => (i < arr.length - 1 ? c.replace(/반$/, '') : c)).join(', ');
+        items.push({ p: g.ts.length ? num(g.ts[0]) : 9999, c: g.cls.length ? num(g.cls[0]) : 9999, text: [clsText, g.ts.join(', '), name].filter(Boolean).join(' ') });
+      });
+    });
+    return items.sort((a, b) => a.p - b.p || a.c - b.c || natural(a.text, b.text)).map((x) => x.text).join('\n');
   }
 
   // from~to 사이의 모든 날짜를 순서대로 돌려줍니다. (해당 일정이 없어도 날짜는 항상 나옵니다.)

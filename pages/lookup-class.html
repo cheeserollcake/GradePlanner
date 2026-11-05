@@ -490,7 +490,7 @@
                 container.innerHTML = '<p class="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded">등록된 일정이 없습니다.</p>';
             } else {
                 cellEvents.forEach(ev => {
-                    const isUnmodifiable = ev.source === 'gym' || ev.source === 'sub' || ['강당', '다목', '운동장', '전담', '(휴)'].some(keyword => ev.course.includes(keyword));
+                    const isUnmodifiable = ev.source === 'gym' || ev.source === 'room' || ev.source === 'sub' || ['강당', '다목', '운동장', '전담', '(휴)'].some(keyword => ev.course.includes(keyword));
                     
                     const div = document.createElement('div');
                     div.className = "flex items-center justify-between p-2.5 border rounded mb-2 hover:bg-gray-50 transition-colors";
