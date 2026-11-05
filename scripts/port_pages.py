@@ -26,7 +26,7 @@ INJECT = lambda key: f"""
   <script src="../assets/js/gas-shim.js"></script>
 """
 
-ESBUILD = "/home/claude/.npm-global/lib/node_modules/tsx/node_modules/esbuild/bin/esbuild"
+ESBUILD = next((p for p in ["/opt/npm-tools/node_modules/.bin/esbuild", "/home/claude/.npm-global/lib/node_modules/tsx/node_modules/esbuild/bin/esbuild"] if __import__("os").path.exists(p)), "esbuild")
 FONT_STACK = "'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR'"
 
 def finalize(html):
@@ -93,6 +93,45 @@ for folder, (fname, key) in PAGES.items():
           "            </main>\n            {spaceEdit && (\n              <div className=\"fixed inset-0 z-[200] bg-black/40 flex items-center justify-center p-4\" onClick={() => setSpaceEdit(null)}>\n                <div className=\"bg-white rounded-xl shadow-xl p-5 w-full max-w-sm space-y-3\" onClick={(e) => e.stopPropagation()}>\n                  <h3 className=\"font-bold\">공간 이름</h3>\n                  <input autoFocus className=\"w-full border rounded-lg px-3 py-2\" placeholder=\"공간이름\" value={spaceEdit.value} onChange={(e) => setSpaceEdit({ ...spaceEdit, value: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') saveSpace(); }} />\n                  <div className=\"flex justify-end gap-2\"><button className=\"px-4 py-2 rounded-lg bg-slate-100 text-sm font-semibold\" onClick={() => setSpaceEdit(null)}>취소</button><button className=\"px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold\" onClick={saveSpace}>저장</button></div>\n                </div>\n              </div>\n            )}\n          </div>\n        );", fname)
         html = must_replace(html, '<option value="direct_input" className="text-blue-600 font-bold bg-slate-100">[직접 입력]</option>', "", fname)
         html = must_replace(html, "{!initialLoaded || !currentTabData ? (", "{initialLoaded && tabs.length === 0 ? (\n                <div className=\"flex flex-col items-center justify-center h-64 text-slate-400 space-y-2\"><p>등록된 전담교사가 없습니다.</p><p className=\"text-sm\">학년 관리자 &gt; 학년 기초 설정 &gt; 전담교사에서 과목·담당학급·교사를 등록하세요.</p></div>\n              ) : !initialLoaded || !currentTabData ? (", fname)
+    if key == "p04":   # 학급 수·교시 수는 관리자 설정을 따름 / 주간시수배정에서 꺼 둔 칸은 입력 불가 / 빈칸 자동 채우기
+        R = lambda a, b: must_replace(html, a, b, fname)
+        html = R("const periods = ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'];",
+                 "const periods = (timetableData && timetableData.periods) || ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'];\n        const [classCount, setClassCount] = useState(0);\n        const isOff = (c, r) => !!(timetableData && timetableData.off && timetableData.off.indexOf(c + '_' + r) >= 0);")
+        html = html.replace("for(let r=1; r<=6; r++) {", "for(let r=1; r<=periods.length; r++) {")
+        html = R("setTimetableData(parsed.data);", "setClassCount(parsed.data.classCount || 0);\n                   if (typeof classNum === 'number' && parsed.data.classCount && classNum > parsed.data.classCount) { setActiveTab('all'); } else { setTimetableData(parsed.data); }")
+        html = R("Array.from({length:10}, (_, i) => i+1)", "Array.from({length: classCount}, (_, i) => i+1)")
+        html = R("const handleDeleteTimetable = (targetClass) => {", """const handleAutoFill = (targetClass) => {
+          if (!confirm('빈 공간을 자동으로 채웁니다.')) return;
+          setIsRefreshing(true);
+          google.script.run
+            .withSuccessHandler(res => {
+              let p = null; try { p = JSON.parse(res); } catch (e) {}
+              if (!p || !p.success) alert('자동 채우기 오류: ' + (p && p.error ? p.error : '알 수 없는 오류'));
+              else if (p.short && p.short.length) alert('채울 수 있는 빈칸이 부족해 일부 시수를 배정하지 못했습니다.\\n' + p.short.map(x => x.subject + ' ' + x.count + '시수').join(', '));
+              else if (!p.filled) alert('채울 빈칸이 없거나 이미 배정시수에 맞게 채워져 있습니다.');
+              loadData(activeTab);
+            })
+            .withFailureHandler(err => { alert('서버 연결 실패: ' + err); setIsRefreshing(false); })
+            .autoFillBasicTimetable({ classNum: targetClass });
+        };
+
+        const handleDeleteTimetable = (targetClass) => {""")
+        html = R("""                    <button onClick={() => handleDeleteTimetable(activeTab)} className="text-slate-400 hover:text-red-500 transition-colors p-1">
+                     <Icons.Trash size={24} />
+                    </button>""", """                    <div className="flex items-center gap-1">
+                      <button onClick={() => handleAutoFill(activeTab)} title="빈 공간 자동 채우기" className="text-slate-400 hover:text-indigo-600 transition-colors p-1">
+                       <Icons.Wand size={24} />
+                      </button>
+                      <button onClick={() => handleDeleteTimetable(activeTab)} title="초기화" className="text-slate-400 hover:text-red-500 transition-colors p-1">
+                       <Icons.Trash size={24} />
+                      </button>
+                    </div>""")
+        html = R("        ChevronDown:", """        Wand: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>,
+        ChevronDown:""")
+        # 단일 학급 보기의 칸: 꺼 둔 칸은 회색, 비어 있으면 입력 불가(값이 이미 있으면 지울 수는 있음)
+        html = R("""<td key={cIdx} className={`border p-0 ${cellBg} ${cellBold} h-12 relative`}>""", """<td key={cIdx} className={`border p-0 ${cellBg} ${cellBold} h-12 relative ${isOff(cIdx+1, rIdx+1) ? 'bg-slate-200' : ''}`} title={isOff(cIdx+1, rIdx+1) ? '관리자 > 시간표 설정 > 주간시수배정에서 꺼 둔 칸입니다.' : ''}>""")
+        html = R("""{subjects.filter(s=>s).map(s => <option key={s} value={s}>{s}</option>)}""", """{(isOff(cIdx+1, rIdx+1) ? (cell ? [cell] : []) : subjects.filter(s=>s)).map(s => <option key={s} value={s}>{s}</option>)}""")
+        html = R("""<td key={cIdx} className={`border p-0 ${cellClass} ${cellBold} h-8 relative`}>""", """<td key={cIdx} className={`border p-0 ${cellClass} ${cellBold} h-8 relative ${(timetableData.off || []).indexOf((cIdx+1) + '_' + (rIdx+1)) >= 0 ? 'bg-slate-200' : ''}`}>""")
     if key == "p07":   # 관리자 설정 버튼은 새 관리자 페이지로 이동
         html = must_replace(html, "onClick={() => isAdmin ? setView('admin') : setAuthModal('admin')}", "onClick={() => { try { parent.location.hash = '#/admin'; } catch (e) { location.href = 'admin.html'; } }}", fname)
     if key == "p05":   # 학년도 연도는 서버(관리자 설정) 값을 사용
@@ -238,6 +277,21 @@ for folder, (fname, key) in PAGES.items():
         """ + html[b:]
         html = R("const selectedCourse = courseSelect ? courseSelect.value : '';", "const selectedCourse = courseSelect ? courseSelect.value : '';\n                const groupDef = selectedCourse.startsWith('group::') ? globalGroups.find(gr => 'group::' + gr.name === selectedCourse) : null;\n                const groupSet = groupDef ? new Set(groupDef.courses) : null;")
         html = R("if (isAll) return true;", "if (selectedCourse === '__ALL__') return true;\n                                        if (groupSet) return groupSet.has(ev.course);\n                                        if (isAll) return true;")
+        # 같은 날짜·교시·일정은 학급을 묶어서 표시 (2반, 3반, 5반 심폐소생)
+        html = R("""matchedEvents.sort((a, b) => String(a.classNm).localeCompare(String(b.classNm)));
+                                        
+                                        const contentHtml = matchedEvents.map(e => {
+                                            return `<div class="mb-1"><span class="font-bold text-blue-600">${e.classNm}</span> <span>${e.course}</span></div>`;
+                                        }).join('');""", """const clsNo = (x) => { const m = String(x).match(/\\d+/); return m ? parseInt(m[0], 10) : 9999; };
+                                        matchedEvents.sort((a, b) => clsNo(a.classNm) - clsNo(b.classNm) || String(a.classNm).localeCompare(String(b.classNm)));
+                                        const byCourse = new Map();
+                                        matchedEvents.forEach(e => {
+                                            if (!byCourse.has(e.course)) byCourse.set(e.course, []);
+                                            const arr = byCourse.get(e.course); if (arr.indexOf(e.classNm) < 0) arr.push(e.classNm);
+                                        });
+                                        const contentHtml = Array.from(byCourse.entries()).map(([course, classes]) => {
+                                            return `<div class="mb-1"><span class="font-bold text-blue-600">${classes.join(', ')}</span> <span>${course}</span></div>`;
+                                        }).join('');""")
         html = R('<option value="" disabled selected>로딩 중...</option>\n                    </select>', '<option value="" disabled selected>로딩 중...</option>\n                    </select>\n                    <button onclick="openGroupModal()" class="px-2 py-1 bg-white border-2 border-gray-200 rounded-lg hover:bg-blue-50" title="강좌 범주 관리">✏️</button>')
         html = R("</body>", '<div id="group-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex justify-center items-center p-4"><div class="bg-white rounded-xl shadow-xl w-full max-w-md p-4 max-h-[90vh] overflow-y-auto"><div class="flex justify-between items-center mb-3"><h3 class="font-bold">강좌 범주 관리</h3><button onclick="closeGroupModal()" class="text-gray-400 text-lg">✕</button></div><div id="group-modal-body"></div></div></div>\n</body>')
     if key == "p07":   # 공간·개방 설정을 관리자 페이지 설정(이름 기준)에서 가져옴

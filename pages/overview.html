@@ -13,7 +13,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
-    .cell { white-space: pre-wrap; word-break: keep-all; }
+    .cell { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
     .row-sat { background:#e0f2fe; color:#2563eb; }
     .row-sun { background:#fce7f3; color:#dc2626; }
     .row-today td { box-shadow: inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
@@ -46,8 +46,8 @@
         <button data-f="all" class="px-3 py-1 rounded-md text-sm font-semibold">전체</button>
       </div>
     </div>
-    <div id="scroller" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-auto relative" style="max-height:68vh">
-      <table class="w-full text-sm min-w-[720px]" style="table-layout:fixed;width:100%">
+    <div id="scroller" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-y-auto overflow-x-hidden relative" style="max-height:68vh">
+      <table class="w-full text-sm" style="table-layout:fixed;width:100%">
         <colgroup><col style="width:8.5rem"><col><col><col></colgroup>
         <thead class="bg-slate-100 text-slate-600 sticky top-0 z-10"><tr>
           <th class="p-2 border-b">날짜</th><th class="p-2 border-b">학교 행사</th><th class="p-2 border-b">학년 강사 일정</th><th class="p-2 border-b">학년 일정</th>
@@ -66,6 +66,7 @@
       <div class="flex items-center justify-between mb-1"><label class="text-sm font-semibold">학교 행사</label>
         <label class="text-sm flex items-center gap-1"><input type="checkbox" id="mHol"> 휴일</label></div>
       <textarea id="mSchool" rows="3" class="w-full border rounded-lg p-2 text-sm"></textarea>
+      <p id="mErr" class="text-sm font-semibold text-red-600 mt-1 hidden"></p>
       <p id="mNote" class="text-xs text-slate-400 mt-1 whitespace-pre-wrap"></p>
     </div>
     <div><label class="text-sm font-semibold block mb-1">학년 강사 일정 <span class="font-normal text-slate-400">(수정 불가)</span></label>
@@ -166,11 +167,16 @@ async function openEdit(key) {
   document.getElementById('mLec').value = row ? row.lecturer : '';
   document.getElementById('mMemo').value = st.memo.map((r) => r.task_memo_name).join('\n');
   document.getElementById('mMemoNote').textContent = st.memoRange.length ? '기간 일정: ' + st.memoRange.map((r) => r.task_memo_name).join(' / ') : '';
+  document.getElementById('mErr').classList.add('hidden');
   document.getElementById('modal').classList.remove('hidden'); document.getElementById('modal').classList.add('flex');
 }
 function closeModal() { document.getElementById('modal').classList.add('hidden'); document.getElementById('modal').classList.remove('flex'); }
 document.getElementById('mCancel').onclick = closeModal;
+const showErr = (m) => { const e = document.getElementById('mErr'); e.textContent = m; e.classList.remove('hidden'); };
+document.getElementById('mHol').onchange = () => document.getElementById('mErr').classList.add('hidden');
+document.getElementById('mSchool').oninput = () => document.getElementById('mErr').classList.add('hidden');
 document.getElementById('mSave').onclick = async () => {
+  if (document.getElementById('mHol').checked && !document.getElementById('mSchool').value.trim()) { showErr('학교행사에 휴일이름을 입력하세요'); document.getElementById('mSchool').focus(); return; }
   const btn = document.getElementById('mSave'); btn.disabled = true; btn.textContent = '저장 중...';
   try {
     await APP.saveDay(editing, { schoolText: document.getElementById('mSchool').value, isHoliday: document.getElementById('mHol').checked, memoText: document.getElementById('mMemo').value });

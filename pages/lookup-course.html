@@ -419,10 +419,15 @@
                                     });
 
                                     if (matchedEvents.length > 0) {
-                                        matchedEvents.sort((a, b) => String(a.classNm).localeCompare(String(b.classNm)));
-                                        
-                                        const contentHtml = matchedEvents.map(e => {
-                                            return `<div class="mb-1"><span class="font-bold text-blue-600">${e.classNm}</span> <span>${e.course}</span></div>`;
+                                        const clsNo = (x) => { const m = String(x).match(/\d+/); return m ? parseInt(m[0], 10) : 9999; };
+                                        matchedEvents.sort((a, b) => clsNo(a.classNm) - clsNo(b.classNm) || String(a.classNm).localeCompare(String(b.classNm)));
+                                        const byCourse = new Map();
+                                        matchedEvents.forEach(e => {
+                                            if (!byCourse.has(e.course)) byCourse.set(e.course, []);
+                                            const arr = byCourse.get(e.course); if (arr.indexOf(e.classNm) < 0) arr.push(e.classNm);
+                                        });
+                                        const contentHtml = Array.from(byCourse.entries()).map(([course, classes]) => {
+                                            return `<div class="mb-1"><span class="font-bold text-blue-600">${classes.join(', ')}</span> <span>${course}</span></div>`;
                                         }).join('');
                                         
                                         td.innerHTML = contentHtml;

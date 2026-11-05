@@ -48,6 +48,8 @@
     view.innerHTML = '<p class="text-slate-400">불러오는 중...</p>';
     let subs = (await GP.getSubjectConfig()).map((s) => ({ name: s.name, hours: s.hours, h1: s.hoursSem1, h2: s.hoursSem2, special: s.special, stored: s.stored }));
     let times = (await GP.readList('list_time')).map((i) => i.value); if (!times.length) times = [1, 2, 3, 4, 5, 6].map((n) => n + '교시');
+    const slotCfg = await GP.getCfg('basic_slots', {}); const off = new Set(Array.isArray(slotCfg.off) ? slotCfg.off : []);   // 꺼 둔 칸: '<요일1~5>_<교시1~>'
+    const saveSlots = () => autosave(() => GP.setCfg('basic_slots', { off: [...off] }));
     const blank = (v) => (v === '' || v === null || v === undefined ? '' : num(v));
     const saveSubs = () => autosave(async () => {
       const list = subs.map((s) => ({ ...s, name: s.name.trim() })).filter((s) => s.name);
@@ -59,6 +61,13 @@
       await GP.writeList('list_time', list.map((v) => ({ value: v })));
     });
     const sum = () => subs.reduce((a, s) => a + num(s.hours), 0);
+    const SLOT_DAYS = ['월', '화', '수', '목', '금'];
+    const slotCard = () => '<div class="' + CARD + '"><h2 class="font-bold text-lg">주간시수배정 <span class="text-xs font-normal text-slate-400">체크한 칸에만 기초시간표 과목을 넣을 수 있습니다</span></h2>' +
+      '<table class="w-full text-center border-collapse text-sm" style="table-layout:fixed"><thead><tr><th class="border bg-slate-100 p-1"></th>' +
+      SLOT_DAYS.map((d, c) => '<th class="border bg-slate-100 p-1"><button data-sday="' + (c + 1) + '" title="요일 전체 선택/해제" class="font-bold w-full">' + d + '</button></th>').join('') + '</tr></thead><tbody>' +
+      times.map((t, r) => '<tr><th class="border bg-slate-50 p-1 text-xs"><button data-sper="' + (r + 1) + '" title="교시 전체 선택/해제" class="font-semibold w-full">' + esc(t) + '</button></th>' +
+        SLOT_DAYS.map((d, c) => '<td class="border p-1"><input type="checkbox" class="w-4 h-4" data-slot="' + (c + 1) + '_' + (r + 1) + '" ' + (off.has((c + 1) + '_' + (r + 1)) ? '' : 'checked') + '></td>').join('') + '</tr>').join('') +
+      '</tbody></table></div>';
     const draw = guardDraw(() => {
       const numIn = (i, k, v, ph) => '<input data-i="' + i + '" data-k="' + k + '" type="number" min="0" value="' + esc(v) + '" placeholder="' + ph + '" class="' + INP + ' w-full text-center">';
       view.innerHTML = '<div class="grid lg:grid-cols-3 gap-5"><div class="lg:col-span-2 ' + CARD + '"><h2 class="font-bold text-lg">과목 / 시수 / 전담 설정 <span class="text-xs font-normal text-slate-400">입력하면 바로 저장됩니다</span></h2>' +
@@ -69,15 +78,19 @@
           '<td class="p-1"><button data-del="' + i + '" class="text-slate-400 hover:text-red-600">✕</button></td></tr>').join('') +
         '</tbody></table><div class="flex items-center justify-between"><button id="addSub" class="' + BTN_G + '">+ 과목 추가</button>' +
         '<span class="text-sm text-slate-500">주당 시수 합계 <b id="hsum">' + sum() + '</b></span></div></div>' +
-        '<div class="' + CARD + '"><h2 class="font-bold text-lg">교시 설정</h2><div class="space-y-2">' +
+        '<div class="space-y-5"><div class="' + CARD + '"><h2 class="font-bold text-lg">교시 설정</h2><div class="space-y-2">' +
         times.map((t, i) => '<div class="flex gap-2"><input data-ti="' + i + '" value="' + esc(t) + '" class="' + INP + ' flex-1"><button data-tdel="' + i + '" class="text-slate-400 hover:text-red-600">✕</button></div>').join('') +
-        '</div><button id="addTime" class="' + BTN_G + '">+ 교시 추가</button></div></div>';
+        '</div><button id="addTime" class="' + BTN_G + '">+ 교시 추가</button></div>' + slotCard() + '</div></div>';
       view.querySelectorAll('[data-k]').forEach((el) => el.onchange = () => {
         const s = subs[+el.dataset.i], k = el.dataset.k; s[k] = el.type === 'checkbox' ? el.checked : el.value; if (k === 'hours') $('hsum').textContent = sum(); saveSubs();
       });
       view.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => { subs.splice(+b.dataset.del, 1); draw(); saveSubs(); });
       $('addSub').onclick = () => { subs.push({ name: '', hours: '', h1: '', h2: '', special: false }); draw(); view.querySelectorAll('[data-k="name"]')[subs.length - 1].focus(); };
-      view.querySelectorAll('[data-ti]').forEach((el) => el.onchange = () => { times[+el.dataset.ti] = el.value; saveTimes(); });
+      view.querySelectorAll('[data-slot]').forEach((el) => el.onchange = () => { if (el.checked) off.delete(el.dataset.slot); else off.add(el.dataset.slot); saveSlots(); });
+      const toggleGroup = (keys) => { const allOn = keys.every((k) => !off.has(k)); keys.forEach((k) => (allOn ? off.add(k) : off.delete(k))); draw(); saveSlots(); };
+      view.querySelectorAll('[data-sday]').forEach((b) => b.onclick = () => toggleGroup(times.map((_, r) => b.dataset.sday + '_' + (r + 1))));
+      view.querySelectorAll('[data-sper]').forEach((b) => b.onclick = () => toggleGroup(SLOT_DAYS.map((_, c) => (c + 1) + '_' + b.dataset.sper)));
+      view.querySelectorAll('[data-ti]').forEach((el) => el.onchange = () => { times[+el.dataset.ti] = el.value; saveTimes(); draw(); });
       view.querySelectorAll('[data-tdel]').forEach((b) => b.onclick = () => { times.splice(+b.dataset.tdel, 1); draw(); saveTimes(); });
       $('addTime').onclick = () => { times.push((times.length + 1) + '교시'); draw(); saveTimes(); };
     });
@@ -395,7 +408,7 @@
       '<label class="text-sm font-semibold">페이지 접근 비밀번호<span class="block text-xs font-normal text-slate-400">학생 명렬표, 내선번호 등에 공통 적용</span><input id="pwAccess" value="' + esc(pw.access) + '" class="' + INP + ' w-full mt-1"></label>' +
       '<label class="text-sm font-semibold">관리자 페이지 비밀번호<span class="block text-xs font-normal text-slate-400">이 관리자 페이지 접근용</span><input id="pwAdmin" value="' + esc(pw.admin) + '" class="' + INP + ' w-full mt-1"></label></div>' +
       '<div class="text-right"><button id="savePw" class="' + BTN_P + '">비밀번호 저장</button></div></div>' +
-      '<div class="' + CARD + ' border-red-200"><h2 class="font-bold text-lg text-red-700">데이터 삭제</h2><p class="text-sm text-slate-500">선택한 학년도(2월 1일~다음 해 2월 말일)의 데이터를 삭제합니다.<br><b>날짜로 구분되는 데이터:</b> 학교 행사, 학년 일정, 추가된 일정, 체육 공간·특별실·전담 시간표, 학기·방학·휴일 설정, 학습준비물(연도), 담임·전담교사 매칭, 공간 개방 설정<br><b>작성일이 그 학년도인 데이터:</b> 학생 명렬표, 개요 비고, 예산, 강좌 범주, 이미지·파일(특별실·교실배치도·내선번호)<br><b>삭제되지 않음:</b> 쇼핑몰 ID, 바로가기, 비밀번호, 학급·과목·교시·공간 목록</p>' +
+      '<div class="' + CARD + ' border-red-200"><h2 class="font-bold text-lg text-red-700">데이터 삭제</h2><p class="text-sm text-slate-500">선택한 학년도(2월 1일~다음 해 2월 말일)의 데이터를 삭제합니다.<br><b>날짜로 구분되는 데이터:</b> 학교 행사, 학년 일정, 추가된 일정, 체육 공간·특별실·전담 시간표, 학기·방학·휴일 설정, 학습준비물(연도), 담임·전담교사 매칭, 공간 개방 설정<br><b>작성일이 그 학년도인 데이터:</b> 학생 명렬표, 개요 비고, 예산(추가한 예산 페이지 포함), 강좌 범주, 이미지·파일(특별실·교실배치도·내선번호)<br><b>삭제되지 않음:</b> 쇼핑몰 ID, 바로가기, 비밀번호, 학급·과목·교시·공간 목록</p>' +
       '<div class="flex gap-2 items-center"><select id="delYear" class="' + INP + '">' + years.map((y) => '<option value="' + y + '">' + y + '학년도</option>').join('') + '</select><button id="delBtn" class="' + BTN + ' bg-red-600 text-white hover:bg-red-700">과거 데이터 삭제</button></div></div>' +
       '<div class="' + CARD + '"><h2 class="font-bold text-lg">임시 저장 데이터 새로고침</h2><p class="text-sm text-slate-500">속도와 사용량을 줄이려고 기기에 저장해 둔 데이터는 앱에서 저장할 때마다 자동으로 갱신됩니다. 파이어베이스 콘솔에서 데이터를 직접 고쳤다면 이 버튼으로 모든 기기가 새로 받게 하세요.</p><button id="resetCache" class="' + BTN_G + '">모든 기기 데이터 새로고침</button></div></div>' +
       '<div id="dm" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50"><div class="bg-white rounded-2xl p-5 w-full max-w-md space-y-3"><h3 class="font-bold text-lg text-red-700">정말 삭제할까요?</h3>' +

@@ -272,7 +272,7 @@
     ['year_' + year, 'space_open_' + year].forEach((id) => ops.push({ type: 'delete', col: 'app_config', id }));   // 그 학년도의 담임/전담교사, 공간 개방 설정
     summary.app_config = 2;
     // 2) 작성일이 그 학년도인 데이터 (먼저 모두 확인하고, 하나라도 확인하지 못하면 아무것도 지우지 않습니다)
-    for (const col of ['data_student', 'data_budget', 'data_overview']) {
+    for (const col of ['data_student', 'data_budget', 'data_overview', 'data_sheet_rows']) {
       const times = await createTimes(col); let n = 0;
       times.forEach((t, id) => { if (created(t)) { ops.push({ type: 'delete', col, id }); n++; } });
       summary[col] = n;

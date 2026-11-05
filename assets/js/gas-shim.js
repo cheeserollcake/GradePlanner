@@ -148,7 +148,7 @@
     }
   }
   const newId = (col) => db.collection(col).doc().id;
-  const ALL_COLS = ['app_config', 'data_basic', 'data_task_school', 'data_task_memo', 'data_student', 'data_sub_timetable', 'data_add_timetable', 'data_gym_timetable', 'data_room_timetable', 'data_budget', 'data_supply', 'data_overview', 'data_basic_timetable', 'data_mall', 'data_links'];
+  const ALL_COLS = ['app_config', 'data_basic', 'data_task_school', 'data_task_memo', 'data_student', 'data_sub_timetable', 'data_add_timetable', 'data_gym_timetable', 'data_room_timetable', 'data_budget', 'data_supply', 'data_overview', 'data_basic_timetable', 'data_mall', 'data_links', 'data_sheet_rows'];
   // 파이어베이스 콘솔에서 직접 고친 뒤 모든 기기가 새로 받게 하려면 호출합니다.
   async function resetCaches() {
     const inc = {}; ALL_COLS.forEach((c) => { inc[c] = firebase.firestore.FieldValue.increment(1); });
@@ -600,23 +600,29 @@
   };
 
   // ===== Page 04 : 기초 시간표 =====
+  //  - 교시 수/이름은 관리자 > 시간표 설정 > 교시 설정, 학급 수는 학년 기초 설정의 값을 따릅니다.
+  //  - 기초시간표에 과목을 넣을 수 있는 칸은 관리자 > 시간표 설정 > 주간시수배정에서 체크한 칸입니다.
+  //    (app_config/basic_slots 에는 "꺼 둔 칸"만 저장합니다. 저장된 것이 없으면 모든 칸이 켜져 있습니다.)
+  async function basicPeriods() { const t = (await readList('list_time')).map((i) => i.value).filter(Boolean); return t.length ? t : [1, 2, 3, 4, 5, 6].map((n) => n + '교시'); }
+  async function basicSlotsOff() { const c = await getCfg('basic_slots', {}); return new Set(Array.isArray(c.off) ? c.off : []); }   // 키: '<요일1~5>_<교시1~>'
   async function basicCommon() {
-    const subs = (await getSubjectConfig()).filter((x) => num(x.hours) > 0);
-    const list = subs.length ? subs : SUBJECTS_DEFAULT.map((n) => ({ name: n, hours: DEFAULT_HOURS[n] }));
-    return { subjects: list.map((x) => x.name), goals: list.map((x) => num(x.hours)), p12: '', p13: '' };
+    const cfg = await getSubjectConfig();
+    const subs = cfg.filter((x) => num(x.hours) > 0);
+    const list = subs.length ? subs : SUBJECTS_DEFAULT.map((n) => ({ name: n, hours: DEFAULT_HOURS[n], special: DEFAULT_SPECIAL.indexOf(n) >= 0 }));
+    const g = await generalCfg(); const periods = await basicPeriods(); const off = await basicSlotsOff();
+    return { subjects: list.map((x) => x.name), goals: list.map((x) => num(x.hours)), specials: list.filter((x) => x.special).map((x) => x.name), p12: '', p13: '',
+      periods, classCount: g.classNames.length, off: [...off] };
   }
-  async function basicSchedule(n) {
-    const doc = (await getCol('data_basic_timetable')).find((r) => r._id === 'class_' + n);
-    const cells = (doc && doc.cells) || {};
+  async function basicDocs() { const m = new Map(); (await getCol('data_basic_timetable')).forEach((r) => m.set(r._id, (r && r.cells) || {})); return m; }
+  function basicRows(cells, nPeriods) {
     const rows = [];
-    for (let r = 0; r < 7; r++) {
+    for (let r = 0; r <= nPeriods; r++) {
       const row = [];
       for (let c = 0; c < 6; c++) {
         const k = `${r}_${c}`;
-        if (cells[k] !== undefined) row.push(cells[k]);
-        else if (r === 0) row.push(c === 0 ? '교시' : DAYS[c]);
+        if (r === 0) row.push(c === 0 ? '교시' : DAYS[c]);
         else if (c === 0) row.push(`${r}교시`);
-        else row.push('');
+        else row.push(cells[k] !== undefined ? cells[k] : '');
       }
       rows.push(row);
     }
@@ -625,19 +631,63 @@
   async function basicTimetableResponse(request) {
     try {
       invalidate('data_basic_timetable');
-      const common = await basicCommon();
+      const common = await basicCommon(); const docs = await basicDocs(); const np = common.periods.length;
       if (request && request.classNum === 'all') {
-        const allSchedules = []; for (let i = 1; i <= 10; i++) allSchedules.push(await basicSchedule(i));
+        const allSchedules = []; for (let i = 1; i <= common.classCount; i++) allSchedules.push(basicRows(docs.get('class_' + i) || {}, np));
         return JSON.stringify({ success: true, type: 'basic_timetable_all', data: Object.assign({ allSchedules }, common) });
       }
-      const n = parseInt(request && request.classNum, 10) || 1;
-      return JSON.stringify({ success: true, type: 'basic_timetable', data: Object.assign({ schedule: await basicSchedule(n) }, common) });
+      const n = Math.min(Math.max(parseInt(request && request.classNum, 10) || 1, 1), common.classCount);
+      return JSON.stringify({ success: true, type: 'basic_timetable', data: Object.assign({ schedule: basicRows(docs.get('class_' + n) || {}, np), classNum: n }, common) });
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
   }
   SERVER.deleteBasicTimetable = async function (params) {
     await commit([{ type: 'set', col: 'data_basic_timetable', id: 'class_' + params.classNum, data: { class: Number(params.classNum), cells: {} } }]);
     return JSON.stringify({ success: true });
   };
+  // 빈칸 자동 채우기: 이미 입력된 칸은 그대로 두고, 켜져 있는 빈 칸에 남은 배정시수만큼 과목을 넣습니다.
+  //  - 같은 과목이 한 요일에 몰리지 않고, 연속 교시에 겹치지 않도록 흩어 놓습니다.
+  //  - 전담 과목은 다른 반이 같은 시간에 이미 쓰고 있는 칸을 피합니다.
+  //  채울 수 없는 시수가 남으면 부족한 만큼을 알려 줍니다.
+  function planAutoFill(common, mine, others) {
+    const np = common.periods.length, off = new Set(common.off);
+    const grid = {}; for (let c = 1; c <= 5; c++) for (let r = 1; r <= np; r++) grid[`${r}_${c}`] = mine[`${r}_${c}`] || '';
+    const need = common.subjects.map((s, i) => ({ s, n: Math.max(0, common.goals[i] - Object.values(grid).filter((v) => v === s).length) })).filter((x) => x.n > 0);
+    const empty = []; for (let c = 1; c <= 5; c++) for (let r = 1; r <= np; r++) if (!grid[`${r}_${c}`] && !off.has(`${c}_${r}`)) empty.push([r, c]);
+    const spSet = new Set(common.specials);
+    const clash = (s, r, c) => spSet.has(s) && others.some((o) => o[`${r}_${c}`] === s);
+    const placed = {}; const left = {}; need.forEach((x) => { left[x.s] = x.n; });
+    let guard = 0;
+    while (empty.length && Object.values(left).some((v) => v > 0) && guard++ < 1000) {
+      // 남은 시수가 가장 많은 과목부터, 가장 덜 겹치는 칸에 배치
+      const s = Object.keys(left).filter((k) => left[k] > 0).sort((a, b) => left[b] - left[a] || common.subjects.indexOf(a) - common.subjects.indexOf(b))[0];
+      let best = -1, bestScore = Infinity;
+      empty.forEach(([r, c], i) => {
+        let sc = 0;
+        for (let rr = 1; rr <= np; rr++) if (grid[`${rr}_${c}`] === s) sc += 10;                 // 같은 요일에 같은 과목
+        if (grid[`${r - 1}_${c}`] === s || grid[`${r + 1}_${c}`] === s) sc += 25;               // 바로 앞뒤 교시
+        if (clash(s, r, c)) sc += 1000;                                                          // 전담 과목 시간 겹침
+        sc += r * 0.01 + c * 0.001;                                                              // 같으면 앞 교시·앞 요일 먼저
+        if (sc < bestScore) { bestScore = sc; best = i; }
+      });
+      const [r, c] = empty.splice(best, 1)[0]; grid[`${r}_${c}`] = s; placed[`${r}_${c}`] = s; left[s]--;
+    }
+    const short = Object.keys(left).filter((k) => left[k] > 0).map((k) => ({ subject: k, count: left[k] }));
+    return { placed, short };
+  }
+  SERVER.autoFillBasicTimetable = async function (params) {
+    try {
+      invalidate('data_basic_timetable');
+      const common = await basicCommon(); const docs = await basicDocs(); const n = parseInt(params.classNum, 10);
+      if (!(n >= 1 && n <= common.classCount)) throw new Error('학급을 찾을 수 없습니다.');
+      const others = []; for (let i = 1; i <= common.classCount; i++) if (i !== n) others.push(docs.get('class_' + i) || {});
+      const plan = planAutoFill(common, docs.get('class_' + n) || {}, others);
+      const cells = {}; Object.keys(plan.placed).forEach((k) => { cells[k] = plan.placed[k]; });
+      if (Object.keys(cells).length) await commit([{ type: 'set', merge: true, col: 'data_basic_timetable', id: 'class_' + n, data: { class: n, cells } }]);
+      invalidate('data_basic_timetable');
+      return JSON.stringify({ success: true, filled: Object.keys(cells).length, short: plan.short });
+    } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
+  };
+  SERVER.planAutoFill = planAutoFill;
 
   // ===== 시간표 데이터 모으기 (Page 05, 08, 09) =====
   const slotRow = (d, cls, per, name) => [isoLocal(d), cls, per, name];
