@@ -282,7 +282,7 @@
     const keep = groups.filter((g) => !created(g.createdAt ? new Date(g.createdAt) : docT));
     summary.course_groups = groups.length - keep.length;
     if (keep.length !== groups.length) ops.push({ type: 'set', col: 'app_config', id: 'course_groups', data: { json: JSON.stringify(keep), updatedAt: new Date().toISOString() } });
-    const files = []; for (const folder of ['special_room', 'classroom', 'extension']) (await storageFilesIn(folder, r)).forEach((it) => files.push(it));
+    const files = []; for (const folder of ['special_room', 'classroom', 'extension', 'budget']) (await storageFilesIn(folder, r)).forEach((it) => files.push(it));
     summary.files = files.length;
     const ext = await getCfg('ext_file', null); if (ext && files.some((it) => it.fullPath === ext.path)) ops.push({ type: 'delete', col: 'app_config', id: 'ext_file' });
     // 3) 실제 삭제

@@ -36,6 +36,15 @@
     .sheet input.hcell { width:100%; height:32px; border:0; padding:4px 8px; background:transparent; outline:none; font:inherit; font-weight:700; text-align:center; color:#202124; }
     .sheet tfoot th, .sheet tfoot td { background:#f1f5f9; font-weight:700; padding:6px 8px; position:sticky; bottom:0; z-index:2; border-top:2px solid #9aa0a6; }
     .sheet tr.blank td { background:#fcfcfd; }
+    /* 지금 커서가 있는 행 강조 */
+    .sheet tbody tr:focus-within td { background:#e3edff; }
+    .sheet tbody tr:focus-within td.calc { background:#d3e2fc; }
+    .sheet tbody tr:focus-within .rn { background:#bcd2fa; color:#1a56c4; font-weight:700; box-shadow:inset 4px 0 0 #1a73e8; }
+    .sheet tbody tr:focus-within td:focus-within { background:#fff; }
+    .attbtn { position:absolute; right:3px; top:50%; transform:translateY(-50%); font-size:13px; line-height:1; padding:3px 4px; border-radius:6px; background:#f1f5f9; border:1px solid #e2e8f0; z-index:1; }
+    .attbtn:hover { background:#e0e7ff; }
+    .attbtn b { font-size:10px; color:#4338ca; margin-left:1px; }
+    td.attc input.cell { padding-right:46px; }
     .colx { position:absolute; right:2px; top:1px; font-size:11px; color:#9aa0a6; display:none; line-height:1; }
     .sheet th:hover .colx { display:block; } .colx:hover { color:#b91c1c; }
   </style>
@@ -75,6 +84,19 @@
       </div>
     </div>
   </div>
+  <!-- 비고 첨부 -->
+  <div id="attModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-5 space-y-3 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between"><h3 class="font-bold text-lg">비고 첨부 <span id="attTitle" class="text-sm font-normal text-slate-400"></span></h3><button id="attClose" class="text-slate-400 text-xl leading-none">✕</button></div>
+      <div id="attList" class="space-y-2"></div>
+      <div>
+        <label class="inline-block px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold cursor-pointer hover:bg-indigo-700">＋ 이미지·파일 추가<input id="attFile" type="file" multiple class="hidden"></label>
+        <span class="text-xs text-slate-400 ml-2">파일당 15MB까지</span>
+      </div>
+      <p id="attMsg" class="text-sm text-slate-500"></p>
+      <p class="text-xs text-slate-400">글로 남기는 메모는 비고 칸에 그대로 입력하세요.</p>
+    </div>
+  </div>
 <script>
 const { getCol, num, str, natural } = GP;
 const fmt = (n) => Number(n).toLocaleString();
@@ -89,7 +111,7 @@ const BUILTIN = {
     { k: 'budget_name', label: '예산종류', w: 140, sug: 1 }, { k: 'budget_product', label: '품명', w: 180 }, { k: 'budget_spec', label: '규격/구입처', w: 160 },
     { k: 'budget_num', label: '수량', w: 70, t: 'num' }, { k: 'budget_price', label: '단가', w: 100, t: 'num' },
     { label: '금액', w: 110, t: 'calc', calc: (r) => num(r.budget_num) * num(r.budget_price) },
-    { k: 'budget_link', label: '링크', w: 120, t: 'link' }, { k: 'budget_pumui', label: '품의상태', w: 100, sug: 1 }, { k: 'budget_progress', label: '완료상태', w: 100, sug: 1 }, { k: 'budget_memo', label: '비고', w: 160 }],
+    { k: 'budget_link', label: '링크', w: 120, t: 'link' }, { k: 'budget_pumui', label: '품의상태', w: 100, sug: 1 }, { k: 'budget_progress', label: '완료상태', w: 100, sug: 1 }, { k: 'budget_memo', label: '비고', w: 190, attach: 1 }],
     filters: [['예산종류', 'budget_name'], ['품의상태', 'budget_pumui']] },
   supply: { id: 'supply', name: '학습준비물', col: 'data_supply', cols: [
     { k: 'supply_year', label: '연도', w: 80, sug: 1 }, { k: 'supply_semester', label: '학기', w: 70, sug: 1 }, { k: 'supply_sub', label: '교과', w: 90, sug: 1 }, { k: 'supply_class', label: '대상', w: 100, sug: 1 },
@@ -100,6 +122,10 @@ const BUILTIN = {
     filters: [['연도', 'supply_year'], ['학기', 'supply_semester'], ['교과', 'supply_sub'], ['대상', 'supply_class']] }
 };
 const SHEET_COL = 'data_sheet_rows';
+const WATCH = ['data_budget', 'data_supply', 'data_sheet_rows', 'app_config'];
+const own = {};   // 이 화면에서 직접 저장한 횟수(실시간 동기화에서 내 저장과 다른 사람의 저장을 구분)
+const commit = (ops) => { [...new Set(ops.map((o) => o.col))].forEach((c) => { own[c] = (own[c] || 0) + 1; }); return GP.commit(ops); };
+const filesKey = (c) => c.k + '__files';
 
 let sheets = [];                 // 추가한 예산 페이지: [{ id, name, cols: [{ id, name }] }]
 let data = { budget: [], supply: [], sheetRows: [] };
@@ -108,7 +134,7 @@ let mode = 'budget', filters = {}, lists = null, seq = 0;
 const kindOf = (m) => {
   if (m === 'budget' || m === 'supply') return BUILTIN[m];
   const s = sheets.find((x) => 'sheet:' + x.id === m); if (!s) return BUILTIN.budget;
-  return { id: 'sheet:' + s.id, name: s.name, col: SHEET_COL, custom: s, cols: s.cols.map((c) => ({ k: 'f_' + c.id, label: c.name, w: 150, cid: c.id })), filters: [] };
+  return { id: 'sheet:' + s.id, name: s.name, col: SHEET_COL, custom: s, cols: s.cols.map((c) => ({ k: 'f_' + c.id, label: c.name, w: c.name.trim() === '비고' ? 190 : 150, cid: c.id, attach: c.name.trim() === '비고' ? 1 : 0 })), filters: [] };
 };
 const ord = (r) => (typeof r.row_order === 'number' ? r.row_order : Number(r.row_order) || 0);
 const byOrder = (a, b) => ord(a) - ord(b) || (a._id < b._id ? -1 : a._id > b._id ? 1 : 0);
@@ -187,12 +213,12 @@ function renderTools() {
     if (!confirm('[' + s.name + '] 페이지를 삭제할까요?' + (n ? '\n입력된 ' + n + '줄도 함께 삭제됩니다.' : ''))) return;
     const ids = allRows(kind).map((r) => r._id);
     sheets = sheets.filter((x) => x.id !== s.id); data.sheetRows = data.sheetRows.filter((r) => r.sheet !== s.id);
-    await enqueue(async () => { await saveSheets(); await GP.commit(ids.map((id) => ({ type: 'delete', col: SHEET_COL, id }))); });
+    await enqueue(async () => { await saveSheets(); await commit(ids.map((id) => ({ type: 'delete', col: SHEET_COL, id }))); });
     setMode('budget');
   };
 }
 const nextColId = (s) => { let n = 1; const used = new Set(s.cols.map((c) => c.id)); while (used.has('c' + n)) n++; return 'c' + n; };
-const saveSheets = () => GP.setCfg('budget_sheets', { sheets });
+const saveSheets = () => commit([{ type: 'set', col: 'app_config', id: 'budget_sheets', data: { json: JSON.stringify({ sheets }), updatedAt: new Date().toISOString() } }]);
 function nameError(v, exceptId) {
   if (v === BUILTIN.budget.name || v === BUILTIN.supply.name || v === '예산 내역' || sheets.some((s) => s.id !== exceptId && s.name === v)) return '같은 이름의 예산 페이지가 이미 있습니다.';
   return '';
@@ -202,9 +228,11 @@ function cellHtml(kind, c, ci, r, listIds) {
   if (c.t === 'calc') { const v = r ? c.calc(r) : 0; return '<td class="calc" data-calc="' + ci + '" data-v="' + v + '">' + (r ? fmt(v) : '') + '</td>'; }
   const v = str(r ? r[c.k] : '');
   const shown = c.t === 'num' && v !== '' ? fmt(num(v)) : v;
-  return '<td' + (c.t === 'link' ? ' class="linkc"' : '') + '><input class="cell' + (c.t === 'num' ? ' num' : '') + '" data-ci="' + ci + '" data-k="' + esc(c.k) + '" value="' + esc(shown) + '"' + (c.sug ? ' list="' + listIds[ci] + '"' : '') + (c.t === 'num' ? ' inputmode="decimal"' : '') + ' autocomplete="off">' +
-    (c.t === 'link' && v ? '<a href="' + esc(/^https?:/i.test(v) ? v : 'https://' + v) + '" target="_blank" rel="noopener" tabindex="-1" title="링크 열기">↗</a>' : '') + '</td>';
+  const files = c.attach && r && Array.isArray(r[filesKey(c)]) ? r[filesKey(c)] : [];
+  return '<td' + (c.t === 'link' ? ' class="linkc"' : c.attach ? ' class="attc"' : '') + '><input class="cell' + (c.t === 'num' ? ' num' : '') + '" data-ci="' + ci + '" data-k="' + esc(c.k) + '" value="' + esc(shown) + '"' + (c.sug ? ' list="' + listIds[ci] + '"' : '') + (c.t === 'num' ? ' inputmode="decimal"' : '') + ' autocomplete="off">' +
+    (c.attach ? attBtn(ci, files.length) : '') + (c.t === 'link' && v ? '<a href="' + esc(/^https?:/i.test(v) ? v : 'https://' + v) + '" target="_blank" rel="noopener" tabindex="-1" title="링크 열기">↗</a>' : '') + '</td>';
 }
+const attBtn = (ci, n) => '<button class="attbtn" data-att="' + ci + '" title="이미지·파일 첨부" tabindex="-1">📎' + (n ? '<b>' + n + '</b>' : '') + '</button>';
 function rowHtml(kind, r, idx, listIds) {
   return '<tr data-id="' + (r ? esc(r._id) : '') + '" class="' + (r ? '' : 'blank') + '"><th class="rn"><span>' + (idx + 2) + '</span>' + (r ? '<button data-del title="이 줄 삭제">✕</button>' : '') + '</th>' +
     kind.cols.map((c, ci) => cellHtml(kind, c, ci, r, listIds)).join('') + '</tr>';
@@ -237,6 +265,18 @@ function recalcRow(tr) {
 }
 function renumber() { document.querySelectorAll('#gridWrap tbody tr').forEach((tr, i) => { const s = tr.querySelector('.rn span'); if (s) s.textContent = i + 2; }); }
 
+// ---- 맨 아래 빈 줄을 실제 줄(문서)로 만들기 ----
+function materializeRow(tr, kind, field, val) {
+  const doc = blankDoc(kind, presetFor(kind)); if (field) doc[field] = val; const id = GP.newId(kind.col);
+  (kind.custom ? data.sheetRows : kind.col === 'data_budget' ? data.budget : data.supply).push(Object.assign({ _id: id }, doc));
+  tr.dataset.id = id; tr.classList.remove('blank');
+  tr.querySelector('.rn').insertAdjacentHTML('beforeend', '<button data-del title="이 줄 삭제">✕</button>');
+  kind.cols.forEach((cc, ci) => { if (cc.k && cc.k !== field && doc[cc.k]) { const i2 = tr.querySelector('input[data-ci="' + ci + '"]'); if (i2 && !i2.value) i2.value = doc[cc.k]; } });   // 걸러 보는 중이면 미리 채운 값 표시
+  tr.insertAdjacentHTML('afterend', rowHtml(kind, null, 0, $('gridWrap')._listIds)); renumber();
+  enqueue(() => commit([{ type: 'set', col: kind.col, id, data: doc }]));
+  return id;
+}
+
 // ---- 한 칸 저장 ----
 function saveCell(inp) {
   const kind = kindOf(mode), tr = inp.closest('tr'), c = kind.cols[+inp.dataset.ci]; if (!c || !c.k) return;
@@ -244,22 +284,14 @@ function saveCell(inp) {
   let id = tr.dataset.id;
   if (!id) {   // 맨 아래 빈 줄 → 새 줄 만들기
     if (!val) return;
-    const doc = blankDoc(kind, presetFor(kind)); doc[c.k] = val; id = GP.newId(kind.col);
-    const row = Object.assign({ _id: id }, doc);
-    (kind.custom ? data.sheetRows : kind.col === 'data_budget' ? data.budget : data.supply).push(row);
-    tr.dataset.id = id; tr.classList.remove('blank');
-    tr.querySelector('.rn').insertAdjacentHTML('beforeend', '<button data-del title="이 줄 삭제">✕</button>');
-    // 같은 줄의 미리 채운 값(걸러 보기 중)을 화면에도 표시
-    kind.cols.forEach((cc, ci) => { if (cc.k && cc.k !== c.k && doc[cc.k]) { const i2 = tr.querySelector('input[data-ci="' + ci + '"]'); if (i2 && !i2.value) i2.value = doc[cc.k]; } });
-    tr.insertAdjacentHTML('afterend', rowHtml(kind, null, 0, $('gridWrap')._listIds)); renumber();
-    enqueue(() => GP.commit([{ type: 'set', col: kind.col, id, data: doc }]));
+    id = materializeRow(tr, kind, c.k, val);
   } else {
     const row = findRow(kind, id); if (!row) return;
     if (str(row[c.k]) === val) { reformat(inp, c); return; }
     row[c.k] = val;
-    enqueue(() => GP.commit([{ type: 'set', merge: true, col: kind.col, id, data: { [c.k]: val } }]));
+    enqueue(() => commit([{ type: 'set', merge: true, col: kind.col, id, data: { [c.k]: val } }]));
   }
-  reformat(inp, c); recalcRow(tr);
+  reformat(inp, c); recalcRow(tr); inp._orig = inp.value;
   if (c.t === 'link') linkIcon(inp, val);
   if (c.sug || kind.filters.length) renderFiltersKeep();
 }
@@ -282,7 +314,7 @@ function pasteGrid(inp, text) {
     if (touched.has(row._id + '!new')) { const full = Object.assign({}, row); delete full._id; ops.push({ type: 'set', col: kind.col, id: row._id, data: full }); }
     else ops.push({ type: 'set', merge: true, col: kind.col, id: row._id, data: patch });
   });
-  enqueue(() => GP.commit(ops)); renderGrid(); renderFilters();
+  enqueue(() => commit(ops)); renderGrid(); renderFilters();
 }
 
 // ---- 이벤트 ----
@@ -299,12 +331,16 @@ gw.addEventListener('change', (e) => {
 });
 gw.addEventListener('focusout', (e) => { const inp = e.target; if (inp.matches && inp.matches('input.cell.num')) { const c = kindOf(mode).cols[+inp.dataset.ci]; reformat(inp, c); } });
 gw.addEventListener('click', async (e) => {
+  const att = e.target.closest('[data-att]');
+  if (att) { openAtt(att); return; }
   const del = e.target.closest('[data-del]'), colx = e.target.closest('[data-colx]');
   if (del) {
     const tr = del.closest('tr'), kind = kindOf(mode), id = tr.dataset.id; if (!id) return;
     if (!confirm('이 줄을 삭제할까요?')) return;
-    const arr = allRows(kind); arr.splice(arr.findIndex((r) => r._id === id), 1);
-    tr.remove(); renumber(); recalcAfterDelete(); enqueue(() => GP.commit([{ type: 'delete', col: kind.col, id }])); renderFiltersKeep();
+    const arr = allRows(kind); const arr_removed = arr.splice(arr.findIndex((r) => r._id === id), 1)[0];
+    const gone = arr_removed || null;
+    tr.remove(); renumber(); recalcAfterDelete(); enqueue(() => commit([{ type: 'delete', col: kind.col, id }])); renderFiltersKeep();
+    if (gone) kind.cols.filter((cc) => cc.attach).forEach((cc) => (gone[filesKey(cc)] || []).forEach(dropFile));
   } else if (colx) {
     const kind = kindOf(mode), col = kind.custom.cols[+colx.dataset.colx];
     if (!confirm('[' + col.name + '] 열을 삭제할까요? 이 열에 입력한 내용은 화면에서 사라집니다.')) return;
@@ -333,6 +369,53 @@ gw.addEventListener('paste', (e) => {
   e.preventDefault(); pasteGrid(inp, text);
 });
 
+// ======================= 비고 첨부 (이미지·파일) =======================
+const MAX_FILE = 15 * 1024 * 1024;
+let attCtx = null;
+const fsize = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB');
+function dropFile(f) { try { if (GP.storage && f && f.path) GP.storage.ref(f.path).delete().catch(() => {}); } catch (e) { /* 무시 */ } }
+function openAtt(btn) {
+  const kind = kindOf(mode), tr = btn.closest('tr'), c = kind.cols[+btn.dataset.att];
+  const id = tr.dataset.id || materializeRow(tr, kind, null, '');   // 빈 줄에서 눌러도 줄을 먼저 만들어 둠
+  attCtx = { kind, id, c, tr }; renderAtt(); $('attMsg').textContent = '';
+  $('attModal').classList.remove('hidden'); $('attModal').classList.add('flex');
+}
+function curFiles() { const row = findRow(attCtx.kind, attCtx.id); return row && Array.isArray(row[filesKey(attCtx.c)]) ? row[filesKey(attCtx.c)] : []; }
+function renderAtt() {
+  const row = findRow(attCtx.kind, attCtx.id) || {}; const files = curFiles();
+  $('attTitle').textContent = str(row[kindOf(mode).cols.find((x) => x.k && x.k !== attCtx.c.k && !x.t)?.k]) ? '– ' + str(row[kindOf(mode).cols.find((x) => x.k && x.k !== attCtx.c.k && !x.t).k]) : '';
+  $('attList').innerHTML = files.length ? files.map((f, i) => '<div class="flex items-center gap-3 border rounded-lg p-2">' +
+    (/^image\//.test(f.type || '') ? '<a href="' + esc(f.url) + '" target="_blank" rel="noopener"><img src="' + esc(f.url) + '" alt="" class="w-16 h-16 object-cover rounded border"></a>' : '<span class="text-2xl">📄</span>') +
+    '<div class="flex-1 min-w-0"><a href="' + esc(f.url) + '" target="_blank" rel="noopener" class="block truncate text-sm font-semibold text-blue-700 underline">' + esc(f.name) + '</a><span class="text-xs text-slate-400">' + fsize(f.size || 0) + '</span></div>' +
+    '<button data-fdel="' + i + '" class="text-slate-400 hover:text-red-600" title="삭제">✕</button></div>').join('') : '<p class="text-sm text-slate-400 text-center py-3">첨부된 파일이 없습니다.</p>';
+  $('attList').querySelectorAll('[data-fdel]').forEach((b) => b.onclick = () => {
+    const list = curFiles().slice(); const f = list[+b.dataset.fdel]; if (!f || !confirm('[' + f.name + '] 첨부를 삭제할까요?')) return;
+    list.splice(+b.dataset.fdel, 1); saveFiles(list); dropFile(f);
+  });
+}
+function saveFiles(list) {
+  const row = findRow(attCtx.kind, attCtx.id); if (!row) return; const key = filesKey(attCtx.c); row[key] = list;
+  enqueue(() => commit([{ type: 'set', merge: true, col: attCtx.kind.col, id: attCtx.id, data: { [key]: list } }]));
+  renderAtt(); const td = attCtx.tr.querySelectorAll('td')[attCtx.kind.cols.indexOf(attCtx.c)]; const b = td && td.querySelector('.attbtn'); if (b) b.outerHTML = attBtn(attCtx.kind.cols.indexOf(attCtx.c), list.length);
+}
+$('attFile').onchange = async (e) => {
+  const picked = [...e.target.files]; e.target.value = ''; if (!picked.length || !attCtx) return;
+  if (!GP.storage) { $('attMsg').textContent = '파일 저장소(Firebase Storage)를 사용할 수 없습니다.'; return; }
+  const ctx = attCtx; const added = []; let n = 0;
+  for (const file of picked) {
+    n++; if (file.size > MAX_FILE) { $('attMsg').textContent = '[' + file.name + '] 15MB를 넘어 올리지 못했습니다.'; continue; }
+    $('attMsg').textContent = '올리는 중... (' + n + '/' + picked.length + ') ' + file.name;
+    try {
+      const path = 'budget/' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6) + '_' + file.name.replace(/[\/\\#?%]/g, '_');
+      const ref = GP.storage.ref(path); await ref.put(file); const url = await ref.getDownloadURL();
+      added.push({ name: file.name, path, url, type: file.type || '', size: file.size });
+    } catch (err) { console.error(err); $('attMsg').textContent = '[' + file.name + '] 올리지 못했습니다: ' + err.message; }
+  }
+  if (added.length && attCtx === ctx) { saveFiles(curFiles().concat(added)); $('attMsg').textContent = added.length + '개를 첨부했습니다.'; }
+};
+$('attClose').onclick = () => { $('attModal').classList.add('hidden'); $('attModal').classList.remove('flex'); attCtx = null; };
+$('attModal').addEventListener('keydown', (e) => { if (e.key === 'Escape') $('attClose').click(); });
+
 // ======================= 예산 페이지 추가 =======================
 function openAdd() { $('aName').value = ''; $('aHeads').value = ''; $('aErr').classList.add('hidden'); $('addModal').classList.remove('hidden'); $('addModal').classList.add('flex'); $('aName').focus(); }
 function closeAdd() { $('addModal').classList.add('hidden'); $('addModal').classList.remove('flex'); }
@@ -352,6 +435,7 @@ const exportMsg = (html, kind) => { const m = $('exportMsg'); m.className = 'tex
 const H = (t) => ({ v: t, s: 'header' }), T = (v) => ({ v: str(v), s: 'text' }), N = (v) => ({ v: num(v), s: 'int' });
 const linkCell = (u) => { u = str(u).trim(); if (!u) return T(''); if (u.length > 250) return { v: u, s: 'text' }; return { v: '링크', s: 'link', f: 'HYPERLINK("' + u.replace(/"/g, '""') + '","링크")' }; };   // 엑셀 수식 문자열 한도(255자) 때문에 긴 주소는 글자로 넣음
 const totalRow = (n, cols, sumCol, label) => { const r = []; for (let i = 0; i < cols; i++) r.push({ v: '', s: 'totalLabel' }); r[0] = { v: label || '합계', s: 'totalLabel' }; return r; };
+const withFiles = (r, c) => { const f = Array.isArray(r[filesKey(c)]) ? r[filesKey(c)] : []; return str(r[c.k]) + (f.length ? (str(r[c.k]) ? ' ' : '') + f.map((x) => '[첨부: ' + x.name + ' ' + x.url + ']').join(' ') : ''); };
 const safeSheetName = (s) => String(s).replace(/[\[\]:*?\/\\]/g, ' ').trim().slice(0, 31) || '시트';
 const looksNum = (v) => /^-?[\d,]+(\.\d+)?$/.test(str(v).trim()) && str(v).trim() !== '';
 
@@ -361,7 +445,7 @@ async function buildExport() {
   if (mode === 'budget') {
     const n = rows.length; let sum = 0;
     const body = rows.map((r, i) => { const x = i + 2; const amt = num(r.budget_num) * num(r.budget_price); sum += amt;
-      return [T(r.budget_name), T(r.budget_product), T(r.budget_spec), N(r.budget_num), N(r.budget_price), { v: amt, s: 'int', f: 'D' + x + '*E' + x }, linkCell(r.budget_link), T(r.budget_pumui), T(r.budget_progress), T(r.budget_memo)]; });
+      return [T(r.budget_name), T(r.budget_product), T(r.budget_spec), N(r.budget_num), N(r.budget_price), { v: amt, s: 'int', f: 'D' + x + '*E' + x }, linkCell(r.budget_link), T(r.budget_pumui), T(r.budget_progress), T(withFiles(r, BUILTIN.budget.cols[9]))]; });
     const tot = totalRow(n, 10); tot[5] = { v: sum, s: 'totalNum' }; if (n) tot[5].f = 'SUM(F2:F' + (n + 1) + ')';
     const sheet1 = { name: '학년 예산', widths: [18, 26, 22, 8, 11, 13, 8, 12, 12, 18], freezeRow: 1, filter: true, filterRows: n + 1, rows: [['예산종류', '품명', '규격/구입처', '수량', '단가', '금액', '링크', '품의상태', '완료상태', '비고'].map(H)].concat(body, [tot]) };
     const cards = (await GP.buildBudgetCards()).filter((c) => !String(c.name).includes('친목회비'));
@@ -380,7 +464,7 @@ async function buildExport() {
     return { fileName: '학습준비물_' + label, title: label + ' ' + g.grade + '학년 학습준비물', sheets: [sheet] };
   }
   const kind = kindOf(mode), n = rows.length;
-  const body = rows.map((r) => kind.cols.map((c) => (looksNum(r[c.k]) ? N(r[c.k]) : T(r[c.k]))));
+  const body = rows.map((r) => kind.cols.map((c) => (c.attach ? T(withFiles(r, c)) : looksNum(r[c.k]) ? N(r[c.k]) : T(r[c.k]))));
   const sheet = { name: safeSheetName(kind.name), widths: kind.cols.map(() => 18), freezeRow: 1, filter: true, filterRows: n + 1, rows: [kind.cols.map((c) => H(c.label))].concat(body) };
   return { fileName: safeSheetName(kind.name).replace(/\s+/g, '_') + '_' + label, title: label + ' ' + g.grade + '학년 ' + kind.name, sheets: [sheet] };
 }
@@ -432,6 +516,32 @@ async function exportGoogle() {
 }
 $('btn-xlsx').onclick = exportXlsx; $('btn-gsheet').onclick = exportGoogle;
 
+// ======================= 다른 사람의 수정 실시간 반영 =======================
+//  app_meta/version 문서 1건만 구독합니다. (누가 저장하면 이 문서의 번호가 올라갈 때만 읽기 1건)
+//  내가 저장한 번호는 own 에 세어 두었다가 빼고, 남는 변화가 있으면 다른 사람이 저장한 것이므로 해당 데이터를 다시 받아 표를 새로 그립니다.
+let baseVer = null, lastVer = {}, syncT = null;
+const pickVer = (v) => { const o = {}; WATCH.forEach((c) => { o[c] = Number(v[c]) || 0; }); return o; };
+function onVersion(snap) {
+  if (snap.metadata && snap.metadata.hasPendingWrites) return;
+  const v = pickVer(snap.data() || {}); lastVer = v;
+  if (!baseVer) { baseVer = v; return; }
+  if (WATCH.some((c) => v[c] - baseVer[c] > (own[c] || 0))) scheduleSync();
+}
+function scheduleSync(ms) { clearTimeout(syncT); syncT = setTimeout(doSync, ms || 700); }
+async function doSync() {
+  const a = document.activeElement; const typing = a && a.matches && a.matches('input.cell') && a.value !== a._orig;
+  if (pendingN > 0 || typing || !$('attModal').classList.contains('hidden')) return scheduleSync(1500);   // 저장·입력·첨부 중에는 끝난 뒤에
+  window.__syncs = (window.__syncs || 0) + 1;
+  const foc = a && a.matches && a.matches('input.cell') ? { id: a.closest('tr').dataset.id, ci: a.dataset.ci, pos: a.selectionStart } : null;
+  const snapVer = Object.assign({}, lastVer);
+  try { await load(true); } catch (e) { console.error(e); return; }
+  baseVer = snapVer; Object.keys(own).forEach((k) => delete own[k]);
+  renderAll();
+  if (foc) { const tr = [...document.querySelectorAll('#gridWrap tbody tr')].find((t) => t.dataset.id === foc.id); const i2 = tr && tr.querySelector('input[data-ci="' + foc.ci + '"]'); if (i2) { i2.focus(); try { i2.setSelectionRange(foc.pos, foc.pos); } catch (e) { /* 무시 */ } } }
+  const el = $('saveState'); el.textContent = '↻ 다른 사람이 수정한 내용을 반영했습니다'; el.className = 'text-xs text-indigo-600 ml-auto'; setTimeout(() => { if (el.textContent.startsWith('↻')) el.textContent = ''; }, 4000);
+}
+function startWatch() { try { GP.db.collection('app_meta').doc('version').onSnapshot(onVersion, (e) => console.warn('실시간 동기화를 사용할 수 없습니다', e)); } catch (e) { console.warn(e); } }
+
 // ======================= 시작 =======================
 async function load(fresh) {
   if (fresh) GP.fresh();
@@ -444,7 +554,7 @@ $('btn-refresh').onclick = async () => { if (pendingN) return; try { await load(
 (async function init() {
   try { await load(false); }
   catch (e) { console.error(e); $('gridWrap').innerHTML = '<p class="p-6 text-center text-red-600 text-sm">데이터를 불러오지 못했습니다: ' + esc(e.message) + '</p>'; return; }
-  renderAll();
+  renderAll(); startWatch();
 })();
 </script>
 </body>

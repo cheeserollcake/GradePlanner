@@ -94,9 +94,11 @@ for folder, (fname, key) in PAGES.items():
         html = must_replace(html, '<option value="direct_input" className="text-blue-600 font-bold bg-slate-100">[직접 입력]</option>', "", fname)
         html = must_replace(html, "{!initialLoaded || !currentTabData ? (", "{initialLoaded && tabs.length === 0 ? (\n                <div className=\"flex flex-col items-center justify-center h-64 text-slate-400 space-y-2\"><p>등록된 전담교사가 없습니다.</p><p className=\"text-sm\">학년 관리자 &gt; 학년 기초 설정 &gt; 전담교사에서 과목·담당학급·교사를 등록하세요.</p></div>\n              ) : !initialLoaded || !currentTabData ? (", fname)
     if key == "p04":   # 학급 수·교시 수는 관리자 설정을 따름 / 주간시수배정에서 꺼 둔 칸은 입력 불가 / 빈칸 자동 채우기
+        # p12/p13(강조 과목)이 비어 있으면 빈 칸이 강조색으로 칠해져 회색 표시를 덮어쓰므로, 비어 있을 땐 강조하지 않음
+        html = html.replace("p12 ? p12.toString() : ''", "p12 ? p12.toString() : null").replace("p13 ? p13.toString() : ''", "p13 ? p13.toString() : null")
         R = lambda a, b: must_replace(html, a, b, fname)
         html = R("const periods = ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'];",
-                 "const periods = (timetableData && timetableData.periods) || ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'];\n        const [classCount, setClassCount] = useState(0);\n        const isOff = (c, r) => !!(timetableData && timetableData.off && timetableData.off.indexOf(c + '_' + r) >= 0);")
+                 "const periods = (timetableData && timetableData.periods) || ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'];\n        const [classCount, setClassCount] = useState(0);\n        const isOff = (c, r) => !!(timetableData && timetableData.off && timetableData.off.indexOf(c + '_' + r) >= 0);\n        const OFF_STYLE = { backgroundColor: '#cbd5e1', backgroundImage: 'repeating-linear-gradient(45deg, rgba(100,116,139,.22) 0 6px, transparent 6px 12px)', color: '#64748b' };")
         html = html.replace("for(let r=1; r<=6; r++) {", "for(let r=1; r<=periods.length; r++) {")
         html = R("setTimetableData(parsed.data);", "setClassCount(parsed.data.classCount || 0);\n                   if (typeof classNum === 'number' && parsed.data.classCount && classNum > parsed.data.classCount) { setActiveTab('all'); } else { setTimetableData(parsed.data); }")
         html = R("Array.from({length:10}, (_, i) => i+1)", "Array.from({length: classCount}, (_, i) => i+1)")
@@ -129,9 +131,9 @@ for folder, (fname, key) in PAGES.items():
         html = R("        ChevronDown:", """        Wand: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>,
         ChevronDown:""")
         # 단일 학급 보기의 칸: 꺼 둔 칸은 회색, 비어 있으면 입력 불가(값이 이미 있으면 지울 수는 있음)
-        html = R("""<td key={cIdx} className={`border p-0 ${cellBg} ${cellBold} h-12 relative`}>""", """<td key={cIdx} className={`border p-0 ${cellBg} ${cellBold} h-12 relative ${isOff(cIdx+1, rIdx+1) ? 'bg-slate-200' : ''}`} title={isOff(cIdx+1, rIdx+1) ? '관리자 > 시간표 설정 > 주간시수배정에서 꺼 둔 칸입니다.' : ''}>""")
+        html = R("""<td key={cIdx} className={`border p-0 ${cellBg} ${cellBold} h-12 relative`}>""", """<td key={cIdx} className={`border p-0 ${cellBg} ${cellBold} h-12 relative`} style={isOff(cIdx+1, rIdx+1) ? OFF_STYLE : undefined} title={isOff(cIdx+1, rIdx+1) ? '관리자 > 시간표 설정 > 주간시수배정에서 꺼 둔 칸입니다.' : ''}>""")
         html = R("""{subjects.filter(s=>s).map(s => <option key={s} value={s}>{s}</option>)}""", """{(isOff(cIdx+1, rIdx+1) ? (cell ? [cell] : []) : subjects.filter(s=>s)).map(s => <option key={s} value={s}>{s}</option>)}""")
-        html = R("""<td key={cIdx} className={`border p-0 ${cellClass} ${cellBold} h-8 relative`}>""", """<td key={cIdx} className={`border p-0 ${cellClass} ${cellBold} h-8 relative ${(timetableData.off || []).indexOf((cIdx+1) + '_' + (rIdx+1)) >= 0 ? 'bg-slate-200' : ''}`}>""")
+        html = R("""<td key={cIdx} className={`border p-0 ${cellClass} ${cellBold} h-8 relative`}>""", """<td key={cIdx} className={`border p-0 ${cellClass} ${cellBold} h-8 relative`} style={isOff(cIdx+1, rIdx+1) ? OFF_STYLE : undefined}>""")
     if key == "p07":   # 관리자 설정 버튼은 새 관리자 페이지로 이동
         html = must_replace(html, "onClick={() => isAdmin ? setView('admin') : setAuthModal('admin')}", "onClick={() => { try { parent.location.hash = '#/admin'; } catch (e) { location.href = 'admin.html'; } }}", fname)
     if key == "p05":   # 학년도 연도는 서버(관리자 설정) 값을 사용
