@@ -480,10 +480,31 @@ document.addEventListener('mouseup', () => {
 });
 
 // ======================= 비고 첨부 (이미지·파일) =======================
-const MAX_FILE = 15 * 1024 * 1024;
+// 첨부는 Firebase Storage 대신 Firestore(data_files)에 저장합니다. 사진은 약 300KB로 줄이고, 그 밖의 파일은 700KB까지만 올릴 수 있습니다.
+const MAX_FILE = 700 * 1024;
+const fileCache = {};   // fid -> data URL
 let attCtx = null;
 const fsize = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB');
-function dropFile(f) { try { if (GP.storage && f && f.path) GP.storage.ref(f.path).delete().catch(() => {}); } catch (e) { /* 무시 */ } }
+function dropFile(f) {
+  try {
+    if (f && f.fid) { delete fileCache[f.fid]; GP.db.collection('data_files').doc(f.fid).delete().catch(() => {}); }
+    else if (GP.storage && f && f.path) GP.storage.ref(f.path).delete().catch(() => {});
+  } catch (e) { /* 무시 */ }
+}
+const fileUrl = (f) => f.url || fileCache[f.fid] || '';
+function loadFileUrls(files) {
+  const need = files.filter((f) => f.fid && !fileCache[f.fid]); if (!need.length) return;
+  Promise.all(need.map((f) => GP.db.collection('data_files').doc(f.fid).get().then((d) => { if (d.exists) fileCache[f.fid] = d.data().dataUrl; }).catch(() => {}))).then(() => { if (attCtx) renderAtt(true); });
+}
+function openFile(f) {   // data URL은 새 탭으로 바로 열 수 없어 blob 주소로 바꿔 엽니다.
+  const u = fileUrl(f); if (!u) return;
+  if (!/^data:/.test(u)) { window.open(u, '_blank', 'noopener'); return; }
+  const m = u.match(/^data:([^;,]*);base64,(.*)$/); if (!m) return;
+  const bin = atob(m[2]); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([arr], { type: m[1] || 'application/octet-stream' }));
+  if (/^(image\/|application\/pdf)/.test(m[1])) window.open(url, '_blank'); else { const a = document.createElement('a'); a.href = url; a.download = f.name; a.click(); }
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
 function openAtt(btn) {
   const kind = kindOf(mode), tr = btn.closest('tr'), c = kind.cols[+btn.dataset.att];
   const id = tr.dataset.id || materializeRow(tr, kind, null, '');   // 빈 줄에서 눌러도 줄을 먼저 만들어 둠
@@ -491,13 +512,14 @@ function openAtt(btn) {
   $('attModal').classList.remove('hidden'); $('attModal').classList.add('flex');
 }
 function curFiles() { const row = findRow(attCtx.kind, attCtx.id); return row && Array.isArray(row[filesKey(attCtx.c)]) ? row[filesKey(attCtx.c)] : []; }
-function renderAtt() {
-  const row = findRow(attCtx.kind, attCtx.id) || {}; const files = curFiles();
+function renderAtt(fromLoad) {
+  const row = findRow(attCtx.kind, attCtx.id) || {}; const files = curFiles(); if (!fromLoad) loadFileUrls(files);
   $('attTitle').textContent = str(row[kindOf(mode).cols.find((x) => x.k && x.k !== attCtx.c.k && !x.t)?.k]) ? '– ' + str(row[kindOf(mode).cols.find((x) => x.k && x.k !== attCtx.c.k && !x.t).k]) : '';
   $('attList').innerHTML = files.length ? files.map((f, i) => '<div class="flex items-center gap-3 border rounded-lg p-2">' +
-    (/^image\//.test(f.type || '') ? '<a href="' + esc(f.url) + '" target="_blank" rel="noopener"><img src="' + esc(f.url) + '" alt="" class="w-16 h-16 object-cover rounded border"></a>' : '<span class="text-2xl">📄</span>') +
-    '<div class="flex-1 min-w-0"><a href="' + esc(f.url) + '" target="_blank" rel="noopener" class="block truncate text-sm font-semibold text-blue-700 underline">' + esc(f.name) + '</a><span class="text-xs text-slate-400">' + fsize(f.size || 0) + '</span></div>' +
+    (/^image\//.test(f.type || '') ? '<a href="#" data-fopen="' + i + '"><img src="' + esc(fileUrl(f)) + '" alt="" class="w-16 h-16 object-cover rounded border bg-slate-100"></a>' : '<span class="text-2xl">📄</span>') +
+    '<div class="flex-1 min-w-0"><a href="#" data-fopen="' + i + '" class="block truncate text-sm font-semibold text-blue-700 underline">' + esc(f.name) + '</a><span class="text-xs text-slate-400">' + fsize(f.size || 0) + '</span></div>' +
     '<button data-fdel="' + i + '" class="text-slate-400 hover:text-red-600" title="삭제">✕</button></div>').join('') : '<p class="text-sm text-slate-400 text-center py-3">첨부된 파일이 없습니다.</p>';
+  $('attList').querySelectorAll('[data-fopen]').forEach((a) => a.onclick = (ev) => { ev.preventDefault(); const f = curFiles()[+a.dataset.fopen]; if (f) openFile(f); });
   $('attList').querySelectorAll('[data-fdel]').forEach((b) => b.onclick = () => {
     const list = curFiles().slice(); const f = list[+b.dataset.fdel]; if (!f || !confirm('[' + f.name + '] 첨부를 삭제할까요?')) return;
     list.splice(+b.dataset.fdel, 1); saveFiles(list); dropFile(f);
@@ -508,18 +530,39 @@ function saveFiles(list) {
   enqueue(() => commit([{ type: 'set', merge: true, col: attCtx.kind.col, id: attCtx.id, data: { [key]: list } }]));
   renderAtt(); const td = attCtx.tr.querySelectorAll('td')[attCtx.kind.cols.indexOf(attCtx.c)]; const b = td && td.querySelector('.attbtn'); if (b) b.outerHTML = attBtn(attCtx.kind.cols.indexOf(attCtx.c), list.length);
 }
+const blobToDataUrl = (blob) => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => rej(fr.error || new Error('파일을 읽지 못했습니다.')); fr.readAsDataURL(blob); });
+function shrinkImage(file) {   // 약 300KB 이하가 되도록 크기·품질을 단계적으로 낮춤
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file); const img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('이미지를 읽지 못했습니다.')); };
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const TARGET = 300 * 1024, steps = [[1600, 0.8], [1600, 0.7], [1400, 0.7], [1280, 0.65], [1100, 0.6], [900, 0.55]]; let best = null, k = 0;
+      const next = () => {
+        if (k >= steps.length) return best ? resolve(best) : reject(new Error('이미지를 줄이지 못했습니다.'));
+        const [MAX, q] = steps[k++]; let w = img.width, h = img.height; if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h); cx.drawImage(img, 0, 0, w, h);
+        cv.toBlob((bl) => { if (!bl) return reject(new Error('이미지를 줄이지 못했습니다.')); if (!best || bl.size < best.size) best = bl; if (bl.size <= TARGET) k = steps.length; next(); }, 'image/jpeg', q);
+      };
+      next();
+    };
+    img.src = url;
+  });
+}
 $('attFile').onchange = async (e) => {
   const picked = [...e.target.files]; e.target.value = ''; if (!picked.length || !attCtx) return;
-  if (!GP.storage) { $('attMsg').textContent = '파일 저장소(Firebase Storage)를 사용할 수 없습니다.'; return; }
   const ctx = attCtx; const added = []; let n = 0;
   for (const file of picked) {
-    n++; if (file.size > MAX_FILE) { $('attMsg').textContent = '[' + file.name + '] 15MB를 넘어 올리지 못했습니다.'; continue; }
-    $('attMsg').textContent = '올리는 중... (' + n + '/' + picked.length + ') ' + file.name;
+    n++; $('attMsg').textContent = '올리는 중... (' + n + '/' + picked.length + ') ' + file.name;
     try {
-      const path = 'budget/' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6) + '_' + file.name.replace(/[\/\\#?%]/g, '_');
-      const ref = GP.storage.ref(path); await ref.put(file); const url = await ref.getDownloadURL();
-      added.push({ name: file.name, path, url, type: file.type || '', size: file.size });
-    } catch (err) { console.error(err); $('attMsg').textContent = '[' + file.name + '] 올리지 못했습니다: ' + err.message; }
+      let blob = file, type = file.type || '', name = file.name;
+      if (/^image\/(jpeg|png|webp|bmp)/.test(type)) { blob = await shrinkImage(file); type = 'image/jpeg'; name = name.replace(/\.[^.]+$/, '') + '.jpg'; }
+      if (blob.size > MAX_FILE) { $('attMsg').textContent = '[' + file.name + '] ' + fsize(blob.size) + ' — 700KB를 넘어 올리지 못했습니다. (사진은 자동으로 줄입니다. 문서 파일은 700KB 이하만 가능합니다.)'; continue; }
+      const dataUrl = await blobToDataUrl(blob);
+      const ref = GP.db.collection('data_files').doc();
+      await ref.set({ name, type, size: blob.size, dataUrl, createdAt: new Date().toISOString() });
+      fileCache[ref.id] = dataUrl; added.push({ name, fid: ref.id, type, size: blob.size });
+    } catch (err) { console.error(err); $('attMsg').textContent = '[' + file.name + '] 올리지 못했습니다: ' + (err && err.message || err); }
   }
   if (added.length && attCtx === ctx) { saveFiles(curFiles().concat(added)); $('attMsg').textContent = added.length + '개를 첨부했습니다.'; }
 };
@@ -543,9 +586,9 @@ $('addModal').addEventListener('keydown', (e) => { if (e.key === 'Escape') close
 // ======================= 내보내기 (엑셀 / 구글 스프레드시트) =======================
 const exportMsg = (html, kind) => { const m = $('exportMsg'); m.className = 'text-sm rounded-lg px-3 py-2 ' + (kind === 'err' ? 'bg-red-50 text-red-700' : kind === 'ok' ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600'); m.innerHTML = html; };
 const H = (t) => ({ v: t, s: 'header' }), T = (v) => ({ v: str(v), s: 'text' }), N = (v) => ({ v: num(v), s: 'int' });
-const linkCell = (u) => { u = str(u).trim(); if (!u) return T(''); if (u.length > 250) return { v: u, s: 'text' }; return { v: '링크', s: 'link', f: 'HYPERLINK("' + u.replace(/"/g, '""') + '","링크")' }; };   // 엑셀 수식 문자열 한도(255자) 때문에 긴 주소는 글자로 넣음
+const linkCell = (u) => { u = str(u).trim(); if (!u) return T(''); const h = /^https?:/i.test(u) ? u : 'https://' + u; if (h.length > 250) return { v: u, s: 'text' }; return { v: u, s: 'link', f: 'HYPERLINK("' + h.replace(/"/g, '""') + '","' + u.replace(/"/g, '""') + '")' }; };   // 엑셀 수식 문자열 한도(255자) 때문에 긴 주소는 글자로 넣음
 const totalRow = (n, cols, sumCol, label) => { const r = []; for (let i = 0; i < cols; i++) r.push({ v: '', s: 'totalLabel' }); r[0] = { v: label || '합계', s: 'totalLabel' }; return r; };
-const withFiles = (r, c) => { const f = Array.isArray(r[filesKey(c)]) ? r[filesKey(c)] : []; return str(r[c.k]) + (f.length ? (str(r[c.k]) ? ' ' : '') + f.map((x) => '[첨부: ' + x.name + ' ' + x.url + ']').join(' ') : ''); };
+const withFiles = (r, c) => { const f = Array.isArray(r[filesKey(c)]) ? r[filesKey(c)] : []; return str(r[c.k]) + (f.length ? (str(r[c.k]) ? ' ' : '') + f.map((x) => '[첨부: ' + x.name + ']').join(' ') : ''); };
 const safeSheetName = (s) => String(s).replace(/[\[\]:*?\/\\]/g, ' ').trim().slice(0, 31) || '시트';
 const looksNum = (v) => /^-?[\d,]+(\.\d+)?$/.test(str(v).trim()) && str(v).trim() !== '';
 
@@ -557,7 +600,7 @@ async function buildExport() {
     const body = rows.map((r, i) => { const x = i + 2; const amt = num(r.budget_num) * num(r.budget_price); sum += amt;
       return [T(r.budget_name), T(r.budget_product), T(r.budget_spec), N(r.budget_num), N(r.budget_price), { v: amt, s: 'int', f: 'D' + x + '*E' + x }, linkCell(r.budget_link), T(r.budget_pumui), T(r.budget_progress), T(withFiles(r, BUILTIN.budget.cols[9]))]; });
     const tot = totalRow(n, 10); tot[5] = { v: sum, s: 'totalNum' }; if (n) tot[5].f = 'SUM(F2:F' + (n + 1) + ')';
-    const sheet1 = { name: '학년 예산', widths: [18, 26, 22, 8, 11, 13, 8, 12, 12, 18], freezeRow: 1, filter: true, filterRows: n + 1, rows: [['예산종류', '품명', '규격/구입처', '수량', '단가', '금액', '링크', '품의상태', '완료상태', '비고'].map(H)].concat(body, [tot]) };
+    const sheet1 = { name: '학년 예산', widths: [18, 26, 22, 8, 11, 13, 34, 12, 12, 18], freezeRow: 1, filter: true, filterRows: n + 1, rows: [['예산종류', '품명', '규격/구입처', '수량', '단가', '금액', '링크', '품의상태', '완료상태', '비고'].map(H)].concat(body, [tot]) };
     const cards = (await GP.buildBudgetCards()).filter((c) => !String(c.name).includes('친목회비'));
     const crow = cards.map((c, i) => [T(c.name), N(c.assigned), N(c.used), { v: num(c.assigned) - num(c.used), s: 'int', f: 'B' + (i + 2) + '-C' + (i + 2) }]);
     const ct = [{ v: '합계', s: 'totalLabel' }, { v: cards.reduce((a, c) => a + num(c.assigned), 0), s: 'totalNum' }, { v: cards.reduce((a, c) => a + num(c.used), 0), s: 'totalNum' }, { v: cards.reduce((a, c) => a + num(c.assigned) - num(c.used), 0), s: 'totalNum' }];
@@ -570,7 +613,7 @@ async function buildExport() {
     const body = rows.map((r, i) => { const x = i + 2; const amt = num(r.supply_price) * num(r.supply_class_num); sum += amt;
       return [T(r.supply_year), T(r.supply_semester), T(r.supply_sub), T(r.supply_class), T(r.supply_product), T(r.supply_spec), T(r.supply_unit), N(r.supply_price), N(r.supply_class_num), { v: amt, s: 'int', f: 'H' + x + '*I' + x }, linkCell(r.supply_link)]; });
     const tot = totalRow(n, 11); tot[9] = { v: sum, s: 'totalNum' }; if (n) tot[9].f = 'SUM(J2:J' + (n + 1) + ')';
-    const sheet = { name: '학습준비물', widths: [9, 8, 9, 11, 28, 24, 8, 11, 8, 13, 8], freezeRow: 1, filter: true, filterRows: n + 1, rows: [['연도', '학기', '교과', '대상', '품명', '규격', '단위', '단가', '수량', '금액', '링크'].map(H)].concat(body, [tot]) };
+    const sheet = { name: '학습준비물', widths: [9, 8, 9, 11, 28, 24, 8, 11, 8, 13, 34], freezeRow: 1, filter: true, filterRows: n + 1, rows: [['연도', '학기', '교과', '대상', '품명', '규격', '단위', '단가', '수량', '금액', '링크'].map(H)].concat(body, [tot]) };
     return { fileName: '학습준비물_' + label, title: label + ' ' + g.grade + '학년 학습준비물', sheets: [sheet] };
   }
   const kind = kindOf(mode), n = rows.length;

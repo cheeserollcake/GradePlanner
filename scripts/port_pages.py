@@ -469,11 +469,18 @@ for folder, (fname, key) in PAGES.items():
                 img.onerror = () => { URL.revokeObjectURL(url); readFail(); };
                 img.onload = () => {
                   URL.revokeObjectURL(url);
-                  const MAX = 1600; let { width, height } = img;
-                  if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
-                  const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
-                  canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                  canvas.toBlob((blob) => { if (!blob) return readFail(); onUpload(blob, file.name.replace(/\.[^.]+$/, '') + '.jpg', 'image/jpeg', done); }, 'image/jpeg', 0.82);
+                  // 목표 약 300KB: 크기·품질을 단계적으로 낮추며 가장 큰 사진을 고름
+                  const TARGET = 300 * 1024, steps = [[1600, 0.8], [1600, 0.7], [1400, 0.7], [1280, 0.65], [1100, 0.6], [900, 0.55]];
+                  let best = null, k = 0;
+                  const tryNext = () => {
+                    if (k >= steps.length) { if (!best) return readFail(); return onUpload(best, file.name.replace(/\.[^.]+$/, '') + '.jpg', 'image/jpeg', done); }
+                    const [MAX, q] = steps[k++]; let width = img.width, height = img.height;
+                    if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
+                    const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+                    const cx = canvas.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, width, height); cx.drawImage(img, 0, 0, width, height);
+                    canvas.toBlob((blob) => { if (!blob) return readFail(); if (!best || blob.size < best.size) best = blob; if (blob.size <= TARGET) { best = blob; k = steps.length; } tryNext(); }, 'image/jpeg', q);
+                  };
+                  tryNext();
                 };
                 img.src = url;
               }} />""" + html[b:]

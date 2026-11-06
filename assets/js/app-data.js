@@ -298,11 +298,16 @@
     const keep = groups.filter((g) => !created(g.createdAt ? new Date(g.createdAt) : docT));
     summary.course_groups = groups.length - keep.length;
     if (keep.length !== groups.length) ops.push({ type: 'set', col: 'app_config', id: 'course_groups', data: { json: JSON.stringify(keep), updatedAt: new Date().toISOString() } });
+    const imgs = (await GP.db.collection('data_images').get()).docs.filter((d) => created(new Date(d.data().createdAt || 0)));
+    summary.data_images = imgs.length;
+    const atts = (await GP.db.collection('data_files').get()).docs.filter((d) => created(new Date(d.data().createdAt || 0)));
+    summary.data_files = atts.length;
     const files = []; for (const folder of ['special_room', 'classroom', 'extension', 'budget']) (await storageFilesIn(folder, r)).forEach((it) => files.push(it));
     summary.files = files.length;
     const ext = await getCfg('ext_file', null); if (ext && files.some((it) => it.fullPath === ext.path)) ops.push({ type: 'delete', col: 'app_config', id: 'ext_file' });
     // 3) 실제 삭제
     await commit(ops);
+    for (const d of imgs.concat(atts)) await d.ref.delete();
     for (const it of files) await it.delete();
     return summary;
   }

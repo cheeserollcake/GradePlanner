@@ -906,31 +906,28 @@
   SERVER.saveRoomPasswords = async (p) => { try { await setCfg('room_passwords', p); return { success: true }; } catch (e) { return { success: false, error: e.toString() }; } };
 
   const safeName = (n) => String(n).replace(/[^\w.\-가-힣]+/g, '_');
+  // 시간표 이미지는 Firebase Storage 대신 Firestore(data_images)에 압축한 사진(data URL)으로 저장합니다.
+  const IMG_LIMIT = 700 * 1024;   // 문서 1개 한도(1MiB) 안에 들어가도록 base64 변환 전 최대 크기
+  const blobToDataUrl = (blob) => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => rej(fr.error || new Error('이미지를 읽지 못했습니다.')); fr.readAsDataURL(blob); });
   SERVER.getImages = async function () {
     try {
-      const res = await storage.ref('special_room').listAll();
-      const items = await Promise.all(res.items.map(async (it) => ({ id: it.fullPath, url: await it.getDownloadURL(), name: it.name })));
-      return items;
+      const snap = await db.collection('data_images').get();
+      return snap.docs.map((d) => { const x = d.data(); return { id: d.id, url: x.dataUrl, name: x.name || '', t: x.createdAt || '' }; })
+        .sort((p, q) => String(p.t).localeCompare(String(q.t))).map(({ id, url, name }) => ({ id, url, name }));
     } catch (e) { console.warn(e); return []; }
-  };
-  const storageError = (e) => {
-    const c = (e && e.code) || '';
-    if (c === 'storage/retry-limit-exceeded' || c === 'storage/unknown' || /network|Failed to fetch/i.test(String(e && e.message))) return 'Firebase Storage에 연결하지 못했습니다. Firebase 콘솔 > Storage가 "시작하기"로 설정되어 있는지, 인터넷 연결이 정상인지 확인해 주세요. (' + (c || e) + ')';
-    if (c === 'storage/unauthorized') return 'Storage 보안 규칙이 업로드를 막고 있습니다. 프로젝트의 storage.rules 내용을 Firebase 콘솔 > Storage > 규칙에 게시해 주세요.';
-    if (c === 'storage/bucket-not-found' || c === 'storage/project-not-found') return 'Storage 버킷을 찾을 수 없습니다. Firebase 콘솔에서 Storage를 먼저 설정해 주세요.';
-    return String(e && e.message ? e.message : e);
   };
   SERVER.uploadImage = async function (data, name, mime) {   // data: Blob(권장) 또는 base64 문자열
     try {
-      if (!storage) throw new Error('Storage를 사용할 수 없습니다.');
-      const ref = storage.ref(`special_room/${Date.now()}_${safeName(name)}`);
-      if (typeof data === 'string') await ref.putString(data, 'base64', { contentType: mime }); else await ref.put(data, { contentType: mime });
-      const url = await ref.getDownloadURL();
-      return { success: true, item: { id: ref.fullPath, url, name: ref.name } };
-    } catch (e) { console.warn(e); return { success: false, error: storageError(e) }; }
+      const size = typeof data === 'string' ? Math.round(data.length * 0.75) : data.size;
+      if (size > IMG_LIMIT) return { success: false, error: '이미지가 너무 큽니다(' + Math.round(size / 1024) + 'KB). 더 작은 사진을 선택해 주세요.' };
+      const dataUrl = typeof data === 'string' ? 'data:' + (mime || 'image/jpeg') + ';base64,' + data : await blobToDataUrl(data);
+      const ref = db.collection('data_images').doc();
+      await ref.set({ name: safeName(name), mime: mime || 'image/jpeg', dataUrl, size, createdAt: new Date().toISOString() });
+      return { success: true, item: { id: ref.id, url: dataUrl, name: safeName(name) } };
+    } catch (e) { console.warn(e); return { success: false, error: String(e && e.message ? e.message : e) }; }
   };
   SERVER.deleteImage = async function (id) {
-    try { await storage.ref(id).delete(); return { success: true }; } catch (e) { return { success: false, error: e.toString() }; }
+    try { await db.collection('data_images').doc(id).delete(); return { success: true }; } catch (e) { return { success: false, error: e.toString() }; }
   };
 
   // ===== Page 08 / 09 : 반별·강좌별 조회 =====

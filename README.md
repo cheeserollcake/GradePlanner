@@ -123,3 +123,11 @@ data_mall(쇼핑몰 ID), data_links(바로가기)
 
 ## 스프레드시트로 내보내기
 엑셀 내보내기가 있는 곳(예산, 명렬표)에는 `구글 스프레드시트로 만들기`도 있습니다(`assets/js/gsheet-export.js`). 처음 쓰려면 Firebase 콘솔 > Authentication > 시작하기 > 로그인 방법에서 Google을 사용 설정하고, Google Cloud 콘솔에서 `Google Sheets API`를 사용 설정해야 합니다.
+
+## 시간표 이미지 저장 방식 변경
+특별실 시간표 이미지는 Firebase Storage 대신 Firestore(`data_images` 컬렉션)에 압축한 사진으로 저장합니다(Blaze 요금제 불필요).
+업로드 시 약 300KB 이하가 되도록 크기·품질을 낮추며(최대 1600px, JPEG), 한 장당 700KB를 넘으면 거부합니다.
+비고 첨부(예산)·학급문고·확장 파일은 아직 Storage를 사용합니다.
+
+예산 비고 첨부도 Firestore(`data_files`)에 저장합니다(사진은 자동으로 약 300KB로 축소, 그 밖의 파일은 700KB까지).
+엑셀/스프레드시트 내보내기의 링크 칸은 주소 전체를 글자로 보여 주고 같은 주소로 하이퍼링크를 겁니다.
