@@ -68,6 +68,13 @@
     .scroll-container > table { display: table !important; width: 100% !important; min-width: 760px; }
     td.td-sports, td.td-com, th.sticky-header-sports, th.sticky-header-com { width: 20% !important; min-width: 0 !important; max-width: none !important; }
     .table-fixed-sports, .table-fixed-com { width: 100% !important; min-width: 0 !important; max-width: none !important; }
+    /* 화면이 좁아지면 글자도 줄이되(최소 8pt) 셀 밖으로 삐져나가지 않게, 1열(교시)은 줄바꿈 */
+    .grid-row-sports { grid-template-columns: 1.5fr repeat(5, 1fr) !important; }
+    .grid-row-com { grid-template-columns: 1.5fr repeat(3, 1fr) !important; }
+    .grid-col, .grid-col * { font-size: clamp(10.67px, calc(7.2px + 0.58vw), 14.67px) !important; min-width: 0; }
+    .grid-col { white-space: normal !important; overflow: hidden; text-overflow: clip; word-break: break-all; overflow-wrap: anywhere; line-height: 1.05 !important; text-align: center; }
+    .grid-col > div, .grid-col select, .grid-col input { max-width: 100%; }
+    .grid-col:first-child { word-break: keep-all; }
   </style>
 </head>
 <body>

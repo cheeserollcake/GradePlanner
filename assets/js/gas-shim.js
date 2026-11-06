@@ -134,7 +134,13 @@
         else if (o.type === 'update') batch.update(ref, o.data);
         else batch.set(ref, o.data, { merge: !!o.merge });
       });
-      await batch.commit();
+      try { await batch.commit(); }
+      catch (e) {   // 다른 곳에서 이미 지워진 문서를 고치려 한 경우: 없는 문서는 새로 만들며 합쳐서 다시 저장
+        if (!/no document to update|not.found/i.test(String(e && (e.message || e.code)))) throw e;
+        const b2 = db.batch();
+        ops.slice(i, i + 400).forEach((o) => { const ref = db.collection(o.col).doc(o.id); if (o.type === 'delete') b2.delete(ref); else b2.set(ref, o.data, { merge: o.type === 'update' || !!o.merge }); });
+        await b2.commit();
+      }
     }
     const cols = [...new Set(ops.map((o) => o.col))];
     const inc = {}; cols.forEach((c) => { inc[c] = firebase.firestore.FieldValue.increment(1); });
@@ -692,10 +698,39 @@
   SERVER.planAutoFill = planAutoFill;
 
   // ===== 시간표 데이터 모으기 (Page 05, 08, 09) =====
+  // ---- 삭제된 공간의 남은 시간표 데이터 관리 ----
+  const SPACE_COLS = { gym: { col: 'data_gym_timetable', f: 'gym_place' }, room: { col: 'data_room_timetable', f: 'room_place' } };
+  async function validSpaces() { const l = [...(await readList('list_gym')), ...(await readList('list_room'))]; return new Set(l.map((i) => i.value)); }
+  async function spaceOrphans() {   // 현재 공간 목록에 없는 공간 이름으로 남아 있는 데이터
+    const names = await validSpaces(), out = [];
+    for (const k of Object.keys(SPACE_COLS)) {
+      const d = SPACE_COLS[k], m = new Map();
+      (await getCol(d.col)).forEach((r) => { const p = str(r[d.f]).trim(); if (!names.has(p)) m.set(p, (m.get(p) || 0) + 1); });
+      m.forEach((count, place) => out.push({ col: d.col, place, count }));
+    }
+    return out;
+  }
+  async function countSpaceData(place) {
+    let n = 0; for (const k of Object.keys(SPACE_COLS)) { const d = SPACE_COLS[k]; n += (await getCol(d.col)).filter((r) => str(r[d.f]).trim() === place).length; } return n;
+  }
+  async function purgeSpaceData(place) {   // place 가 null 이면 현재 없는 공간의 데이터를 모두 삭제
+    const names = await validSpaces(), ops = [];
+    for (const k of Object.keys(SPACE_COLS)) {
+      const d = SPACE_COLS[k];
+      (await getCol(d.col)).forEach((r) => { const p = str(r[d.f]).trim(); if (place === null ? !names.has(p) : p === place) ops.push({ type: 'delete', col: d.col, id: r._id }); });
+    }
+    await commit(ops); Object.keys(SPACE_COLS).forEach((k) => invalidate(SPACE_COLS[k].col)); return ops.length;
+  }
+  async function renameSpaceData(oldName, newName) {   // 공간 이름을 바꾸면 이미 입력된 시간표도 새 이름으로 옮깁니다.
+    const ops = [];
+    for (const k of Object.keys(SPACE_COLS)) { const d = SPACE_COLS[k]; (await getCol(d.col)).forEach((r) => { if (str(r[d.f]).trim() === oldName) ops.push({ type: 'update', col: d.col, id: r._id, data: { [d.f]: newName } }); }); }
+    await commit(ops); Object.keys(SPACE_COLS).forEach((k) => invalidate(SPACE_COLS[k].col));
+  }
   const slotRow = (d, cls, per, name) => [isoLocal(d), cls, per, name];
   async function monthlyData() {
     const [hol, gym0, room, sub, add] = await Promise.all([getHolidayMap(), getCol('data_gym_timetable'), getCol('data_room_timetable'), getCol('data_sub_timetable'), getCol('data_add_timetable')]);
-    const gym = gym0.concat(room.map((r) => ({ gym_date: r.room_date, gym_class: r.room_class, gym_time: r.room_time, gym_place: r.room_place })));   // 컴실 등도 체육 공간과 같은 방식으로 표시
+    const names = await validSpaces();   // 삭제된 공간의 남은 데이터는 보여 주지 않습니다.
+    const gym = gym0.filter((r) => names.has(str(r.gym_place).trim())).concat(room.filter((r) => names.has(str(r.room_place).trim())).map((r) => ({ gym_date: r.room_date, gym_class: r.room_class, gym_time: r.room_time, gym_place: r.room_place })));   // 컴실 등도 체육 공간과 같은 방식으로 표시
     const holidays = [...hol.entries()].sort().map(([k, v]) => [isoLocal(toDate(k)), v]);
     const rows = (list, fd, fc, ft, fn) => list.map((r) => ({ d: toDate(r[fd]), r })).filter((x) => x.d && str(x.r[fc]).trim())
       .map((x) => slotRow(x.d, str(x.r[fc]), str(x.r[ft]), str(x.r[fn])));
@@ -884,9 +919,9 @@
   //  - 교시마다 학급 구성이 같으면 교시도 합칩니다. (예: 11월 2일 4·5교시 1, 4, 8, 9, 10반 심폐소생술 → 하나)
   //  - 교시마다 학급 구성이 다르면 같은 학급 구성끼리만 묶습니다.
   async function groupedEvents() {
-    const byPeriod = new Map();
+    const byPeriod = new Map(); const vs = await validSpaces();
     for (const [source, def] of Object.entries(EV_SOURCES)) {
-      (await getCol(def.col)).forEach((r) => {
+      (await getCol(def.col)).filter((r) => (source === 'gym' || source === 'room' ? vs.has(str(r[def.n]).trim()) : true)).forEach((r) => {
         const d = toDate(r[def.d]), cls = str(r[def.c]).trim(); if (!d || !cls) return;
         const per = str(r[def.t]).trim(), name = str(r[def.n]).trim(); const k = source + '|' + ymd(d) + '|' + per + '|' + name;
         let g = byPeriod.get(k); if (!g) { g = { source, date: ymd(d), per, course: name, list: [] }; byPeriod.set(k, g); }
@@ -1028,5 +1063,5 @@
 
   // 직접 Firestore를 쓰는 새 페이지(예산/바로가기/교실배치도)를 위한 공용 도구
   window.GP = { db, storage, TS, getCol, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
-    getPw, setPw, readList, writeList, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
+    getPw, setPw, readList, writeList, spaceOrphans, countSpaceData, purgeSpaceData, renameSpaceData, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
 })();
