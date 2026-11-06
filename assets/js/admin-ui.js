@@ -453,21 +453,36 @@
 
   // ================================================================ 4) 비밀번호 / 데이터 관리
   // ================================================================ 예산 설정
+  let bdSel = 'all';   // 예산 설정에서 보고 있는 예산 페이지 ('all' = 전체)
   async function renderBudget() {
     view.innerHTML = '<p class="text-slate-400">불러오는 중...</p>';
+    try { const j = sessionStorage.getItem('gp_admin_budget_page'); if (j) { sessionStorage.removeItem('gp_admin_budget_page'); bdSel = j; } } catch (e) { /* 무시 */ }
     const rowsB = await GP.getCol('data_budget');
-    let items = (await GP.readList('list_budget')).map((i) => ({ name: i.value, amount: num(i.row.list_budget_amount), color: str(i.row.list_budget_color).trim() }));
+    const sheetCfg = await GP.getCfg('budget_sheets', { sheets: [] });
+    const PAGES = [['budget', '학년 예산'], ['supply', '학습준비물']].concat((Array.isArray(sheetCfg.sheets) ? sheetCfg.sheets : []).map((x) => ['sheet:' + x.id, x.name]));
+    if (bdSel !== 'all' && !PAGES.some((x) => x[0] === bdSel)) bdSel = 'all';
+    const pageName = (id) => (PAGES.find((x) => x[0] === id) || [id, id])[1];
+    let layout = await GP.getCfg('budget_layout', {}); if (!layout || typeof layout !== 'object') layout = {};
+    let items = (await GP.readList('list_budget')).map((i) => ({ name: i.value, amount: num(i.row.list_budget_amount), color: str(i.row.list_budget_color).trim(), pages: str(i.row.list_budget_pages).trim() ? str(i.row.list_budget_pages).split(',').filter(Boolean) : ['budget'] }));
     const used = (name) => rowsB.filter((r) => str(r.budget_name).trim() === name).reduce((a, r) => a + num(r.budget_num) * num(r.budget_price), 0);
-    const colorOf = (idx, it) => it.color || PALETTE[idx % PALETTE.length];
+    const colorOf = (it) => it.color || PALETTE[items.indexOf(it) % PALETTE.length];   // 색을 정하지 않은 카드는 전체 순서 기준의 기본 색
     const fmt = (n) => Number(n).toLocaleString();
-    const save = () => autosave(() => GP.writeList('list_budget', items.map((i) => ({ value: i.name, extra: { list_budget_amount: i.amount, list_budget_color: i.color || '' } }))));
-    // 이름·배정액 입력창 (수정/추가 공통)
+    const save = () => autosave(() => GP.writeList('list_budget', items.map((i) => ({ value: i.name, extra: { list_budget_amount: i.amount, list_budget_color: i.color || '', list_budget_pages: i.pages.join(',') } }))));
+    const saveLayout = () => autosave(() => GP.setCfg('budget_layout', layout));
+    const shown = () => {   // 지금 화면에 보이는 카드(그 페이지에서 정한 순서)
+      if (bdSel === 'all') return items.slice();
+      const lay = Array.isArray(layout[bdSel]) ? layout[bdSel] : []; const pos = (n) => { const i = lay.indexOf(n); return i < 0 ? 1e6 : i; };
+      return items.filter((i) => i.pages.indexOf(bdSel) >= 0).map((it, k) => ({ it, k })).sort((x, y) => pos(x.it.name) - pos(y.it.name) || x.k - y.k).map((x) => x.it);
+    };
+    // 이름·배정액·표시할 페이지 입력창 (수정/추가 공통)
     function editDialog(it) {
       return new Promise((resolve) => {
+        const pages = it ? it.pages : [bdSel === 'all' ? 'budget' : bdSel];
         const wrap = document.createElement('div'); wrap.className = 'fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50';
         wrap.innerHTML = '<div class="bg-white rounded-2xl p-5 w-full max-w-sm space-y-3"><h3 class="font-bold text-lg">' + (it ? '예산 수정' : '예산 추가') + '</h3>' +
           '<label class="text-sm font-semibold block">예산 이름<input id="bdN" class="' + INP + ' w-full mt-1" value="' + esc(it ? it.name : '') + '" placeholder="예: 체험학습비"></label>' +
           '<label class="text-sm font-semibold block">배정액<input id="bdA" inputmode="numeric" class="' + INP + ' w-full mt-1 text-right" value="' + (it ? fmt(it.amount) : '') + '" placeholder="0"></label>' +
+          '<div class="text-sm font-semibold">표시할 예산 페이지<div class="flex flex-wrap gap-x-4 gap-y-1 mt-1 font-normal">' + PAGES.map((x) => '<label class="flex items-center gap-1.5"><input type="checkbox" class="bdP" value="' + esc(x[0]) + '" ' + (pages.indexOf(x[0]) >= 0 ? 'checked' : '') + '>' + esc(x[1]) + '</label>').join('') + '</div></div>' +
           '<p id="bdE" class="text-sm font-semibold text-red-600 hidden"></p>' +
           '<div class="flex justify-between gap-2 pt-1"><div>' + (it ? '<button id="bdDel" class="px-4 py-2 rounded-lg bg-white border border-red-200 text-red-600 text-sm font-semibold">삭제</button>' : '') + '</div>' +
           '<div class="flex gap-2"><button id="bdNo" class="' + BTN_G + '">취소</button><button id="bdOk" class="' + BTN_P + '">' + (it ? '저장' : '추가') + '</button></div></div></div>';
@@ -478,8 +493,9 @@
         if (it) wrap.querySelector('#bdDel').onclick = () => { if (confirm('[' + it.name + '] 예산을 삭제할까요?\n예산 표에 입력된 내역은 그대로 남습니다.')) done({ del: true }); };
         const ok = () => {
           const name = wrap.querySelector('#bdN').value.trim(), amount = num(A.value.replace(/,/g, '')), err = wrap.querySelector('#bdE');
-          const bad = !name ? '예산 이름을 입력하세요.' : items.some((x) => x !== it && x.name === name) ? '같은 이름의 예산이 이미 있습니다.' : /\//.test(name) ? '예산 이름에는 / 를 쓸 수 없습니다.' : '';
-          if (bad) { err.textContent = bad; err.classList.remove('hidden'); return; } done({ name, amount });
+          const pg = [...wrap.querySelectorAll('.bdP')].filter((c) => c.checked).map((c) => c.value);
+          const bad = !name ? '예산 이름을 입력하세요.' : items.some((x) => x !== it && x.name === name) ? '같은 이름의 예산이 이미 있습니다.' : /[\/,]/.test(name) ? '예산 이름에는 / 와 , 를 쓸 수 없습니다.' : '';
+          if (bad) { err.textContent = bad; err.classList.remove('hidden'); return; } done({ name, amount, pages: pg });
         };
         wrap.querySelector('#bdOk').onclick = ok; wrap.onkeydown = (e) => { if (e.key === 'Enter') ok(); else if (e.key === 'Escape') done(null); };
         wrap.querySelector('#bdN').focus();
@@ -487,30 +503,38 @@
     }
     let dragFrom = -1;
     const draw = guardDraw(() => {
-      view.innerHTML = '<div class="' + CARD + '"><h2 class="font-bold text-lg">예산 카드 <span class="text-xs font-normal text-slate-400">카드를 끌어서 순서를 바꾸고, 🎨 로 배경색을, ✏️ 로 이름·배정액을 바꿉니다. 바꾼 내용은 예산 페이지에 바로 반영됩니다.</span></h2>' +
-        '<div id="bdCards" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">' + items.map((it, i) => {
+      const list = shown();
+      const tabBtn = (id, name) => '<button data-bp="' + esc(id) + '" class="px-3 py-1.5 rounded-full text-sm font-bold ' + (bdSel === id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">' + esc(name) + '</button>';
+      view.innerHTML = '<div class="' + CARD + '"><h2 class="font-bold text-lg">예산 카드 <span class="text-xs font-normal text-slate-400">카드를 끌어서 순서를 바꾸고, 🎨 로 배경색을, ✏️ 로 이름·배정액·표시할 예산 페이지를 바꿉니다. 바꾼 내용은 예산 페이지에 바로 반영됩니다.</span></h2>' +
+        '<div class="flex flex-wrap items-center gap-2"><span class="text-sm font-semibold text-slate-500 mr-1">보기</span>' + tabBtn('all', '전체') + PAGES.map((x) => tabBtn(x[0], x[1])).join('') + '</div>' +
+        (bdSel === 'all' ? '<p class="text-xs text-slate-400">전체 보기에서는 모든 예산 카드가 보이고, 끌어서 바꾼 순서가 기본 순서가 됩니다. 예산 페이지별로 순서를 따로 정하려면 위에서 그 페이지를 고르세요.</p>' : '<p class="text-xs text-slate-400">[' + esc(pageName(bdSel)) + '] 페이지에 표시되는 카드입니다. 여기서 끌어서 바꾼 순서는 이 페이지에만 적용됩니다.</p>') +
+        '<div id="bdCards" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">' + list.map((it, i) => {
           const u = used(it.name), bal = it.amount - u;
-          return '<div class="bdc relative border border-slate-300 rounded-xl p-3 shadow-sm cursor-grab" draggable="true" data-i="' + i + '" style="background:' + colorOf(i, it) + '">' +
+          const where = it.pages.length ? it.pages.map(pageName).join(' · ') : '표시 안 함';
+          return '<div class="bdc relative border border-slate-300 rounded-xl p-3 shadow-sm cursor-grab" draggable="true" data-i="' + i + '" style="background:' + colorOf(it) + '">' +
             '<div class="flex items-center justify-between gap-1 border-b border-black/10 pb-1 mb-1"><span class="font-bold text-sm break-all">' + esc(it.name) + '</span>' +
-            '<span class="flex shrink-0 gap-1"><label class="cursor-pointer relative" title="배경색">🎨<input type="color" data-color="' + i + '" value="' + colorOf(i, it) + '" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"></label><button data-edit="' + i + '" title="수정">✏️</button></span></div>' +
+            '<span class="flex shrink-0 gap-1"><label class="cursor-pointer relative" title="배경색">🎨<input type="color" data-color="' + i + '" value="' + colorOf(it) + '" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"></label><button data-edit="' + i + '" title="수정">✏️</button></span></div>' +
             '<div class="flex justify-between text-xs"><span>배정액</span><b>' + fmt(it.amount) + '</b></div><div class="flex justify-between text-xs"><span>사용액</span><b>' + fmt(u) + '</b></div>' +
-            '<div class="flex justify-between text-sm mt-1 pt-1 border-t border-black/10"><span>잔액</span><b class="' + (bal < 0 ? 'text-red-600' : 'text-blue-700') + '">' + fmt(bal) + '</b></div></div>';
+            '<div class="flex justify-between text-sm mt-1 pt-1 border-t border-black/10"><span>잔액</span><b class="' + (bal < 0 ? 'text-red-600' : 'text-blue-700') + '">' + fmt(bal) + '</b></div>' +
+            '<div class="text-[11px] text-slate-500 mt-1 pt-1 border-t border-black/10 leading-tight">표시: ' + esc(where) + '</div></div>';
         }).join('') + '<button id="bdAdd" class="border-2 border-dashed border-slate-300 rounded-xl text-3xl font-bold text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 min-h-[110px]" title="예산 추가">+</button></div>' +
-        (items.length ? '' : '<p class="text-sm text-slate-400">등록된 예산이 없습니다. + 를 눌러 추가하세요.</p>') + '</div>';
+        (list.length ? '' : '<p class="text-sm text-slate-400">이 페이지에 표시되는 예산 카드가 없습니다. + 로 추가하거나, 전체 보기에서 카드의 ✏️ 로 표시할 페이지를 고르세요.</p>') + '</div>';
+      view.querySelectorAll('[data-bp]').forEach((b) => b.onclick = () => { bdSel = b.dataset.bp; draw(); });
       const box = $('bdCards');
       box.querySelectorAll('[data-edit]').forEach((b) => b.onclick = async () => {
-        const i = +b.dataset.edit, it = items[i], r = await editDialog(it); if (!r) return;
-        if (r.del) { items.splice(i, 1); await save(); return draw(); }
-        const old = it.name; it.name = r.name; it.amount = r.amount;
-        await save();
+        const it = list[+b.dataset.edit], r = await editDialog(it); if (!r) return;
+        if (r.del) { items.splice(items.indexOf(it), 1); Object.keys(layout).forEach((k) => { if (Array.isArray(layout[k])) layout[k] = layout[k].filter((n) => n !== it.name); }); await save(); await saveLayout(); return draw(); }
+        const old = it.name; it.name = r.name; it.amount = r.amount; it.pages = r.pages;
+        if (old !== r.name) Object.keys(layout).forEach((k) => { if (Array.isArray(layout[k])) layout[k] = layout[k].map((n) => (n === old ? r.name : n)); });
+        await save(); if (old !== r.name) await saveLayout();
         if (old !== r.name) {   // 예산 표에 이미 입력한 내역도 새 이름으로 맞춤
           const hit = rowsB.filter((x) => str(x.budget_name).trim() === old);
           if (hit.length) { await GP.commit(hit.map((x) => ({ type: 'update', col: 'data_budget', id: x._id, data: { budget_name: r.name } }))); GP.invalidate('data_budget'); hit.forEach((x) => { x.budget_name = r.name; }); }
         }
         draw();
       });
-      box.querySelectorAll('input[data-color]').forEach((inp) => { inp.onchange = () => { items[+inp.dataset.color].color = inp.value; save(); draw(); }; });
-      $('bdAdd').onclick = async () => { const r = await editDialog(null); if (!r || r.del) return; items.push({ name: r.name, amount: r.amount, color: '' }); await save(); draw(); };
+      box.querySelectorAll('input[data-color]').forEach((inp) => { inp.onchange = () => { list[+inp.dataset.color].color = inp.value; save(); draw(); }; });
+      $('bdAdd').onclick = async () => { const r = await editDialog(null); if (!r || r.del) return; const it = { name: r.name, amount: r.amount, color: '', pages: r.pages }; items.push(it); await save(); draw(); };
       // 끌어서 순서 바꾸기
       const clear = () => box.querySelectorAll('.bdc').forEach((c) => { c.style.boxShadow = ''; c.style.opacity = ''; });
       box.querySelectorAll('.bdc').forEach((c) => {
@@ -518,8 +542,10 @@
         c.ondragend = () => { dragFrom = -1; clear(); };
         c.ondragover = (e) => { if (dragFrom < 0) return; e.preventDefault(); const r = c.getBoundingClientRect(); const after = e.clientX > r.left + r.width / 2; clear(); c.style.boxShadow = after ? 'inset -4px 0 0 #4f46e5' : 'inset 4px 0 0 #4f46e5'; c._after = after; };
         c.ondrop = (e) => {
-          e.preventDefault(); if (dragFrom < 0) return; const to = +c.dataset.i; let dest = to + (c._after ? 1 : 0); const [m] = items.splice(dragFrom, 1); if (dragFrom < dest) dest--; items.splice(dest, 0, m);
-          dragFrom = -1; save(); draw();
+          e.preventDefault(); if (dragFrom < 0) return; const to = +c.dataset.i; let dest = to + (c._after ? 1 : 0); const order = list.slice(); const [m] = order.splice(dragFrom, 1); if (dragFrom < dest) dest--; order.splice(dest, 0, m);
+          dragFrom = -1;
+          if (bdSel === 'all') { items = order; save(); } else { layout[bdSel] = order.map((x) => x.name); saveLayout(); }
+          draw();
         };
       });
     });

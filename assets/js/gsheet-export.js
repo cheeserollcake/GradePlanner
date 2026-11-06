@@ -23,6 +23,14 @@
     if (res.status === 401) return '구글 로그인이 만료되었습니다. 다시 시도해 주세요.';
     return '스프레드시트를 만들지 못했습니다. (' + res.status + ') ' + msg;
   }
+  async function driveError(res) {
+    let body = {}; try { body = await res.json(); } catch (e) { /* 본문 없음 */ }
+    const msg = (body.error && body.error.message) || ''; const reason = JSON.stringify(body.error || {});
+    if (res.status === 403 && /SERVICE_DISABLED|has not been used|is disabled/i.test(reason)) return 'Google Drive API가 사용 설정되어 있지 않습니다. Google Cloud 콘솔의 이 프로젝트(gradeplanner-d5499)에서 API 및 서비스 > 라이브러리 > "Google Drive API"를 사용 설정한 뒤 1~2분 후 다시 시도해 주세요. (사진이 들어간 내보내기에 필요합니다)';
+    if (res.status === 403) return '구글 계정 권한이 부족합니다. 로그인 창에서 "Google 드라이브 파일 만들기" 권한을 허용했는지 확인해 주세요. (' + msg + ')';
+    if (res.status === 401) return '구글 로그인이 만료되었습니다. 다시 시도해 주세요.';
+    return '스프레드시트를 만들지 못했습니다. (' + res.status + ') ' + msg;
+  }
   async function create(title, sheets, onStatus) {
     const say = onStatus || function () {}; let signedIn = false;
     try {
@@ -32,6 +40,15 @@
       const result = await firebase.auth().signInWithPopup(provider); signedIn = true;
       const token = result && result.credential && result.credential.accessToken; if (!token) throw new Error('구글 권한(액세스 토큰)을 받지 못했습니다. 다시 시도해 주세요.');
       say('스프레드시트를 만드는 중입니다...');
+      if (sheets.some((sp) => sp.rows.some((r) => r.some((c) => c && c.img)))) {
+        // 사진이 들어 있는 표: 구글 시트의 IMAGE() 수식은 데이터 주소 이미지를 받지 않으므로, 엑셀 파일(사진 포함)을 드라이브에 올리면서 구글 스프레드시트로 변환합니다.
+        const bound = 'gp' + Math.random().toString(36).slice(2);
+        const meta = JSON.stringify({ name: title, mimeType: 'application/vnd.google-apps.spreadsheet' });
+        const body = new Blob(['--' + bound + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + meta + '\r\n--' + bound + '\r\nContent-Type: ' + XlsxLite.XLSX_MIME + '\r\n\r\n', XlsxLite.toBytes(sheets), '\r\n--' + bound + '--']);
+        const dr = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'multipart/related; boundary=' + bound }, body });
+        if (!dr.ok) throw new Error(await driveError(dr));
+        const dj = await dr.json(); return { url: dj.webViewLink || ('https://docs.google.com/spreadsheets/d/' + dj.id + '/edit') };
+      }
       const res = await fetch('https://sheets.googleapis.com/v4/spreadsheets', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(XlsxLite.toSheetsRequest(title, sheets)) });
       if (!res.ok) throw new Error(await sheetsError(res));
       const j = await res.json(); return { url: j.spreadsheetUrl };

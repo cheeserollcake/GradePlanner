@@ -322,7 +322,7 @@
       classes: uniq('list_class').sort(natural), subs: uniq('list_sub'), times: uniq('list_time').sort(natural),
       gyms: uniq('list_gym'), rooms: uniq('list_room'), teachers: uniq('list_t'),
       budgets: rows.filter((r) => str(r.list_budget).trim())
-        .map((r, i) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount), color: str(r.list_budget_color).trim(), _o: (r.list_budget_order === undefined || r.list_budget_order === '' || r.list_budget_order === null) ? 1e6 + i : Number(r.list_budget_order) }))
+        .map((r, i) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount), color: str(r.list_budget_color).trim(), pages: str(r.list_budget_pages).trim() ? str(r.list_budget_pages).split(',').filter(Boolean) : ['budget'], _o: (r.list_budget_order === undefined || r.list_budget_order === '' || r.list_budget_order === null) ? 1e6 + i : Number(r.list_budget_order) }))
         .sort((a, b) => a._o - b._o).map(({ _o, ...b }) => b),
       budgetHeaders: uniq('list_budget_header')
     };
@@ -366,13 +366,19 @@
       edit('r5', '비고'), edit('r6', '담임')];
   }
 
-  async function buildBudgetCards() {
+  // pageId 를 주면 그 예산 페이지에 표시하기로 한 카드만, 그 페이지에서 정한 순서대로 돌려줍니다. 주지 않으면 모든 카드.
+  async function buildBudgetCards(pageId) {
     const lists = await getLists();
     const rows = await getCol('data_budget');
     const heads = {};
     lists.budgets.forEach((b) => { const h = b.name.split('/')[0]; (heads[h] = heads[h] || []).push(b); });
     const cards = []; const done = new Set();
-    lists.budgets.forEach((b) => {
+    let list = lists.budgets;
+    if (pageId) {
+      const lay = (await getCfg('budget_layout', {}))[pageId]; const pos = (n) => { const i = Array.isArray(lay) ? lay.indexOf(n) : -1; return i < 0 ? 1e6 : i; };
+      list = list.filter((b) => (b.pages || ['budget']).indexOf(pageId) >= 0).map((b, i) => ({ b, i })).sort((x, y) => pos(x.b.name) - pos(y.b.name) || x.i - y.i).map((x) => x.b);
+    }
+    list.forEach((b) => {
       const h = b.name.split('/')[0];
       if (done.has(h)) return;
       const merged = heads[h].length > 1;
