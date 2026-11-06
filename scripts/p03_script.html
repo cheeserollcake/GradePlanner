@@ -1,4 +1,5 @@
 <script src="../assets/js/xlsx-lite.js"></script>
+    <script src="../assets/js/gsheet-export.js"></script>
     <script>
       (function () {
         const $ = (id) => document.getElementById(id);
@@ -56,21 +57,31 @@
           }
           return { name: '학년 전체 명렬표', widths: wd, rows, merges };
         }
-        $('xl-go').onclick = async () => {
+        async function build() {
           const fields = [...document.querySelectorAll('.xl-f:checked')].map((x) => x.value), nChk = Number(chk.value) || 0;
-          if (!fields.length && !nChk) return alert('내려받을 항목을 하나 이상 선택하세요.');
-          const scope = document.querySelector('input[name=xl-scope]:checked').value; const btn = $('xl-go'); btn.disabled = true; btn.textContent = '만드는 중…';
+          if (!fields.length && !nChk) throw new Error('내려받을 항목을 하나 이상 선택하세요.');
+          const scope = document.querySelector('input[name=xl-scope]:checked').value;
+          if (scope === 'grade') { const all = []; for (let n = 1; n <= CC; n++) all.push(await getClass(n)); return { sheets: [gradeSheet(all, fields, nChk)], file: '학년_전체_명렬표' }; }
+          if ($('xl-class').value === 'all') {
+            const sheets = []; for (let n = 1; n <= CC; n++) { const d = await getClass(n); if (d.some((r) => String(r[1]).trim())) sheets.push(classSheet(n, d, fields, nChk)); }
+            if (!sheets.length) throw new Error('명단이 입력된 반이 없습니다.'); return { sheets, file: '반별_명렬표_전체' };
+          }
+          const n = Number($('xl-class').value); return { sheets: [classSheet(n, await getClass(n), fields, nChk)], file: n + '반_명렬표' };
+        }
+        const btns = () => [$('xl-go'), $('xl-gs')];
+        $('xl-go').onclick = async () => {
+          btns().forEach((b) => { b.disabled = true; }); const old = $('xl-go').textContent; $('xl-go').textContent = '만드는 중…';
+          try { const r = await build(); save(r.sheets, r.file); close(); } catch (e) { alert('엑셀을 만들지 못했습니다: ' + (e.message || e)); }
+          btns().forEach((b) => { b.disabled = false; }); $('xl-go').textContent = old;
+        };
+        $('xl-gs').onclick = async () => {
+          btns().forEach((b) => { b.disabled = true; });
           try {
-            if (scope === 'grade') {
-              const all = []; for (let n = 1; n <= CC; n++) all.push(await getClass(n));
-              save([gradeSheet(all, fields, nChk)], '학년_전체_명렬표');
-            } else if ($('xl-class').value === 'all') {
-              const sheets = []; for (let n = 1; n <= CC; n++) { const d = await getClass(n); if (d.some((r) => String(r[1]).trim())) sheets.push(classSheet(n, d, fields, nChk)); }
-              if (!sheets.length) throw new Error('명단이 입력된 반이 없습니다.'); save(sheets, '반별_명렬표_전체');
-            } else { const n = Number($('xl-class').value); save([classSheet(n, await getClass(n), fields, nChk)], n + '반_명렬표'); }
-            close();
-          } catch (e) { alert('엑셀을 만들지 못했습니다: ' + (e.message || e)); }
-          btn.disabled = false; btn.textContent = '내려받기';
+            const r = await build(); close();
+            const out = await GSheet.create(r.file.replace(/_/g, ' '), r.sheets, (t) => { $('xl-msg').textContent = t; });
+            $('xl-msg').innerHTML = '스프레드시트를 만들었습니다. <a target="_blank" rel="noopener" style="color:#2563eb;font-weight:700;text-decoration:underline" href="' + out.url + '">열기</a> (내 구글 드라이브에 저장됨)';
+          } catch (e) { $('xl-msg').textContent = ''; alert('스프레드시트로 내보내지 못했습니다: ' + (e.message || e)); }
+          btns().forEach((b) => { b.disabled = false; });
         };
 
         // ------------------------------------------------------------ 업로드 (xlsx 읽기)

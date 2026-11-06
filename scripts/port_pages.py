@@ -401,10 +401,10 @@ for folder, (fname, key) in PAGES.items():
                           <col className="c-nt" />
                           <col className="c-bd" />
                           <col className="c-dl" />""")
-        html = R('<div id="root-grade"></div>', """<div class="xl-bar"><button class="xl" id="xl-open">⬇ 엑셀 다운로드</button><button class="up" id="xl-up">⬆ 엑셀 업로드</button><button id="xl-sample">예시 파일 받기</button><input type="file" id="xl-file" accept=".xlsx" style="display:none"><span id="xl-msg" style="font-size:.8rem;color:#64748b"></span></div>
+        html = R('<div id="root-grade"></div>', """<div class="xl-bar"><button class="xl" id="xl-open">⬇ 내보내기 (엑셀·스프레드시트)</button><button class="up" id="xl-up">⬆ 엑셀 업로드</button><button id="xl-sample">예시 파일 받기</button><input type="file" id="xl-file" accept=".xlsx" style="display:none"><span id="xl-msg" style="font-size:.8rem;color:#64748b"></span></div>
       <div id="xl-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:3000;align-items:center;justify-content:center;padding:1rem">
         <div style="background:#fff;border-radius:1rem;padding:1.25rem;width:100%;max-width:26rem;max-height:92vh;overflow:auto" class="xl-box">
-          <h3 style="font-weight:700;font-size:1.1rem;margin-bottom:.75rem">명렬표 엑셀 다운로드</h3>
+          <h3 style="font-weight:700;font-size:1.1rem;margin-bottom:.75rem">명렬표 내보내기</h3>
           <div class="xl-sec"><div class="xl-t">내려받을 명렬표</div>
             <label><input type="radio" name="xl-scope" value="grade" checked> 학년 전체 명렬표 (한 시트)</label>
             <label><input type="radio" name="xl-scope" value="class"> 반별 명렬표 : <select id="xl-class"></select></label></div>
@@ -412,7 +412,7 @@ for folder, (fname, key) in PAGES.items():
             <div class="xl-grid"><label><input type="checkbox" class="xl-f" value="no" checked> 번호</label><label><input type="checkbox" class="xl-f" value="name" checked> 이름</label><label><input type="checkbox" class="xl-f" value="gender" checked> 성별</label><label><input type="checkbox" class="xl-f" value="note" checked> 기타</label><label><input type="checkbox" class="xl-f" value="birth"> 생년월일</label></div>
             <div style="display:flex;align-items:center;gap:.5rem;margin-top:.5rem">체크리스트 열
               <button type="button" id="xl-minus" class="xl-step">−</button><input id="xl-checks" type="number" min="0" max="30" value="0" style="width:3.5rem;text-align:center;border:1px solid #cbd5e1;border-radius:.4rem;padding:.25rem"><button type="button" id="xl-plus" class="xl-step">＋</button> 개</div></div>
-          <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem"><button id="xl-cancel" type="button" style="padding:.5rem 1rem;border-radius:.5rem;background:#f1f5f9;font-weight:600">취소</button><button id="xl-go" type="button" class="xl" style="padding:.5rem 1rem;border-radius:.5rem;font-weight:600;color:#fff;background:#059669">내려받기</button></div>
+          <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.5rem;margin-top:1rem"><button id="xl-cancel" type="button" style="padding:.5rem 1rem;border-radius:.5rem;background:#f1f5f9;font-weight:600">취소</button><button id="xl-gs" type="button" style="padding:.5rem 1rem;border-radius:.5rem;font-weight:600;border:1px solid #cbd5e1;background:#fff">구글 스프레드시트로 만들기</button><button id="xl-go" type="button" class="xl" style="padding:.5rem 1rem;border-radius:.5rem;font-weight:600;color:#fff;background:#059669">엑셀로 내려받기</button></div>
         </div></div>
       <div id="root-grade"></div>""")
         html = R("<!-- 4. 스크립트", open(__import__("os").path.join(__import__("os").path.dirname(__file__), "p03_script.html"), encoding="utf-8").read() + "\n    <!-- 4. 스크립트")

@@ -132,6 +132,10 @@
           properties: { sheetId: i + 1, title: safeName(sp.name), gridProperties: { frozenRowCount: sp.freezeRow || 0 } },
           data: [{ startRow: 0, startColumn: 0, rowData: rows.map((r) => ({ values: r.map(cellData) })), columnMetadata: (sp.widths || []).map((w) => ({ pixelSize: Math.round(w * 7 + 8) })) }]
         };
+        if (sp.merges && sp.merges.length) {
+          const cn = (t) => { let n = 0; for (const ch of t.replace(/[0-9]/g, '')) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; }, rn = (t) => Number(t.replace(/[A-Z]/g, '')) - 1;
+          sheet.merges = sp.merges.map((m) => { const [x, y] = m.split(':'); return { sheetId: i + 1, startRowIndex: rn(x), endRowIndex: rn(y) + 1, startColumnIndex: cn(x), endColumnIndex: cn(y) + 1 }; });
+        }
         if (sp.filter && rows.length > 1) sheet.basicFilter = { range: { sheetId: i + 1, startRowIndex: 0, endRowIndex: sp.filterRows || rows.length, startColumnIndex: 0, endColumnIndex: cols } };
         return sheet;
       })
