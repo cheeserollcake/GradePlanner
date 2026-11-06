@@ -109,12 +109,24 @@
       
       @keyframes loading-bar { 0% { width: 0%; } 50% { width: 70%; } 100% { width: 100%; } }
       .loading-progress { position: absolute; bottom: 0; left: 0; height: 3px; background-color: #3b82f6; animation: loading-bar 1s infinite; }
-    .nl-table { table-layout: fixed; width: 100%; max-width: max(50%, 640px); min-width: 42em; margin: 0 auto; box-sizing: border-box; }
+    .nl-table { table-layout: fixed; width: 100%; margin: 0 auto; box-sizing: border-box; }
+      /* 열 너비는 '최대' 너비: 넓은 화면에서만 고정하고, 좁아지면 비율로 함께 줄어듭니다 */
+      .nl-table col.c-no, .nl-table col.c-gd { width: 10%; } .nl-table col.c-nm, .nl-table col.c-nt { width: 22%; }
+      .nl-table col.c-bd { width: 28%; } .nl-table col.c-dl { width: 8%; }
+      .nl-table input { min-width: 0; font-size: clamp(11px, 3.2vw, 16px); }
+      .nl-table th, .nl-table td { overflow: hidden; }
+      @media (min-width: 900px) {
+        .nl-table { max-width: max(50%, 640px); }
+        .nl-table col.c-no, .nl-table col.c-gd { width: 3.4em; } .nl-table col.c-nm, .nl-table col.c-nt { width: auto; }
+        .nl-table col.c-bd { width: 17.5em; } .nl-table col.c-dl { width: 2.6em; }
+      }
+      .nl-stick { position: sticky; top: var(--nav-h, 64px); z-index: 900; background: #f8fafc; padding-top: .5rem; margin-top: -.5rem; }
+      #root-class .overflow-x-auto, #root-grade .overflow-x-auto { overflow-x: auto; }
       .xl-bar { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; padding:.75rem 1rem 0; }
       .xl-bar button, .xl-bar select { font-size:.875rem; font-weight:600; padding:.45rem .9rem; border-radius:.5rem; border:1px solid #cbd5e1; background:#fff; color:#334155; }
       .xl-bar button.xl { background:#059669; border-color:#059669; color:#fff; }
       .xl-bar button.xl:hover { background:#047857; }
-      #root-class .overflow-x-auto, #root-grade .overflow-x-auto { overflow-x: auto; }
+      .xl-bar button.up { background:#2563eb; border-color:#2563eb; color:#fff; }
       .xl-sec { margin-bottom:.75rem; display:flex; flex-direction:column; gap:.35rem; font-size:.9rem; }
       .xl-t { font-weight:700; color:#475569; font-size:.8rem; }
       .xl-grid { display:flex; flex-wrap:wrap; gap:.5rem 1rem; }
@@ -145,7 +157,7 @@
     
     <!-- (A) 학년 전체 명렬표 섹션 -->
     <div id="grade-section" class="page-section">
-      <div class="xl-bar"><button class="xl" id="xl-open">⬇ 엑셀 다운로드</button><span id="xl-msg" style="font-size:.8rem;color:#64748b"></span></div>
+      <div class="xl-bar"><button class="xl" id="xl-open">⬇ 엑셀 다운로드</button><button class="up" id="xl-up">⬆ 엑셀 업로드</button><button id="xl-sample">예시 파일 받기</button><input type="file" id="xl-file" accept=".xlsx" style="display:none"><span id="xl-msg" style="font-size:.8rem;color:#64748b"></span></div>
       <div id="xl-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:3000;align-items:center;justify-content:center;padding:1rem">
         <div style="background:#fff;border-radius:1rem;padding:1.25rem;width:100%;max-width:26rem;max-height:92vh;overflow:auto" class="xl-box">
           <h3 style="font-weight:700;font-size:1.1rem;margin-bottom:.75rem">명렬표 엑셀 다운로드</h3>
@@ -173,9 +185,17 @@
         const GENDER = { '남성': 'male', '여성': 'female' };
         const LABEL = { no: '번호', name: '이름', gender: '성별', note: '기타', birth: '생년월일' }, IDX = { no: 0, name: 1, gender: 2, note: 3, birth: 4 };
         const WIDTH = { no: 6, name: 11, gender: 7, note: 16, birth: 14, chk: 7 };
-        $('xl-class').innerHTML = Array.from({ length: 10 }, (_, i) => '<option value="' + (i + 1) + '">' + (i + 1) + '반</option>').join('') + '<option value="all">전체 반 (반마다 시트)</option>';
+        let CC = 10;   // 학급 수 (관리자 설정)
         const call = (name, ...args) => new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)[name](...args));
-        const open = () => { $('xl-modal').style.display = 'flex'; }, close = () => { $('xl-modal').style.display = 'none'; };
+        // 상단 메뉴 높이만큼 아래에 반 버튼줄을 고정
+        const navH = () => { const n = $('navbar'); if (n) document.documentElement.style.setProperty('--nav-h', n.offsetHeight + 'px'); };
+        window.addEventListener('resize', navH); setInterval(navH, 1500);
+        async function loadCount() {
+          try { const r = JSON.parse(await call('getGradeData')); CC = (r.horizontal && r.horizontal.classCount) || 10; } catch (e) { /* 기본값 */ }
+          $('xl-class').innerHTML = Array.from({ length: CC }, (_, i) => '<option value="' + (i + 1) + '">' + (i + 1) + '반</option>').join('') + '<option value="all">전체 반 (반마다 시트)</option>';
+        }
+        $('xl-class').innerHTML = '<option value="1">1반</option>'; loadCount();
+        const open = () => { loadCount(); $('xl-modal').style.display = 'flex'; }, close = () => { $('xl-modal').style.display = 'none'; };
         $('xl-open').onclick = open; $('xl-cancel').onclick = close;
         $('xl-modal').addEventListener('mousedown', (e) => { if (e.target === $('xl-modal')) close(); });
         const chk = $('xl-checks'); const setChk = (v) => { chk.value = Math.max(0, Math.min(30, Math.round(Number(v) || 0))); };
@@ -201,18 +221,19 @@
           const w = fields.length + nChk, rows = [], merges = [], wd = [];
           for (let c = 0; c < 5; c++) wd.push(...widths(fields, nChk), 2);
           const ref = (r, c) => XlsxLite.colName(c) + (r + 1);
-          [1, 6].forEach((start, gi) => {
+          for (let start = 1, gi = 0; start <= CC; start += 5, gi++) {
+            const per = Math.min(5, CC - start + 1);
             const top = rows.length, r1 = [], r2 = [], r3 = [];
-            for (let c = 0; c < 5; c++) {
+            for (let c = 0; c < per; c++) {
               const data = all[start + c - 1] || []; let m = 0, f = 0; data.forEach((r) => { if (String(r[1]).trim()) { if (r[2] === '남성') m++; if (r[2] === '여성') f++; } });
               const fill = (t, s) => Array.from({ length: w }, (_, i) => cell(i === 0 ? t : '', s));
               r1.push(...fill((start + c) + '반', 'totalLabel'), cell('', 'default')); r2.push(...fill('재적: ' + (m + f) + ' (남' + m + '/여' + f + ')', 'totalLabel'), cell('', 'default')); r3.push(...headers(fields, nChk), cell('', 'default'));
               const base = c * (w + 1); if (w > 1) merges.push(ref(top, base) + ':' + ref(top, base + w - 1), ref(top + 1, base) + ':' + ref(top + 1, base + w - 1));
             }
             rows.push(r1, r2, r3);
-            for (let i = 0; i < 30; i++) { const line = []; for (let c = 0; c < 5; c++) { const d = (all[start + c - 1] || [])[i] || [i + 1, '', '', '', '']; line.push(...rowCells(d, fields, nChk), cell('', 'default')); } rows.push(line); }
-            if (gi === 0) rows.push([]);
-          });
+            for (let i = 0; i < 30; i++) { const line = []; for (let c = 0; c < per; c++) { const d = (all[start + c - 1] || [])[i] || [i + 1, '', '', '', '']; line.push(...rowCells(d, fields, nChk), cell('', 'default')); } rows.push(line); }
+            rows.push([]);
+          }
           return { name: '학년 전체 명렬표', widths: wd, rows, merges };
         }
         $('xl-go').onclick = async () => {
@@ -221,18 +242,116 @@
           const scope = document.querySelector('input[name=xl-scope]:checked').value; const btn = $('xl-go'); btn.disabled = true; btn.textContent = '만드는 중…';
           try {
             if (scope === 'grade') {
-              const all = []; for (let n = 1; n <= 10; n++) all.push(await getClass(n));
+              const all = []; for (let n = 1; n <= CC; n++) all.push(await getClass(n));
               save([gradeSheet(all, fields, nChk)], '학년_전체_명렬표');
             } else if ($('xl-class').value === 'all') {
-              const sheets = []; for (let n = 1; n <= 10; n++) { const d = await getClass(n); if (d.some((r) => String(r[1]).trim())) sheets.push(classSheet(n, d, fields, nChk)); }
+              const sheets = []; for (let n = 1; n <= CC; n++) { const d = await getClass(n); if (d.some((r) => String(r[1]).trim())) sheets.push(classSheet(n, d, fields, nChk)); }
               if (!sheets.length) throw new Error('명단이 입력된 반이 없습니다.'); save(sheets, '반별_명렬표_전체');
             } else { const n = Number($('xl-class').value); save([classSheet(n, await getClass(n), fields, nChk)], n + '반_명렬표'); }
             close();
           } catch (e) { alert('엑셀을 만들지 못했습니다: ' + (e.message || e)); }
           btn.disabled = false; btn.textContent = '내려받기';
         };
+
+        // ------------------------------------------------------------ 업로드 (xlsx 읽기)
+        const u16 = (d, o) => d[o] | (d[o + 1] << 8), u32 = (d, o) => (d[o] | (d[o + 1] << 8) | (d[o + 2] << 16) | (d[o + 3] << 24)) >>> 0;
+        async function unzip(buf) {
+          const d = new Uint8Array(buf); let e = d.length - 22; while (e >= 0 && u32(d, e) !== 0x06054b50) e--;
+          if (e < 0) throw new Error('엑셀(.xlsx) 파일이 아닙니다.');
+          const n = u16(d, e + 10); let p = u32(d, e + 16); const files = {};
+          for (let i = 0; i < n; i++) {
+            if (u32(d, p) !== 0x02014b50) break;
+            const method = u16(d, p + 10), csize = u32(d, p + 20), nl = u16(d, p + 28), el = u16(d, p + 30), cl = u16(d, p + 32), off = u32(d, p + 42);
+            const name = new TextDecoder().decode(d.subarray(p + 46, p + 46 + nl)); p += 46 + nl + el + cl;
+            const start = off + 30 + u16(d, off + 26) + u16(d, off + 28); const raw = d.subarray(start, start + csize);
+            files[name] = { method, raw };
+          }
+          const get = async (name) => {
+            const f = files[name]; if (!f) return null;
+            if (f.method === 0) return new TextDecoder().decode(f.raw);
+            const ds = new DecompressionStream('deflate-raw'); const w = ds.writable.getWriter(); w.write(f.raw); w.close();
+            return new TextDecoder().decode(await new Response(ds.readable).arrayBuffer());
+          };
+          return { get, names: Object.keys(files) };
+        }
+        const xml = (t) => new DOMParser().parseFromString(t, 'application/xml');
+        const colIdx = (ref) => { let n = 0; for (const ch of ref.replace(/[0-9]/g, '')) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; };
+        async function readXlsx(buf) {
+          const z = await unzip(buf);
+          const wb = xml(await z.get('xl/workbook.xml')), rels = xml(await z.get('xl/_rels/workbook.xml.rels'));
+          const relMap = {}; [...rels.getElementsByTagName('Relationship')].forEach((r) => { relMap[r.getAttribute('Id')] = r.getAttribute('Target'); });
+          let shared = []; const ss = await z.get('xl/sharedStrings.xml');
+          if (ss) shared = [...xml(ss).getElementsByTagName('si')].map((si) => [...si.getElementsByTagName('t')].map((t) => t.textContent).join(''));
+          const sheets = [];
+          for (const s of [...wb.getElementsByTagName('sheet')]) {
+            const rid = s.getAttribute('r:id') || s.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
+            let target = relMap[rid] || ''; target = target.replace(/^\//, ''); if (!/^xl\//.test(target)) target = 'xl/' + target;
+            const txt = await z.get(target); if (!txt) continue;
+            const rows = [];
+            [...xml(txt).getElementsByTagName('row')].forEach((row) => {
+              const r = []; [...row.getElementsByTagName('c')].forEach((c) => {
+                const t = c.getAttribute('t'); let v = '';
+                if (t === 'inlineStr') v = [...c.getElementsByTagName('t')].map((x) => x.textContent).join('');
+                else { const ve = c.getElementsByTagName('v')[0]; v = ve ? ve.textContent : ''; if (t === 's') v = shared[Number(v)] || ''; }
+                r[colIdx(c.getAttribute('r'))] = v;
+              });
+              rows[Number(row.getAttribute('r')) - 1] = Array.from(r, (x) => (x == null ? '' : x));
+            });
+            sheets.push({ name: s.getAttribute('name'), rows: Array.from(rows, (r) => r || []) });
+          }
+          return sheets;
+        }
+        const pad = (n) => String(n).padStart(2, '0');
+        const serialDate = (v) => {   // 생년월일은 yyyy.mm.dd. 형식으로 맞춥니다 (엑셀 날짜값·2014-03-02·2014/3/2 도 변환)
+          const t = String(v).trim(); const n = Number(t);
+          if (t && n > 20000 && n < 80000) { const d = new Date(Math.round((n - 25569) * 86400000)); return d.getUTCFullYear() + '.' + pad(d.getUTCMonth() + 1) + '.' + pad(d.getUTCDate()) + '.'; }
+          const m = t.match(/^(\d{4})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{1,2})\.?$/); return m ? m[1] + '.' + pad(+m[2]) + '.' + pad(+m[3]) + '.' : t;
+        };
+        function parseRoster(sheets) {   // 시트(이름 또는 제목에 'n반') + 머리글(번호/이름/성별/기타/생년월일[/반])
+          const out = [], notes = [];
+          sheets.forEach((sh) => {
+            let cls = (String(sh.name).match(/(\d+)\s*반/) || [])[1];
+            if (!cls) for (let i = 0; i < Math.min(3, sh.rows.length) && !cls; i++) cls = ((sh.rows[i] || []).map(String).join(' ').match(/(\d+)\s*반\s*명렬표/) || [])[1];
+            let h = -1; for (let i = 0; i < Math.min(8, sh.rows.length); i++) if ((sh.rows[i] || []).some((x) => String(x).trim() === '이름')) { h = i; break; }
+            if (h < 0) return;
+            const col = {}; (sh.rows[h] || []).forEach((x, i) => { const t = String(x).trim(); if (t === '반') col.cls = i; else if (t === '번호') col.no = i; else if (t === '이름') col.name = i; else if (t === '성별') col.gender = i; else if (t === '기타' || t === '비고') col.note = i; else if (t === '생년월일') col.birth = i; });
+            if (cls === undefined && col.cls === undefined) { notes.push('‘' + sh.name + '’ 시트: 반을 알 수 없어 건너뜁니다.'); return; }
+            let seq = 0;
+            sh.rows.slice(h + 1).forEach((r) => {
+              seq++; const g = (k) => (col[k] === undefined ? '' : String(r[col[k]] == null ? '' : r[col[k]]).trim());
+              const name = g('name'); if (!name && !g('gender') && !g('note') && !g('birth')) return;
+              const c = col.cls !== undefined ? (g('cls').match(/\d+/) || [])[0] : cls; const no = col.no !== undefined ? Number(g('no')) : seq;
+              if (!c || !(no >= 1 && no <= 99)) { notes.push('‘' + sh.name + '’ 시트 ' + (h + 1 + seq) + '행: 반/번호를 읽을 수 없어 건너뜁니다.'); return; }
+              out.push({ cls: Number(c), no, name, gender: g('gender'), memo: g('note'), birth: serialDate(g('birth')) });
+            });
+          });
+          return { rows: out, notes };
+        }
+        $('xl-up').onclick = () => $('xl-file').click();
+        $('xl-file').onchange = async () => {
+          const f = $('xl-file').files[0]; $('xl-file').value = ''; if (!f) return;
+          try {
+            const { rows, notes } = parseRoster(await readXlsx(await f.arrayBuffer()));
+            const bad = rows.filter((r) => r.cls < 1 || r.cls > CC); const ok = rows.filter((r) => r.cls >= 1 && r.cls <= CC);
+            if (!ok.length) return alert('올릴 명단을 찾지 못했습니다. 예시 파일의 형식(시트 이름 ‘1반’, 머리글 번호·이름·성별·기타·생년월일)을 확인해 주세요.' + (notes.length ? '\n\n' + notes.slice(0, 5).join('\n') : ''));
+            const classes = [...new Set(ok.map((r) => r.cls))].sort((a, b) => a - b);
+            const msg = classes.map((c) => c + '반 ' + ok.filter((r) => r.cls === c).length + '명').join(', ') + '\n\n위 반의 기존 명단은 파일 내용으로 바뀝니다(파일에 없는 번호는 비워집니다). 계속할까요?' + (bad.length ? '\n\n※ 학급 수(' + CC + '개) 밖의 반 ' + bad.length + '명은 제외됩니다.' : '') + (notes.length ? '\n\n' + notes.slice(0, 5).join('\n') : '');
+            if (!confirm(msg)) return;
+            $('xl-msg').textContent = '업로드 중…';
+            const res = JSON.parse(await call('importStudents', ok)); if (!res.success) throw new Error(res.error);
+            $('xl-msg').textContent = ok.length + '명을 올렸습니다.';
+            if (window.__gpReloadGrade) window.__gpReloadGrade(); if (window.__gpReloadClass) window.__gpReloadClass();
+          } catch (e) { $('xl-msg').textContent = ''; alert('엑셀을 읽지 못했습니다: ' + (e.message || e)); }
+        };
+        // ------------------------------------------------------------ 예시 파일
+        $('xl-sample').onclick = () => {
+          const sample = [['김하나', '여성', '', '2014.03.02.'], ['이둘', '남성', '', '2014.05.17.'], ['박셋', '남성', '전학생', '2014.11.30.']];
+          const mk = (n) => ({ name: n + '반', widths: [8, 14, 8, 20, 18], freezeRow: 2, rows: [[cell(n + '반 명렬표', 'title')], ['번호', '이름', '성별', '기타', '생년월일'].map((v) => cell(v, 'totalLabel'))].concat(Array.from({ length: 30 }, (_, i) => { const s = n === 1 && sample[i] ? sample[i] : ['', '', '', '']; const st = GENDER[s[1]] || 'center'; return [cell(i + 1, st), cell(s[0], st), cell(s[1], st), cell(s[2], st), cell(s[3], st)]; })) });
+          save([mk(1), mk(2)], '명렬표_업로드_예시');
+        };
       })();
     </script>
+
     <!-- 4. 스크립트 (기능 로직 + React 코드) -->
     <script>
       // 탭 전환 및 로그인 관련 바닐라 JS 로직
@@ -310,7 +429,7 @@
     </script>
 
     <!-- React 컴포넌트 통합 -->
-    <script>const{useState,useEffect,useMemo,useRef}=React,Icons={RotateCw:t=>React.createElement("svg",{...t,xmlns:"http://www.w3.org/2000/svg",width:"24",height:"24",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"}),React.createElement("path",{d:"M21 3v5h-5"})),ChevronLeft:t=>React.createElement("svg",{...t,xmlns:"http://www.w3.org/2000/svg",width:"24",height:"24",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"m15 18-6-6 6-6"})),ChevronRightSimple:t=>React.createElement("svg",{...t,xmlns:"http://www.w3.org/2000/svg",width:"24",height:"24",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"m9 18 6-6-6-6"})),Trash:t=>React.createElement("svg",{...t,xmlns:"http://www.w3.org/2000/svg",width:"24",height:"24",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M3 6h18"}),React.createElement("path",{d:"M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"}),React.createElement("path",{d:"M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"}))},HorizontalNamelistPage=({data:t})=>{if(!t||!t.horizontal)return React.createElement("div",{className:"p-10 text-center"},"\uB370\uC774\uD130 \uC5C6\uC74C");const{group1:d,group2:h}=t.horizontal,v=(()=>{const o=[],i=(n,p)=>{if(n)for(let r=0;r<5;r++){const c=[];let m=0,f=0;for(let b=0;b<30&&!(b>=n.length);b++){const e=n[b].slice(r*4,r*4+4);e[1]&&(e[2]==="\uB0A8\uC131"&&m++,e[2]==="\uC5EC\uC131"&&f++),c.push(e)}o.push({num:p+r,data:c,m,f,t:m+f})}};return i(d,1),i(h,6),o})();return React.createElement("div",{className:"space-y-6 fade-in print-area"},React.createElement("div",{className:"grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4"},v.map((o,i)=>React.createElement("div",{key:i,className:"bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col"},React.createElement("div",{className:"bg-slate-100 p-2 text-center border-b border-slate-200"},React.createElement("div",{className:"font-bold text-slate-700 text-lg"},o.num,"\uBC18"),React.createElement("div",{className:"text-slate-600 font-bold text-lg mt-1 scale-110"},"\uC7AC\uC801: ",o.t," (\uB0A8",o.m,"/\uC5EC",o.f,")")),React.createElement("div",{className:"overflow-x-auto flex-1"},React.createElement("table",{className:"w-full text-base text-center border-collapse table-fixed",style:{minWidth:"280px"}},React.createElement("colgroup",null,React.createElement("col",{style:{width:"15%"}})," ",React.createElement("col",{style:{width:"35%"}})," ",React.createElement("col",{style:{width:"15%"}})," ",React.createElement("col",{style:{width:"35%"}})," "),React.createElement("tbody",null,o.data.map((n,p)=>{const r=n[2];let c="";return r==="\uB0A8\uC131"&&(c="bg-male"),r==="\uC5EC\uC131"&&(c="bg-female"),React.createElement("tr",{key:p,className:`h-8 border-b border-slate-100 last:border-0 ${c}`},n.map((m,f)=>React.createElement("td",{key:f,className:"border-r border-slate-100 last:border-0 p-1 truncate",title:m},m)))}))))))))},GradeApp=()=>{const[t,d]=useState(null),[h,g]=useState(!1),v=()=>{g(!0),google.script.run.withSuccessHandler(o=>{const i=JSON.parse(o);i.type==="horizontal_namelist"?d(n=>({...n,horizontal:i.data})):i.horizontal&&d(i),g(!1)}).refreshGradeData({sub:"\uAC00\uB85C \uBA85\uB82C\uD45C"})};return useEffect(()=>{google.script.run.withSuccessHandler(o=>d(JSON.parse(o))).getGradeData()},[]),t?React.createElement("div",{className:"flex flex-col h-full"},React.createElement("header",{className:"bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shadow-sm z-10 sticky top-0 relative overflow-hidden shrink-0"},h&&React.createElement("div",{className:"loading-progress"}),React.createElement("div",{className:"flex items-center gap-4"}),React.createElement("button",{onClick:v,className:`p-2 text-slate-500 hover:text-indigo-600 transition-colors ${h?"animate-spin":""}`},React.createElement(Icons.RotateCw,{size:20}))),React.createElement("main",{className:"flex-1 overflow-y-auto p-4 lg:p-8"},React.createElement("div",{className:"max-w-[1920px] mx-auto pb-10"},React.createElement(HorizontalNamelistPage,{data:t})))):React.createElement("div",{className:"h-full flex items-center justify-center bg-slate-50 p-10"},React.createElement("div",{className:"loader"}))},ClassNamelistApp=()=>{const[t,d]=useState(1),[h,g]=useState([]),[v,o]=useState(!0),[i,n]=useState(!1),p=e=>{o(!0),n(!0),google.script.run.withSuccessHandler(s=>{const a=JSON.parse(s);a.success?g(a.data):alert("\uB370\uC774\uD130 \uB85C\uB4DC \uC2E4\uD328: "+a.error),o(!1),n(!1)}).withFailureHandler(s=>{alert("\uC11C\uBC84 \uC624\uB958: "+s),o(!1),n(!1)}).getClassData(e)};useEffect(()=>{p(t)},[t]);const r=(e,s,a)=>{const x=[...h];let u=-1;s==="name"&&(u=1),s==="gender"&&(u=2),s==="note"&&(u=3),s==="birth"&&(u=4),u>0&&(x[e][u]=a,g(x))},c=(e,s,a)=>{r(e,s,a),google.script.run.updateStudent({classNum:t,rowIndex:e,field:s,value:a})},m=e=>{if(confirm("\uC815\uB9D0 \uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?")){const s=[...h];s[e][1]="",s[e][2]="",s[e][3]="",s[e][4]="",g(s),google.script.run.deleteStudent({classNum:t,rowIndex:e})}},f=()=>{const e=t===1?10:t-1;d(e)},b=()=>{const e=t===10?1:t+1;d(e)};return React.createElement("div",{className:"flex flex-col h-full"},React.createElement("header",{className:"bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shadow-sm z-10 sticky top-0 shrink-0"},React.createElement("div",{className:"flex items-center gap-4"},React.createElement("h1",{className:"text-xl font-bold text-slate-800 tracking-tight"},t,"\uBC18 \uBA85\uB82C\uD45C")),React.createElement("button",{onClick:()=>p(t),className:`p-2 text-slate-500 hover:text-indigo-600 transition-colors ${i?"animate-spin":""}`},React.createElement(Icons.RotateCw,{size:20}))),React.createElement("main",{className:"flex-1 overflow-y-auto p-4 lg:p-8"},React.createElement("div",{className:"w-full px-4 lg:px-8 pb-10"},React.createElement("div",{className:"mb-6 flex flex-nowrap overflow-x-auto gap-2 pb-2 scrollbar-hide"},Array.from({length:10},(e,s)=>s+1).map(e=>React.createElement("button",{key:e,onClick:()=>d(e),className:`px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-sm whitespace-nowrap flex-shrink-0 ${t===e?"bg-indigo-600 text-white ring-2 ring-indigo-300 ring-offset-1":"bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 hover:border-slate-300"}`},e,"\uBC18"))),v?React.createElement("div",{className:"p-10 text-center"},React.createElement("div",{className:"loader mx-auto mb-2"}),"\uB370\uC774\uD130 \uBD88\uB7EC\uC624\uB294 \uC911..."):React.createElement("div",{className:"bg-white rounded-2xl shadow-sm border border-slate-200 p-6 fade-in"},React.createElement("div",{className:"flex justify-between items-center mb-4 px-2"},React.createElement("button",{onClick:f,className:"p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"},React.createElement(Icons.ChevronLeft,{size:24})),React.createElement("h2",{className:"font-bold text-xl text-slate-800"},t,"\uBC18 \uBA85\uB82C\uD45C"),React.createElement("button",{onClick:b,className:"p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"},React.createElement(Icons.ChevronRightSimple,{size:24}))),React.createElement("div",{className:"overflow-x-auto"},React.createElement("table",{className:"nl-table text-center border-collapse text-base table-fixed"},React.createElement("colgroup",null,React.createElement("col",{style:{width:"3.4em"}}),React.createElement("col",null),React.createElement("col",{style:{width:"3.4em"}}),React.createElement("col",null),React.createElement("col",{style:{width:"17.5em"}}),React.createElement("col",{style:{width:"2.6em"}})),React.createElement("thead",{className:"bg-slate-100 text-slate-600"},React.createElement("tr",null,["\uBC88\uD638","\uC774\uB984","\uC131\uBCC4","\uAE30\uD0C0","\uC0DD\uB144\uC6D4\uC77C",""].map((e,s)=>React.createElement("th",{key:s,className:"border p-3"},e)))),React.createElement("tbody",null,Array.isArray(h)&&h.slice(1).map((e,s)=>{const a=s+1,x=e[0],u=e[2];let w="";return u==="\uB0A8\uC131"&&(w="bg-male"),u==="\uC5EC\uC131"&&(w="bg-female"),React.createElement("tr",{key:s,className:`${w} hover:opacity-90 h-12 border-b border-slate-200`},React.createElement("td",{className:"border p-0 font-medium"},x),React.createElement("td",{className:"border p-0"},React.createElement("input",{type:"text",value:e[1],onChange:l=>r(a,"name",l.target.value),onBlur:l=>c(a,"name",l.target.value),className:"w-full h-full p-2 text-center outline-none bg-white/40 focus:bg-white/70 transition-colors shadow-sm"})),React.createElement("td",{className:"border p-0"},React.createElement("input",{type:"text",value:e[2],onChange:l=>r(a,"gender",l.target.value),onBlur:l=>c(a,"gender",l.target.value),className:"w-full h-full p-2 text-center outline-none bg-white/40 focus:bg-white/70 transition-colors shadow-sm"})),React.createElement("td",{className:"border p-0"},React.createElement("input",{type:"text",value:e[3],onChange:l=>r(a,"note",l.target.value),onBlur:l=>c(a,"note",l.target.value),className:"w-full h-full p-2 text-center outline-none bg-white/40 focus:bg-white/70 transition-colors shadow-sm"})),React.createElement("td",{className:"border p-0"},React.createElement("input",{type:"text",value:e[4],onChange:l=>r(a,"birth",l.target.value),onBlur:l=>c(a,"birth",l.target.value),className:"w-full h-full p-2 text-center outline-none bg-white/40 focus:bg-white/70 transition-colors shadow-sm"})),React.createElement("td",{className:"border p-0"},React.createElement("button",{onClick:()=>m(a),className:"w-full h-full flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors"},React.createElement(Icons.Trash,{size:18}))))}))))))))},rootGrade=ReactDOM.createRoot(document.getElementById("root-grade"));rootGrade.render(React.createElement(GradeApp,null));const rootClass=ReactDOM.createRoot(document.getElementById("root-class"));rootClass.render(React.createElement(ClassNamelistApp,null));
+    <script>const{useState,useEffect,useMemo,useRef}=React,Icons={RotateCw:t=>React.createElement("svg",{...t,xmlns:"http://www.w3.org/2000/svg",width:"24",height:"24",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"}),React.createElement("path",{d:"M21 3v5h-5"})),ChevronLeft:t=>React.createElement("svg",{...t,xmlns:"http://www.w3.org/2000/svg",width:"24",height:"24",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"m15 18-6-6 6-6"})),ChevronRightSimple:t=>React.createElement("svg",{...t,xmlns:"http://www.w3.org/2000/svg",width:"24",height:"24",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"m9 18 6-6-6-6"})),Trash:t=>React.createElement("svg",{...t,xmlns:"http://www.w3.org/2000/svg",width:"24",height:"24",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M3 6h18"}),React.createElement("path",{d:"M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"}),React.createElement("path",{d:"M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"}))},HorizontalNamelistPage=({data:t})=>{if(!t||!t.horizontal)return React.createElement("div",{className:"p-10 text-center"},"\uB370\uC774\uD130 \uC5C6\uC74C");const{group1:d,group2:b}=t.horizontal,m=(()=>{const o=[];return(t.horizontal.groups||[]).forEach(r=>{const i=r.rows[0]?r.rows[0].length/4:0;for(let g=0;g<i;g++){const u=[];let c=0,n=0;r.rows.forEach(p=>{const f=p.slice(g*4,g*4+4);f[1]&&(f[2]==="\uB0A8\uC131"&&c++,f[2]==="\uC5EC\uC131"&&n++),u.push(f)}),o.push({num:r.start+g,data:u,m:c,f:n,t:c+n})}}),o})();return React.createElement("div",{className:"space-y-6 fade-in print-area"},React.createElement("div",{className:"grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4"},m.map((o,r)=>React.createElement("div",{key:r,className:"bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col"},React.createElement("div",{className:"bg-slate-100 p-2 text-center border-b border-slate-200"},React.createElement("div",{className:"font-bold text-slate-700 text-lg"},o.num,"\uBC18"),React.createElement("div",{className:"text-slate-600 font-bold text-lg mt-1 scale-110"},"\uC7AC\uC801: ",o.t," (\uB0A8",o.m,"/\uC5EC",o.f,")")),React.createElement("div",{className:"overflow-x-auto flex-1"},React.createElement("table",{className:"w-full text-base text-center border-collapse table-fixed",style:{minWidth:"280px"}},React.createElement("colgroup",null,React.createElement("col",{style:{width:"15%"}})," ",React.createElement("col",{style:{width:"35%"}})," ",React.createElement("col",{style:{width:"15%"}})," ",React.createElement("col",{style:{width:"35%"}})," "),React.createElement("tbody",null,o.data.map((i,g)=>{const u=i[2];let c="";return u==="\uB0A8\uC131"&&(c="bg-male"),u==="\uC5EC\uC131"&&(c="bg-female"),React.createElement("tr",{key:g,className:`h-8 border-b border-slate-100 last:border-0 ${c}`},i.map((n,p)=>React.createElement("td",{key:p,className:"border-r border-slate-100 last:border-0 p-1 truncate",title:n},n)))}))))))))},GradeApp=()=>{const[t,d]=useState(null),[b,v]=useState(!1),m=()=>{v(!0),google.script.run.withSuccessHandler(o=>{const r=JSON.parse(o);r.type==="horizontal_namelist"?d(i=>({...i,horizontal:r.data})):r.horizontal&&d(r),v(!1)}).refreshGradeData({sub:"\uAC00\uB85C \uBA85\uB82C\uD45C"})};return window.__gpReloadGrade=m,useEffect(()=>{google.script.run.withSuccessHandler(o=>d(JSON.parse(o))).getGradeData()},[]),t?React.createElement("div",{className:"flex flex-col h-full"},React.createElement("main",{className:"flex-1 p-4 lg:p-8"},React.createElement("div",{className:"max-w-[1920px] mx-auto pb-10"},React.createElement(HorizontalNamelistPage,{data:t})))):React.createElement("div",{className:"h-full flex items-center justify-center bg-slate-50 p-10"},React.createElement("div",{className:"loader"}))},ClassNamelistApp=()=>{const[t,d]=useState(1),[b,v]=useState(10),[m,o]=useState([]),[r,i]=useState(!0),[g,u]=useState(!1),c=e=>{i(!0),u(!0),google.script.run.withSuccessHandler(s=>{const a=JSON.parse(s);a.success?(o(a.data),a.classCount&&(v(a.classCount),t>a.classCount&&d(1))):alert("\uB370\uC774\uD130 \uB85C\uB4DC \uC2E4\uD328: "+a.error),i(!1),u(!1)}).withFailureHandler(s=>{alert("\uC11C\uBC84 \uC624\uB958: "+s),i(!1),u(!1)}).getClassData(e)};window.__gpReloadClass=()=>c(t),useEffect(()=>{c(t)},[t]);const n=(e,s,a)=>{const w=[...m];let h=-1;s==="name"&&(h=1),s==="gender"&&(h=2),s==="note"&&(h=3),s==="birth"&&(h=4),h>0&&(w[e][h]=a,o(w))},p=(e,s,a)=>{n(e,s,a),google.script.run.updateStudent({classNum:t,rowIndex:e,field:s,value:a})},f=e=>{if(confirm("\uC815\uB9D0 \uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?")){const s=[...m];s[e][1]="",s[e][2]="",s[e][3]="",s[e][4]="",o(s),google.script.run.deleteStudent({classNum:t,rowIndex:e})}},N=()=>{const e=t===1?b:t-1;d(e)},C=()=>{const e=t>=b?1:t+1;d(e)};return React.createElement("div",{className:"flex flex-col h-full"},React.createElement("main",{className:"flex-1 p-4 lg:p-8"},React.createElement("div",{className:"w-full px-4 lg:px-8 pb-10"},React.createElement("div",{className:"nl-stick mb-6 flex flex-nowrap overflow-x-auto gap-2 pb-2 scrollbar-hide"},Array.from({length:b},(e,s)=>s+1).map(e=>React.createElement("button",{key:e,onClick:()=>d(e),className:`px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-sm whitespace-nowrap flex-shrink-0 ${t===e?"bg-indigo-600 text-white ring-2 ring-indigo-300 ring-offset-1":"bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 hover:border-slate-300"}`},e,"\uBC18"))),r?React.createElement("div",{className:"p-10 text-center"},React.createElement("div",{className:"loader mx-auto mb-2"}),"\uB370\uC774\uD130 \uBD88\uB7EC\uC624\uB294 \uC911..."):React.createElement("div",{className:"bg-white rounded-2xl shadow-sm border border-slate-200 p-6 fade-in"},React.createElement("div",{className:"flex justify-between items-center mb-4 px-2"},React.createElement("button",{onClick:N,className:"p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"},React.createElement(Icons.ChevronLeft,{size:24})),React.createElement("h2",{className:"font-bold text-xl text-slate-800"},t,"\uBC18 \uBA85\uB82C\uD45C"),React.createElement("button",{onClick:C,className:"p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"},React.createElement(Icons.ChevronRightSimple,{size:24}))),React.createElement("div",{className:"overflow-x-auto"},React.createElement("table",{className:"nl-table text-center border-collapse text-base table-fixed"},React.createElement("colgroup",null,React.createElement("col",{className:"c-no"}),React.createElement("col",{className:"c-nm"}),React.createElement("col",{className:"c-gd"}),React.createElement("col",{className:"c-nt"}),React.createElement("col",{className:"c-bd"}),React.createElement("col",{className:"c-dl"})),React.createElement("thead",{className:"bg-slate-100 text-slate-600"},React.createElement("tr",null,["\uBC88\uD638","\uC774\uB984","\uC131\uBCC4","\uAE30\uD0C0","\uC0DD\uB144\uC6D4\uC77C",""].map((e,s)=>React.createElement("th",{key:s,className:"border p-3"},e)))),React.createElement("tbody",null,Array.isArray(m)&&m.slice(1).map((e,s)=>{const a=s+1,w=e[0],h=e[2];let x="";return h==="\uB0A8\uC131"&&(x="bg-male"),h==="\uC5EC\uC131"&&(x="bg-female"),React.createElement("tr",{key:s,className:`${x} hover:opacity-90 h-12 border-b border-slate-200`},React.createElement("td",{className:"border p-0 font-medium"},w),React.createElement("td",{className:"border p-0"},React.createElement("input",{type:"text",value:e[1],onChange:l=>n(a,"name",l.target.value),onBlur:l=>p(a,"name",l.target.value),className:"w-full h-full p-2 text-center outline-none bg-white/40 focus:bg-white/70 transition-colors shadow-sm"})),React.createElement("td",{className:"border p-0"},React.createElement("input",{type:"text",value:e[2],onChange:l=>n(a,"gender",l.target.value),onBlur:l=>p(a,"gender",l.target.value),className:"w-full h-full p-2 text-center outline-none bg-white/40 focus:bg-white/70 transition-colors shadow-sm"})),React.createElement("td",{className:"border p-0"},React.createElement("input",{type:"text",value:e[3],onChange:l=>n(a,"note",l.target.value),onBlur:l=>p(a,"note",l.target.value),className:"w-full h-full p-2 text-center outline-none bg-white/40 focus:bg-white/70 transition-colors shadow-sm"})),React.createElement("td",{className:"border p-0"},React.createElement("input",{type:"text",value:e[4],onChange:l=>n(a,"birth",l.target.value),onBlur:l=>p(a,"birth",l.target.value),className:"w-full h-full p-2 text-center outline-none bg-white/40 focus:bg-white/70 transition-colors shadow-sm"})),React.createElement("td",{className:"border p-0"},React.createElement("button",{onClick:()=>f(a),className:"w-full h-full flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors"},React.createElement(Icons.Trash,{size:18}))))}))))))))},rootGrade=ReactDOM.createRoot(document.getElementById("root-grade"));rootGrade.render(React.createElement(GradeApp,null));const rootClass=ReactDOM.createRoot(document.getElementById("root-class"));rootClass.render(React.createElement(ClassNamelistApp,null));
 </script>
   </body>
 </html>

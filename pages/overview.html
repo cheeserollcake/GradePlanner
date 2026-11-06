@@ -103,12 +103,13 @@ async function renderInfo() {
   const names = general.classNames, n = names.length;
   const cnt = (f) => names.map((_, i) => students.filter((s) => GP.num(s.student_class) === i + 1 && GP.str(s.student_name).trim() && f(s)).length);
   const sum = (a) => a.reduce((x, y) => x + y, 0);
-  const all = cnt(() => true), m = cnt((s) => GP.str(s.student_gender) === '남성'), f = cnt((s) => GP.str(s.student_gender) === '여성');
+  const isM = (s) => /^(남|남자|남성|m|male)$/i.test(GP.str(s.student_gender).trim()), isF = (s) => /^(여|여자|여성|f|female)$/i.test(GP.str(s.student_gender).trim());
+  const all = cnt(() => true), m = cnt(isM), f = cnt(isF);
   const th = 'p-2 border-b border-r bg-slate-100 font-bold', td = 'p-2 border-b border-r';
   const numRow = (label, a) => '<tr><td class="' + th + ' w-24">' + label + '</td>' + a.map((v) => '<td class="' + td + '">' + v + '</td>').join('') + '<td class="' + td + ' font-bold">' + sum(a) + '</td></tr>';
   const memoRow = () => '<tr><td class="' + th + '">비고</td>' + names.map((_, i) => '<td class="' + td + '"><input data-c="' + (i + 1) + '" value="' + esc((ovMap['r5_' + general.year] || ovMap.r5 || {})['c' + (i + 1)] || '') + '" class="memo w-full text-center bg-transparent border-b border-dashed border-slate-300 focus:outline-none focus:border-indigo-500"></td>').join('') + '<td class="' + td + '"></td></tr>';
   const homeRow = () => '<tr><td class="' + th + '">담임</td>' + names.map((c) => '<td class="' + td + '">' + esc(APP.homeroomFor(general, c, todayDate(), semRows)) + '</td>').join('') + '<td class="' + td + '"></td></tr>';
-  { const t = document.getElementById('info'), u = 93 / (n + 1.5); t.style.setProperty('--pc', u.toFixed(3) + '%'); t.style.setProperty('--ps', (u * 1.5).toFixed(3) + '%'); }
+  { const t = document.getElementById('info'), u = 86 / n; t.style.setProperty('--pc', u.toFixed(3) + '%'); t.style.setProperty('--ps', '7%'); }
   document.getElementById('info').innerHTML = '<colgroup><col class="ovh">' + names.map(() => '<col class="ovc">').join('') + '<col class="ovs"></colgroup><thead><tr><th class="' + th + '">구분</th>' + names.map((c) => '<th class="' + th + '">' + esc(c) + '</th>').join('') + '<th class="' + th + '">계</th></tr></thead><tbody>' +
     numRow('학생수', all) + numRow('남', m) + numRow('여', f) + memoRow() + homeRow() + '</tbody>';
   document.querySelectorAll('.memo').forEach((inp) => inp.onchange = async () => {

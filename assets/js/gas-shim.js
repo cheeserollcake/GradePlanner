@@ -537,21 +537,23 @@
 
   // ===== Page 03 : 명렬표 =====
   const classStudents = async (n) => (await getCol('data_student')).filter((s) => num(s.student_class) === n);
-  async function horizontalData() {
-    const all = await getCol('data_student');
-    const mk = (start) => {
-      const rows = [];
+  const gNorm = (v) => { const t = str(v).trim(); return /^(남|남자|남성|m|male)$/i.test(t) ? '남성' : /^(여|여자|여성|f|female)$/i.test(t) ? '여성' : t; };
+  async function horizontalData() {   // 관리자 > 학급 수 만큼, 5개 반씩 묶어서
+    const [all, g] = await Promise.all([getCol('data_student'), generalCfg()]);
+    const total = g.classNames.length, groups = [];
+    for (let start = 1; start <= total; start += 5) {
+      const per = Math.min(5, total - start + 1), rows = [];
       for (let i = 1; i <= 30; i++) {
         const row = [];
-        for (let c = 0; c < 5; c++) {
-          const s = all.find((x) => num(x.student_class) === start + c && num(x.student_num) === i);
-          row.push(i, s ? str(s.student_name) : '', s ? str(s.student_gender) : '', s ? str(s.student_memo) : '');
+        for (let c = 0; c < per; c++) {
+          const st = all.find((x) => num(x.student_class) === start + c && num(x.student_num) === i);
+          row.push(i, st ? str(st.student_name) : '', st ? gNorm(st.student_gender) : '', st ? str(st.student_memo) : '');
         }
         rows.push(row);
       }
-      return rows;
-    };
-    return { group1: mk(1), group2: mk(6) };
+      groups.push({ start, rows });
+    }
+    return { groups, classCount: total, group1: groups[0] ? groups[0].rows : [], group2: groups[1] ? groups[1].rows : [] };
   }
   SERVER.getGradeData = async () => JSON.stringify({ horizontal: await horizontalData() });
   SERVER.refreshGradeData = async function (request) {
@@ -567,12 +569,14 @@
       const data = [['번호', '이름', '성별', '비고', '생년월일']];
       for (let i = 1; i <= 30; i++) {
         const s = list.find((x) => num(x.student_num) === i);
-        data.push([i, s ? str(s.student_name) : '', s ? str(s.student_gender) : '', s ? str(s.student_memo) : '', s ? str(s.student_birth) : '']);
+        data.push([i, s ? str(s.student_name) : '', s ? gNorm(s.student_gender) : '', s ? str(s.student_memo) : '', s ? str(s.student_birth) : '']);
       }
-      return JSON.stringify({ success: true, data });
+      return JSON.stringify({ success: true, data, classCount: (await generalCfg()).classNames.length });
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
   };
-  SERVER.updateStudent = async function (params) {
+  let stuQ = Promise.resolve();   // 빠르게 연달아 입력해도 같은 학생 문서가 둘로 생기지 않도록 한 줄로 처리
+  const inStuQ = (fn) => { const r = stuQ.then(fn); stuQ = r.catch(() => {}); return r; };
+  SERVER.updateStudent = (params) => inStuQ(async function () {
     try {
       const fieldMap = { name: 'student_name', gender: 'student_gender', note: 'student_memo', birth: 'student_birth' };
       const f = fieldMap[params.field]; if (!f) return JSON.stringify({ success: true });
@@ -582,14 +586,27 @@
       else await commit([{ type: 'set', col: 'data_student', id: newId('data_student'), data: { student_class: n, student_num: no, student_name: '', student_gender: '', student_memo: '', student_birth: '', [f]: params.value } }]);
       return JSON.stringify({ success: true });
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
-  };
-  SERVER.deleteStudent = async function (params) {
+  });
+  SERVER.deleteStudent = (params) => inStuQ(async function () {
     try {
       const list = await classStudents(Number(params.classNum)); const s = list.find((x) => num(x.student_num) === Number(params.rowIndex));
       if (s) await commit([{ type: 'delete', col: 'data_student', id: s._id }]);
       return JSON.stringify({ success: true });
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
-  };
+  });
+  // 엑셀로 올린 명단: 파일에 있는 반은 파일 내용으로 바꿉니다. rows: [{cls, no, name, gender, memo, birth}]
+  SERVER.importStudents = (rows) => inStuQ(async function () {
+    try {
+      const classes = [...new Set(rows.map((r) => Number(r.cls)))]; const all = await getCol('data_student'); const ops = []; const used = new Set();
+      rows.forEach((r) => {
+        const data = { student_class: Number(r.cls), student_num: Number(r.no), student_name: str(r.name).trim(), student_gender: gNorm(r.gender), student_memo: str(r.memo).trim(), student_birth: str(r.birth).trim() };
+        const cur = all.find((x) => num(x.student_class) === data.student_class && num(x.student_num) === data.student_num && !used.has(x._id));
+        if (cur) { used.add(cur._id); ops.push({ type: 'update', col: 'data_student', id: cur._id, data }); } else ops.push({ type: 'set', col: 'data_student', id: newId('data_student'), data });
+      });
+      all.forEach((x) => { if (classes.indexOf(num(x.student_class)) >= 0 && !used.has(x._id)) ops.push({ type: 'delete', col: 'data_student', id: x._id }); });
+      await commit(ops); return JSON.stringify({ success: true, count: rows.length });
+    } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
+  });
   SERVER.verifyPassword = async function (a, b) {
     const pw = await getPw();
     if ((window.__GP_PAGE__ || '') === 'p10') return a === 'user' ? b === pw.access : a === 'admin' ? b === pw.admin : false; // (type, pwd)
@@ -710,6 +727,18 @@
     }
     return out;
   }
+  async function listSpaceData(place) {   // 한 공간에 입력된 시간표 목록 (날짜순)
+    const out = [];
+    for (const k of Object.keys(SPACE_COLS)) {
+      const d = SPACE_COLS[k], pre = k;
+      (await getCol(d.col)).forEach((r) => { if (str(r[d.f]).trim() !== place) return; const dt = toDate(r[pre + '_date']); out.push({ col: d.col, id: r._id, date: dt ? ymd(dt) : '', period: str(r[pre + '_time']).trim(), cls: str(r[pre + '_class']).trim() }); });
+    }
+    return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : natural(a.period, b.period)));
+  }
+  async function deleteSpaceRows(items) {
+    const ops = items.map((x) => ({ type: 'delete', col: x.col, id: x.id }));
+    await commit(ops); Object.keys(SPACE_COLS).forEach((k) => invalidate(SPACE_COLS[k].col)); return ops.length;
+  }
   async function countSpaceData(place) {
     let n = 0; for (const k of Object.keys(SPACE_COLS)) { const d = SPACE_COLS[k]; n += (await getCol(d.col)).filter((r) => str(r[d.f]).trim() === place).length; } return n;
   }
@@ -729,8 +758,7 @@
   const slotRow = (d, cls, per, name) => [isoLocal(d), cls, per, name];
   async function monthlyData() {
     const [hol, gym0, room, sub, add] = await Promise.all([getHolidayMap(), getCol('data_gym_timetable'), getCol('data_room_timetable'), getCol('data_sub_timetable'), getCol('data_add_timetable')]);
-    const names = await validSpaces();   // 삭제된 공간의 남은 데이터는 보여 주지 않습니다.
-    const gym = gym0.filter((r) => names.has(str(r.gym_place).trim())).concat(room.filter((r) => names.has(str(r.room_place).trim())).map((r) => ({ gym_date: r.room_date, gym_class: r.room_class, gym_time: r.room_time, gym_place: r.room_place })));   // 컴실 등도 체육 공간과 같은 방식으로 표시
+    const gym = gym0.concat(room.map((r) => ({ gym_date: r.room_date, gym_class: r.room_class, gym_time: r.room_time, gym_place: r.room_place })));   // 컴실 등도 체육 공간과 같은 방식으로 표시
     const holidays = [...hol.entries()].sort().map(([k, v]) => [isoLocal(toDate(k)), v]);
     const rows = (list, fd, fc, ft, fn) => list.map((r) => ({ d: toDate(r[fd]), r })).filter((x) => x.d && str(x.r[fc]).trim())
       .map((x) => slotRow(x.d, str(x.r[fc]), str(x.r[ft]), str(x.r[fn])));
@@ -919,9 +947,9 @@
   //  - 교시마다 학급 구성이 같으면 교시도 합칩니다. (예: 11월 2일 4·5교시 1, 4, 8, 9, 10반 심폐소생술 → 하나)
   //  - 교시마다 학급 구성이 다르면 같은 학급 구성끼리만 묶습니다.
   async function groupedEvents() {
-    const byPeriod = new Map(); const vs = await validSpaces();
+    const byPeriod = new Map();
     for (const [source, def] of Object.entries(EV_SOURCES)) {
-      (await getCol(def.col)).filter((r) => (source === 'gym' || source === 'room' ? vs.has(str(r[def.n]).trim()) : true)).forEach((r) => {
+      (await getCol(def.col)).forEach((r) => {
         const d = toDate(r[def.d]), cls = str(r[def.c]).trim(); if (!d || !cls) return;
         const per = str(r[def.t]).trim(), name = str(r[def.n]).trim(); const k = source + '|' + ymd(d) + '|' + per + '|' + name;
         let g = byPeriod.get(k); if (!g) { g = { source, date: ymd(d), per, course: name, list: [] }; byPeriod.set(k, g); }
@@ -1063,5 +1091,5 @@
 
   // 직접 Firestore를 쓰는 새 페이지(예산/바로가기/교실배치도)를 위한 공용 도구
   window.GP = { db, storage, TS, getCol, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
-    getPw, setPw, readList, writeList, spaceOrphans, countSpaceData, purgeSpaceData, renameSpaceData, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
+    getPw, setPw, readList, writeList, spaceOrphans, countSpaceData, purgeSpaceData, renameSpaceData, listSpaceData, deleteSpaceRows, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
 })();

@@ -26,6 +26,30 @@
   const notifyMeta = () => { try { parent.postMessage('gp-meta-changed', '*'); } catch (e) { /* 단독 실행 */ } };
   const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
+  // 공간에 입력된 시간표 목록을 보여 주고, 고른 것만 삭제합니다. (삭제한 건수를 돌려줍니다. 취소하면 0)
+  function spaceDataDialog(place, rows, title) {
+    return new Promise((resolve) => {
+      const kindName = (c) => (c === 'data_gym_timetable' ? '체육 공간' : '특별실');
+      const wrap = document.createElement('div'); wrap.className = 'fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50';
+      wrap.innerHTML = '<div class="bg-white rounded-2xl p-5 w-full max-w-lg space-y-3 max-h-[90vh] flex flex-col"><h3 class="font-bold text-lg">' + esc(title || ('‘' + place + '’ 공간에 입력된 시간표')) + '</h3>' +
+        '<p class="text-sm text-slate-500">삭제하지 않고 남긴 데이터는 월간·반별 시간표에 계속 표시됩니다. 지울 항목을 선택하세요.</p>' +
+        '<label class="text-sm font-semibold flex items-center gap-2"><input type="checkbox" id="sdAll" checked> 전체 선택 <span class="font-normal text-slate-400" id="sdCnt"></span></label>' +
+        '<div class="border rounded-lg overflow-auto flex-1 divide-y text-sm">' + rows.map((r, i) => '<label class="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50"><input type="checkbox" class="sdi" data-i="' + i + '" checked><span class="w-28 whitespace-nowrap">' + esc(r.date) + '</span><span class="w-16">' + esc(r.period) + '</span><span class="flex-1">' + esc(r.cls) + (/^\d+$/.test(r.cls) ? '반' : '') + '</span><span class="text-xs text-slate-400">' + kindName(r.col) + '</span></label>').join('') + '</div>' +
+        '<div class="flex justify-end gap-2"><button id="sdKeep" class="px-4 py-2 rounded-lg bg-slate-100 text-sm font-semibold">남겨 두기</button><button id="sdDel" class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold">선택 삭제</button></div></div>';
+      document.body.appendChild(wrap);
+      const boxes = () => [...wrap.querySelectorAll('.sdi')];
+      const upd = () => { const n = boxes().filter((b) => b.checked).length; wrap.querySelector('#sdCnt').textContent = '(' + n + '/' + rows.length + '건)'; wrap.querySelector('#sdDel').disabled = !n; wrap.querySelector('#sdDel').style.opacity = n ? 1 : .4; };
+      wrap.querySelector('#sdAll').onchange = (e) => { boxes().forEach((b) => { b.checked = e.target.checked; }); upd(); };
+      boxes().forEach((b) => { b.onchange = upd; }); upd();
+      const done = (n) => { wrap.remove(); resolve(n); };
+      wrap.querySelector('#sdKeep').onclick = () => done(0);
+      wrap.querySelector('#sdDel').onclick = async () => {
+        const sel = boxes().filter((b) => b.checked).map((b) => rows[+b.dataset.i]);
+        try { await GP.deleteSpaceRows(sel); toast(sel.length + '건을 삭제했습니다.'); done(sel.length); } catch (e) { toast('삭제 실패: ' + e.message, true); }
+      };
+    });
+  }
+
   // ================================================================ 로그인 (페이지에 들어올 때마다 비밀번호를 묻습니다)
   async function tryLogin() {
     const pw = await GP.getPw();
@@ -357,13 +381,12 @@
       $('lists').querySelectorAll('[data-ldel]').forEach((b) => b.onclick = async () => {
         const key = b.dataset.ldel, item = arr(key)[+b.dataset.i]; if (!item) return;
         arr(key).splice(+b.dataset.i, 1); if (item.orig) removedNames.push(item.orig); drawLists();
-        if (item.orig) {   // 이 공간에 입력해 둔 시간표가 남아 있으면 함께 지울지 묻습니다.
-          let n = 0; try { n = await GP.countSpaceData(item.orig); } catch (e) { /* 건수를 못 세어도 삭제는 진행 */ }
-          if (n > 0 && confirm('‘' + item.orig + '’ 공간에 입력된 시간표 ' + n + '건이 있습니다.\n\n[확인] 시간표 데이터도 함께 삭제\n[취소] 공간만 삭제 (데이터는 아래 ‘삭제된 공간의 남은 데이터’에서 나중에 지울 수 있음)')) {
-            await autosave(async () => { await GP.purgeSpaceData(item.orig); }, '공간과 시간표 데이터를 삭제했습니다.');
-          }
+        await saveList(key);
+        if (item.orig) {   // 이 공간에 입력해 둔 시간표가 있으면 목록을 보여 주고 고른 것만 삭제
+          let rows = []; try { rows = await GP.listSpaceData(item.orig); } catch (e) { /* 목록을 못 읽어도 공간 삭제는 끝난 상태 */ }
+          if (rows.length) await spaceDataDialog(item.orig, rows);
         }
-        await saveList(key); drawOrphans();
+        drawOrphans();
       });
       $('lists').querySelectorAll('[data-ladd]').forEach((b) => b.onclick = () => { const a = arr(b.dataset.ladd); a.push({ orig: '', value: '' }); drawLists(); [...$('lists').querySelectorAll('[data-l="' + b.dataset.ladd + '"]')].pop().focus(); });
     };
@@ -414,11 +437,11 @@
     const drawOrphans = async () => {
       let list = []; try { list = await GP.spaceOrphans(); } catch (e) { /* 무시 */ }
       const box = $('orphans'); if (!box) return;
-      box.innerHTML = list.length ? '<div class="' + CARD + ' border-amber-300 bg-amber-50"><h2 class="font-bold text-lg">삭제된 공간의 남은 데이터 <span class="text-xs font-normal text-slate-500">월간·반별 시간표에는 표시되지 않습니다</span></h2>' +
+      box.innerHTML = list.length ? '<div class="' + CARD + ' border-amber-300 bg-amber-50"><h2 class="font-bold text-lg">삭제된 공간의 남은 데이터 <span class="text-xs font-normal text-slate-500">삭제하기 전까지 월간·반별 시간표에 계속 표시됩니다</span></h2>' +
         '<p class="text-sm text-slate-600">공간 목록에서 지운 공간 이름으로 입력된 시간표가 남아 있습니다. 필요 없으면 삭제하세요.</p>' +
-        list.map((o, i) => '<div class="flex items-center justify-between bg-white border rounded-lg px-3 py-1.5 text-sm"><span><b>' + esc(o.place || '(이름 없음)') + '</b> · ' + (o.col === 'data_gym_timetable' ? '체육 공간' : '특별실') + ' · ' + o.count + '건</span><button data-orph="' + i + '" class="text-red-600 font-semibold">삭제</button></div>').join('') +
+        list.map((o, i) => '<div class="flex items-center justify-between bg-white border rounded-lg px-3 py-1.5 text-sm"><span><b>' + esc(o.place || '(이름 없음)') + '</b> · ' + (o.col === 'data_gym_timetable' ? '체육 공간' : '특별실') + ' · ' + o.count + '건</span><button data-orph="' + i + '" class="text-red-600 font-semibold">내용 보기·삭제</button></div>').join('') +
         '<div class="text-right"><button id="orphAll" class="' + BTN + ' text-white bg-red-600 hover:bg-red-700">모두 삭제</button></div></div>' : '';
-      box.querySelectorAll('[data-orph]').forEach((b) => b.onclick = () => { const o = list[+b.dataset.orph]; if (!confirm('‘' + o.place + '’ 데이터 ' + o.count + '건을 삭제할까요?')) return; autosave(() => GP.purgeSpaceData(o.place), '삭제했습니다.').then(drawOrphans); });
+      box.querySelectorAll('[data-orph]').forEach((b) => b.onclick = async () => { const o = list[+b.dataset.orph]; const rows = await GP.listSpaceData(o.place); if (rows.length) await spaceDataDialog(o.place, rows); drawOrphans(); });
       const all = $('orphAll'); if (all) all.onclick = () => { if (!confirm('남은 데이터 ' + list.reduce((a, o) => a + o.count, 0) + '건을 모두 삭제할까요?')) return; autosave(() => GP.purgeSpaceData(null), '삭제했습니다.').then(drawOrphans); };
     };
     view.innerHTML = '<div class="space-y-5"><div id="orphans"></div><div id="lists" class="grid md:grid-cols-2 gap-5"></div><div id="tables" class="space-y-5"></div></div>';

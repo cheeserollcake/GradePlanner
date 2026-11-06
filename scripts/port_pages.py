@@ -329,16 +329,64 @@ for folder, (fname, key) in PAGES.items():
         html = R("setSettings(prev => ({ ...prev, ...(res.settings || {}) }));", "if (res.settings && res.settings.classNames) classOptions = res.settings.classNames.concat(['불가']);\n            setSettings(prev => ({ ...prev, ...(res.settings || {}) }));")
     if key == "p05":   # 처음 열면 오늘이 속한 달을 보여줌
         html = must_replace(html, "const isMergedCell = (r, c) => {", "useEffect(() => { fetchMonthData(new Date().getMonth() + 1); }, []);\n\n        const isMergedCell = (r, c) => {", fname)
-    if key == "p03":   # 관리자 버튼 삭제 / 반별 명렬표 표 크기 제한 / 엑셀 다운로드
+    if key == "p03":   # 관리자 버튼·새로고침·제목줄 삭제 / 반 수는 관리자 설정 / 반별 표 크기 / 엑셀 다운로드·업로드
         R = lambda a, b: must_replace(html, a, b, fname)
         html = re.sub(r'\s*<button class="tab-link admin-btn"[^>]*>관리자</button>', '', html, count=1)
         a = html.index("<!-- (C) 관리자 섹션 -->"); b = html.index("<!-- 4. 스크립트")
         html = html[:a] + html[b:]
-        html = R("</style>", """.nl-table { table-layout: fixed; width: 100%; max-width: max(50%, 640px); min-width: 42em; margin: 0 auto; box-sizing: border-box; }
+        # 새로고침 버튼이 든 윗줄(학년 전체)과 'n반 명렬표' 제목줄(반별) 삭제
+        html = re.sub(r'<header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shadow-sm z-10 sticky top-0 relative overflow-hidden shrink-0">[\s\S]*?</header>', '', html, count=1)
+        html = re.sub(r'<header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shadow-sm z-10 sticky top-0 shrink-0">[\s\S]*?</header>', '', html, count=1)
+        html = html.replace('<main className="flex-1 overflow-y-auto p-4 lg:p-8">', '<main className="flex-1 p-4 lg:p-8">')   # 스크롤 때 반 버튼줄이 고정되도록
+        html = R('<div className="mb-6 flex flex-nowrap overflow-x-auto gap-2 pb-2 scrollbar-hide">', '<div className="nl-stick mb-6 flex flex-nowrap overflow-x-auto gap-2 pb-2 scrollbar-hide">')
+        # 반 수: 관리자 설정(학급 수)을 따름
+        html = R("const [classNum, setClassNum] = useState(1);", "const [classNum, setClassNum] = useState(1);\n        const [classCount, setClassCount] = useState(10);")
+        html = R("setLocalData(parsed.data);", "setLocalData(parsed.data); if (parsed.classCount) { setClassCount(parsed.classCount); if (classNum > parsed.classCount) setClassNum(1); }")
+        html = R("Array.from({length: 10}, (_, i) => i + 1)", "Array.from({length: classCount}, (_, i) => i + 1)")
+        html = R("const prevNum = classNum === 1 ? 10 : classNum - 1;", "const prevNum = classNum === 1 ? classCount : classNum - 1;")
+        html = R("const nextNum = classNum === 10 ? 1 : classNum + 1;", "const nextNum = classNum >= classCount ? 1 : classNum + 1;")
+        html = R("useEffect(() => {\n          fetchData(classNum);\n        }, [classNum]);", "window.__gpReloadClass = () => fetchData(classNum);\n        useEffect(() => {\n          fetchData(classNum);\n        }, [classNum]);")
+        html = R("useEffect(() => {\n          google.script.run.withSuccessHandler(res => setData(JSON.parse(res))).getGradeData();\n        }, []);", "window.__gpReloadGrade = fetchData;\n        useEffect(() => {\n          google.script.run.withSuccessHandler(res => setData(JSON.parse(res))).getGradeData();\n        }, []);")
+        a = html.index("const getClassBlocks = () => {"); b = html.index("const classBlocks = getClassBlocks();")
+        html = html[:a] + """const getClassBlocks = () => {
+          const classes = [];
+          (data.horizontal.groups || []).forEach((g) => {
+            const per = g.rows[0] ? g.rows[0].length / 4 : 0;
+            for (let c = 0; c < per; c++) {
+              const block = []; let m = 0, f = 0;
+              g.rows.forEach((row) => {
+                const slice = row.slice(c * 4, c * 4 + 4);
+                if (slice[1]) { if (slice[2] === '남성') m++; if (slice[2] === '여성') f++; }
+                block.push(slice);
+              });
+              classes.push({ num: g.start + c, data: block, m, f, t: m + f });
+            }
+          });
+          return classes;
+        };
+        """ + html[b:]
+        html = R("</style>", """.nl-table { table-layout: fixed; width: 100%; margin: 0 auto; box-sizing: border-box; }
+      /* 열 너비는 '최대' 너비: 넓은 화면에서만 고정하고, 좁아지면 비율로 함께 줄어듭니다 */
+      .nl-table col.c-no, .nl-table col.c-gd { width: 10%; } .nl-table col.c-nm, .nl-table col.c-nt { width: 22%; }
+      .nl-table col.c-bd { width: 28%; } .nl-table col.c-dl { width: 8%; }
+      .nl-table input { min-width: 0; font-size: clamp(11px, 3.2vw, 16px); }
+      .nl-table th, .nl-table td { overflow: hidden; }
+      @media (min-width: 900px) {
+        .nl-table { max-width: max(50%, 640px); }
+        .nl-table col.c-no, .nl-table col.c-gd { width: 3.4em; } .nl-table col.c-nm, .nl-table col.c-nt { width: auto; }
+        .nl-table col.c-bd { width: 17.5em; } .nl-table col.c-dl { width: 2.6em; }
+      }
+      .nl-stick { position: sticky; top: var(--nav-h, 64px); z-index: 900; background: #f8fafc; padding-top: .5rem; margin-top: -.5rem; }
+      #root-class .overflow-x-auto, #root-grade .overflow-x-auto { overflow-x: auto; }
       .xl-bar { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; padding:.75rem 1rem 0; }
       .xl-bar button, .xl-bar select { font-size:.875rem; font-weight:600; padding:.45rem .9rem; border-radius:.5rem; border:1px solid #cbd5e1; background:#fff; color:#334155; }
       .xl-bar button.xl { background:#059669; border-color:#059669; color:#fff; }
       .xl-bar button.xl:hover { background:#047857; }
+      .xl-bar button.up { background:#2563eb; border-color:#2563eb; color:#fff; }
+      .xl-sec { margin-bottom:.75rem; display:flex; flex-direction:column; gap:.35rem; font-size:.9rem; }
+      .xl-t { font-weight:700; color:#475569; font-size:.8rem; }
+      .xl-grid { display:flex; flex-wrap:wrap; gap:.5rem 1rem; }
+      .xl-step { width:2rem; height:2rem; border:1px solid #cbd5e1; border-radius:.4rem; background:#fff; font-weight:700; }
       .xl-bar button:disabled { opacity:.5; cursor:wait; }
     </style>""")
         html = R("""<table className="w-full text-center border-collapse text-base table-fixed" style={{minWidth: '600px'}}>""", """<table className="nl-table text-center border-collapse text-base table-fixed">""")
@@ -347,13 +395,13 @@ for folder, (fname, key) in PAGES.items():
                           <col style={{ width: '10%' }} />
                           <col style={{ width: '23%' }} />
                           <col style={{ width: '29%' }} />
-                          <col style={{ width: '5%' }} />""", """                          <col style={{ width: '3.4em' }} />
-                          <col />
-                          <col style={{ width: '3.4em' }} />
-                          <col />
-                          <col style={{ width: '17.5em' }} />
-                          <col style={{ width: '2.6em' }} />""")
-        html = R('<div id="root-grade"></div>', """<div class="xl-bar"><button class="xl" id="xl-open">⬇ 엑셀 다운로드</button><span id="xl-msg" style="font-size:.8rem;color:#64748b"></span></div>
+                          <col style={{ width: '5%' }} />""", """                          <col className="c-no" />
+                          <col className="c-nm" />
+                          <col className="c-gd" />
+                          <col className="c-nt" />
+                          <col className="c-bd" />
+                          <col className="c-dl" />""")
+        html = R('<div id="root-grade"></div>', """<div class="xl-bar"><button class="xl" id="xl-open">⬇ 엑셀 다운로드</button><button class="up" id="xl-up">⬆ 엑셀 업로드</button><button id="xl-sample">예시 파일 받기</button><input type="file" id="xl-file" accept=".xlsx" style="display:none"><span id="xl-msg" style="font-size:.8rem;color:#64748b"></span></div>
       <div id="xl-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:3000;align-items:center;justify-content:center;padding:1rem">
         <div style="background:#fff;border-radius:1rem;padding:1.25rem;width:100%;max-width:26rem;max-height:92vh;overflow:auto" class="xl-box">
           <h3 style="font-weight:700;font-size:1.1rem;margin-bottom:.75rem">명렬표 엑셀 다운로드</h3>
@@ -367,80 +415,7 @@ for folder, (fname, key) in PAGES.items():
           <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem"><button id="xl-cancel" type="button" style="padding:.5rem 1rem;border-radius:.5rem;background:#f1f5f9;font-weight:600">취소</button><button id="xl-go" type="button" class="xl" style="padding:.5rem 1rem;border-radius:.5rem;font-weight:600;color:#fff;background:#059669">내려받기</button></div>
         </div></div>
       <div id="root-grade"></div>""")
-        html = R(".xl-bar button:disabled", """#root-class .overflow-x-auto, #root-grade .overflow-x-auto { overflow-x: auto; }
-      .xl-sec { margin-bottom:.75rem; display:flex; flex-direction:column; gap:.35rem; font-size:.9rem; }
-      .xl-t { font-weight:700; color:#475569; font-size:.8rem; }
-      .xl-grid { display:flex; flex-wrap:wrap; gap:.5rem 1rem; }
-      .xl-step { width:2rem; height:2rem; border:1px solid #cbd5e1; border-radius:.4rem; background:#fff; font-weight:700; }
-      .xl-bar button:disabled""")
-        html = R("<!-- 4. 스크립트", """<script src="../assets/js/xlsx-lite.js"></script>
-    <script>
-      (function () {
-        const $ = (id) => document.getElementById(id);
-        const GENDER = { '남성': 'male', '여성': 'female' };
-        const LABEL = { no: '번호', name: '이름', gender: '성별', note: '기타', birth: '생년월일' }, IDX = { no: 0, name: 1, gender: 2, note: 3, birth: 4 };
-        const WIDTH = { no: 6, name: 11, gender: 7, note: 16, birth: 14, chk: 7 };
-        $('xl-class').innerHTML = Array.from({ length: 10 }, (_, i) => '<option value="' + (i + 1) + '">' + (i + 1) + '반</option>').join('') + '<option value="all">전체 반 (반마다 시트)</option>';
-        const call = (name, ...args) => new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)[name](...args));
-        const open = () => { $('xl-modal').style.display = 'flex'; }, close = () => { $('xl-modal').style.display = 'none'; };
-        $('xl-open').onclick = open; $('xl-cancel').onclick = close;
-        $('xl-modal').addEventListener('mousedown', (e) => { if (e.target === $('xl-modal')) close(); });
-        const chk = $('xl-checks'); const setChk = (v) => { chk.value = Math.max(0, Math.min(30, Math.round(Number(v) || 0))); };
-        $('xl-minus').onclick = () => setChk(Number(chk.value) - 1); $('xl-plus').onclick = () => setChk(Number(chk.value) + 1); chk.onchange = () => setChk(chk.value);
-        document.querySelectorAll('input[name=xl-scope]').forEach((r) => r.onchange = () => { $('xl-class').disabled = document.querySelector('input[name=xl-scope]:checked').value !== 'class'; });
-        $('xl-class').disabled = true;
-        const save = (sheets, file) => {
-          const a = document.createElement('a'); a.href = URL.createObjectURL(XlsxLite.toBlob(sheets)); a.download = file + '.xlsx';
-          document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
-        };
-        const getClass = async (n) => { const r = JSON.parse(await call('getClassData', n)); if (!r.success) throw new Error(r.error); return r.data.slice(1); };
-        const cell = (v, s) => ({ v, s });
-        function rowCells(r, fields, nChk) {   // 한 학생(행)의 선택 항목 + 체크리스트 칸. 남/여 색은 줄 전체에 적용
-          const st = GENDER[r[2]] || 'center'; const out = fields.map((f) => cell(f === 'no' ? Number(r[0]) : String(r[IDX[f]] == null ? '' : r[IDX[f]]), st));
-          for (let i = 0; i < nChk; i++) out.push(cell('', st)); return out;
-        }
-        const headers = (fields, nChk) => fields.map((f) => cell(LABEL[f], 'totalLabel')).concat(Array.from({ length: nChk }, (_, i) => cell('체크' + (i + 1), 'totalLabel')));
-        const widths = (fields, nChk) => fields.map((f) => WIDTH[f]).concat(Array.from({ length: nChk }, () => WIDTH.chk));
-        function classSheet(n, rows, fields, nChk) {
-          return { name: n + '반', widths: widths(fields, nChk), freezeRow: 2, rows: [[cell(n + '반 명렬표', 'title')], headers(fields, nChk)].concat(rows.map((r) => rowCells(r, fields, nChk))) };
-        }
-        function gradeSheet(all, fields, nChk) {   // 5개 반씩 가로로 나란히 (웹 화면과 같은 배치)
-          const w = fields.length + nChk, rows = [], merges = [], wd = [];
-          for (let c = 0; c < 5; c++) wd.push(...widths(fields, nChk), 2);
-          const ref = (r, c) => XlsxLite.colName(c) + (r + 1);
-          [1, 6].forEach((start, gi) => {
-            const top = rows.length, r1 = [], r2 = [], r3 = [];
-            for (let c = 0; c < 5; c++) {
-              const data = all[start + c - 1] || []; let m = 0, f = 0; data.forEach((r) => { if (String(r[1]).trim()) { if (r[2] === '남성') m++; if (r[2] === '여성') f++; } });
-              const fill = (t, s) => Array.from({ length: w }, (_, i) => cell(i === 0 ? t : '', s));
-              r1.push(...fill((start + c) + '반', 'totalLabel'), cell('', 'default')); r2.push(...fill('재적: ' + (m + f) + ' (남' + m + '/여' + f + ')', 'totalLabel'), cell('', 'default')); r3.push(...headers(fields, nChk), cell('', 'default'));
-              const base = c * (w + 1); if (w > 1) merges.push(ref(top, base) + ':' + ref(top, base + w - 1), ref(top + 1, base) + ':' + ref(top + 1, base + w - 1));
-            }
-            rows.push(r1, r2, r3);
-            for (let i = 0; i < 30; i++) { const line = []; for (let c = 0; c < 5; c++) { const d = (all[start + c - 1] || [])[i] || [i + 1, '', '', '', '']; line.push(...rowCells(d, fields, nChk), cell('', 'default')); } rows.push(line); }
-            if (gi === 0) rows.push([]);
-          });
-          return { name: '학년 전체 명렬표', widths: wd, rows, merges };
-        }
-        $('xl-go').onclick = async () => {
-          const fields = [...document.querySelectorAll('.xl-f:checked')].map((x) => x.value), nChk = Number(chk.value) || 0;
-          if (!fields.length && !nChk) return alert('내려받을 항목을 하나 이상 선택하세요.');
-          const scope = document.querySelector('input[name=xl-scope]:checked').value; const btn = $('xl-go'); btn.disabled = true; btn.textContent = '만드는 중…';
-          try {
-            if (scope === 'grade') {
-              const all = []; for (let n = 1; n <= 10; n++) all.push(await getClass(n));
-              save([gradeSheet(all, fields, nChk)], '학년_전체_명렬표');
-            } else if ($('xl-class').value === 'all') {
-              const sheets = []; for (let n = 1; n <= 10; n++) { const d = await getClass(n); if (d.some((r) => String(r[1]).trim())) sheets.push(classSheet(n, d, fields, nChk)); }
-              if (!sheets.length) throw new Error('명단이 입력된 반이 없습니다.'); save(sheets, '반별_명렬표_전체');
-            } else { const n = Number($('xl-class').value); save([classSheet(n, await getClass(n), fields, nChk)], n + '반_명렬표'); }
-            close();
-          } catch (e) { alert('엑셀을 만들지 못했습니다: ' + (e.message || e)); }
-          btn.disabled = false; btn.textContent = '내려받기';
-        };
-      })();
-    </script>
-    <!-- 4. 스크립트""")
+        html = R("<!-- 4. 스크립트", open(__import__("os").path.join(__import__("os").path.dirname(__file__), "p03_script.html"), encoding="utf-8").read() + "\n    <!-- 4. 스크립트")
     if key == "p04":   # 학급별 기초시간표: 1열(교시)은 모바일에서도 3글자가 들어가는 너비
         html = must_replace(html, """<th className="border p-1 w-[30px] min-w-[30px] max-w-[30px]" style={{ width: '30px' }}>{activeTab}반</th>""", """<th className="border p-1" style={{ width: '56px', minWidth: '56px' }}>{activeTab}반</th>""", fname)
         html = must_replace(html, """<th className="border p-1 bg-slate-50 font-bold w-[30px] min-w-[30px] max-w-[30px]" style={{ width: '30px', fontSize: '10pt' }}>{period}</th>""", """<th className="border p-1 bg-slate-50 font-bold whitespace-nowrap" style={{ width: '56px', minWidth: '56px', fontSize: '10pt' }}>{period}</th>""", fname)
