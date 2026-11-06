@@ -58,13 +58,16 @@
   $('login').onclick = tryLogin; $('pw').onkeydown = (e) => { if (e.key === 'Enter') tryLogin(); };
   $('lock').onclick = () => { location.reload(); };
 
-  const TABS = [['time', '시간표 설정'], ['basic', '학년 기초 설정'], ['space', '공간 개방 설정'], ['data', '비밀번호/데이터 관리']];
+  const TABS = [['time', '시간표 설정'], ['basic', '학년 기초 설정'], ['space', '공간 개방 설정'], ['budget', '예산 설정'], ['data', '비밀번호/데이터 관리']];
   let tab = 'basic';
+  const TABS_KEYS = TABS.map((t) => t[0]);
+  // 예산 페이지에서 비밀번호를 확인하고 넘어온 경우에는 다시 묻지 않습니다.
+  try { const jump = sessionStorage.getItem('gp_admin_open'); if (jump) { sessionStorage.removeItem('gp_admin_open'); if (TABS_KEYS.indexOf(jump) >= 0) tab = jump; setTimeout(() => start(), 0); } } catch (e) { /* 무시 */ }
   function start() {
     $('gate').classList.add('hidden'); $('app').classList.remove('hidden');
     $('tabs').innerHTML = TABS.map(([k, l]) => '<button data-t="' + k + '" class="px-4 py-2 text-sm font-semibold rounded-t-lg border-b-2 ' + (k === tab ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800') + '">' + l + '</button>').join('');
     $('tabs').querySelectorAll('button').forEach((b) => b.onclick = () => { tab = b.dataset.t; start(); });
-    const go = ({ time: renderTime, basic: renderBasic, space: renderSpace, data: renderData })[tab];
+    const go = ({ time: renderTime, basic: renderBasic, space: renderSpace, budget: renderBudget, data: renderData })[tab];
     const fail = (e) => { console.error(e); view.innerHTML = '<div class="' + CARD + ' border-red-200"><p class="text-red-700 font-semibold">불러오지 못했습니다.</p><p class="text-sm text-slate-500 break-all">' + esc(String((e && e.message) || e).slice(0, 300)) + '</p><button id="retry" class="' + BTN_P + '">다시 시도</button></div>'; $('retry').onclick = () => { GP.fresh(); start(); }; };
     let done = false; Promise.resolve().then(go).then(() => { done = true; }, (e) => { done = true; fail(e); });
     setTimeout(() => { if (!done && /불러오는 중/.test(view.textContent)) { const m = document.createElement('p'); m.className = 'text-xs text-amber-600 mt-2'; m.innerHTML = '오래 걸리고 있습니다. 인터넷 연결을 확인하거나 <button class="underline" id="slowRetry">다시 시도</button>를 눌러 주세요.'; view.appendChild(m); $('slowRetry').onclick = () => { GP.fresh(); start(); }; } }, 8000);
@@ -449,6 +452,80 @@
   }
 
   // ================================================================ 4) 비밀번호 / 데이터 관리
+  // ================================================================ 예산 설정
+  async function renderBudget() {
+    view.innerHTML = '<p class="text-slate-400">불러오는 중...</p>';
+    const rowsB = await GP.getCol('data_budget');
+    let items = (await GP.readList('list_budget')).map((i) => ({ name: i.value, amount: num(i.row.list_budget_amount), color: str(i.row.list_budget_color).trim() }));
+    const used = (name) => rowsB.filter((r) => str(r.budget_name).trim() === name).reduce((a, r) => a + num(r.budget_num) * num(r.budget_price), 0);
+    const colorOf = (idx, it) => it.color || PALETTE[idx % PALETTE.length];
+    const fmt = (n) => Number(n).toLocaleString();
+    const save = () => autosave(() => GP.writeList('list_budget', items.map((i) => ({ value: i.name, extra: { list_budget_amount: i.amount, list_budget_color: i.color || '' } }))));
+    // 이름·배정액 입력창 (수정/추가 공통)
+    function editDialog(it) {
+      return new Promise((resolve) => {
+        const wrap = document.createElement('div'); wrap.className = 'fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50';
+        wrap.innerHTML = '<div class="bg-white rounded-2xl p-5 w-full max-w-sm space-y-3"><h3 class="font-bold text-lg">' + (it ? '예산 수정' : '예산 추가') + '</h3>' +
+          '<label class="text-sm font-semibold block">예산 이름<input id="bdN" class="' + INP + ' w-full mt-1" value="' + esc(it ? it.name : '') + '" placeholder="예: 체험학습비"></label>' +
+          '<label class="text-sm font-semibold block">배정액<input id="bdA" inputmode="numeric" class="' + INP + ' w-full mt-1 text-right" value="' + (it ? fmt(it.amount) : '') + '" placeholder="0"></label>' +
+          '<p id="bdE" class="text-sm font-semibold text-red-600 hidden"></p>' +
+          '<div class="flex justify-between gap-2 pt-1"><div>' + (it ? '<button id="bdDel" class="px-4 py-2 rounded-lg bg-white border border-red-200 text-red-600 text-sm font-semibold">삭제</button>' : '') + '</div>' +
+          '<div class="flex gap-2"><button id="bdNo" class="' + BTN_G + '">취소</button><button id="bdOk" class="' + BTN_P + '">' + (it ? '저장' : '추가') + '</button></div></div></div>';
+        document.body.appendChild(wrap);
+        const done = (v) => { wrap.remove(); resolve(v); };
+        const A = wrap.querySelector('#bdA'); A.onblur = () => { const n = num(A.value.replace(/,/g, '')); A.value = A.value.trim() ? fmt(n) : ''; };
+        wrap.querySelector('#bdNo').onclick = () => done(null);
+        if (it) wrap.querySelector('#bdDel').onclick = () => { if (confirm('[' + it.name + '] 예산을 삭제할까요?\n예산 표에 입력된 내역은 그대로 남습니다.')) done({ del: true }); };
+        const ok = () => {
+          const name = wrap.querySelector('#bdN').value.trim(), amount = num(A.value.replace(/,/g, '')), err = wrap.querySelector('#bdE');
+          const bad = !name ? '예산 이름을 입력하세요.' : items.some((x) => x !== it && x.name === name) ? '같은 이름의 예산이 이미 있습니다.' : /\//.test(name) ? '예산 이름에는 / 를 쓸 수 없습니다.' : '';
+          if (bad) { err.textContent = bad; err.classList.remove('hidden'); return; } done({ name, amount });
+        };
+        wrap.querySelector('#bdOk').onclick = ok; wrap.onkeydown = (e) => { if (e.key === 'Enter') ok(); else if (e.key === 'Escape') done(null); };
+        wrap.querySelector('#bdN').focus();
+      });
+    }
+    let dragFrom = -1;
+    const draw = guardDraw(() => {
+      view.innerHTML = '<div class="' + CARD + '"><h2 class="font-bold text-lg">예산 카드 <span class="text-xs font-normal text-slate-400">카드를 끌어서 순서를 바꾸고, 🎨 로 배경색을, ✏️ 로 이름·배정액을 바꿉니다. 바꾼 내용은 예산 페이지에 바로 반영됩니다.</span></h2>' +
+        '<div id="bdCards" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">' + items.map((it, i) => {
+          const u = used(it.name), bal = it.amount - u;
+          return '<div class="bdc relative border border-slate-300 rounded-xl p-3 shadow-sm cursor-grab" draggable="true" data-i="' + i + '" style="background:' + colorOf(i, it) + '">' +
+            '<div class="flex items-center justify-between gap-1 border-b border-black/10 pb-1 mb-1"><span class="font-bold text-sm break-all">' + esc(it.name) + '</span>' +
+            '<span class="flex shrink-0 gap-1"><label class="cursor-pointer relative" title="배경색">🎨<input type="color" data-color="' + i + '" value="' + colorOf(i, it) + '" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"></label><button data-edit="' + i + '" title="수정">✏️</button></span></div>' +
+            '<div class="flex justify-between text-xs"><span>배정액</span><b>' + fmt(it.amount) + '</b></div><div class="flex justify-between text-xs"><span>사용액</span><b>' + fmt(u) + '</b></div>' +
+            '<div class="flex justify-between text-sm mt-1 pt-1 border-t border-black/10"><span>잔액</span><b class="' + (bal < 0 ? 'text-red-600' : 'text-blue-700') + '">' + fmt(bal) + '</b></div></div>';
+        }).join('') + '<button id="bdAdd" class="border-2 border-dashed border-slate-300 rounded-xl text-3xl font-bold text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 min-h-[110px]" title="예산 추가">+</button></div>' +
+        (items.length ? '' : '<p class="text-sm text-slate-400">등록된 예산이 없습니다. + 를 눌러 추가하세요.</p>') + '</div>';
+      const box = $('bdCards');
+      box.querySelectorAll('[data-edit]').forEach((b) => b.onclick = async () => {
+        const i = +b.dataset.edit, it = items[i], r = await editDialog(it); if (!r) return;
+        if (r.del) { items.splice(i, 1); await save(); return draw(); }
+        const old = it.name; it.name = r.name; it.amount = r.amount;
+        await save();
+        if (old !== r.name) {   // 예산 표에 이미 입력한 내역도 새 이름으로 맞춤
+          const hit = rowsB.filter((x) => str(x.budget_name).trim() === old);
+          if (hit.length) { await GP.commit(hit.map((x) => ({ type: 'update', col: 'data_budget', id: x._id, data: { budget_name: r.name } }))); GP.invalidate('data_budget'); hit.forEach((x) => { x.budget_name = r.name; }); }
+        }
+        draw();
+      });
+      box.querySelectorAll('input[data-color]').forEach((inp) => { inp.onchange = () => { items[+inp.dataset.color].color = inp.value; save(); draw(); }; });
+      $('bdAdd').onclick = async () => { const r = await editDialog(null); if (!r || r.del) return; items.push({ name: r.name, amount: r.amount, color: '' }); await save(); draw(); };
+      // 끌어서 순서 바꾸기
+      const clear = () => box.querySelectorAll('.bdc').forEach((c) => { c.style.boxShadow = ''; c.style.opacity = ''; });
+      box.querySelectorAll('.bdc').forEach((c) => {
+        c.ondragstart = (e) => { dragFrom = +c.dataset.i; c.style.opacity = '.4'; try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(dragFrom)); } catch (x) { /* 무시 */ } };
+        c.ondragend = () => { dragFrom = -1; clear(); };
+        c.ondragover = (e) => { if (dragFrom < 0) return; e.preventDefault(); const r = c.getBoundingClientRect(); const after = e.clientX > r.left + r.width / 2; clear(); c.style.boxShadow = after ? 'inset -4px 0 0 #4f46e5' : 'inset 4px 0 0 #4f46e5'; c._after = after; };
+        c.ondrop = (e) => {
+          e.preventDefault(); if (dragFrom < 0) return; const to = +c.dataset.i; let dest = to + (c._after ? 1 : 0); const [m] = items.splice(dragFrom, 1); if (dragFrom < dest) dest--; items.splice(dest, 0, m);
+          dragFrom = -1; save(); draw();
+        };
+      });
+    });
+    draw();
+  }
+
   async function renderData() {
     const pw = await GP.getPw(); const years = await APP.detectYears(); const g = await APP.getGeneral();
     if (g.year && years.indexOf(g.year) < 0) years.push(g.year); years.sort((a, b) => a - b);

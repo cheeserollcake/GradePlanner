@@ -20,7 +20,7 @@
   function zip(files) {
     const parts = [], central = []; let offset = 0;
     files.forEach((f) => {
-      const name = enc.encode(f.name), data = enc.encode(f.text), crc = crc32(data), size = data.length;
+      const name = enc.encode(f.name), data = f.bytes || enc.encode(f.text), crc = crc32(data), size = data.length;
       const local = new Uint8Array([0x50, 0x4b, 3, 4, ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(size), ...u32(size), ...u16(name.length), ...u16(0)]);
       parts.push(local, name, data);
       central.push(new Uint8Array([0x50, 0x4b, 1, 2, ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(size), ...u32(size), ...u16(name.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(offset)]), name);
@@ -60,13 +60,14 @@
   function sheetXml(sp) {
     const rows = sp.rows.map((r) => r.map(norm));
     const maxCols = rows.reduce((m, r) => Math.max(m, r.length), 0);
-    let xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
+    let xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
     xml += '<sheetViews><sheetView workbookViewId="0">' + (sp.freezeRow ? '<pane ySplit="' + sp.freezeRow + '" topLeftCell="A' + (sp.freezeRow + 1) + '" activePane="bottomLeft" state="frozen"/>' : '') + '</sheetView></sheetViews>';
     xml += '<sheetFormatPr defaultRowHeight="18"/>';
     if (sp.widths && sp.widths.length) xml += '<cols>' + sp.widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('') + '</cols>';
     xml += '<sheetData>';
     rows.forEach((r, ri) => {
-      xml += '<row r="' + (ri + 1) + '" ht="20" customHeight="1">';
+      const imgH = Math.max(0, ...r.map((c) => (c.img ? Math.round(c.img.h * 0.75) + 6 : 0)));
+      xml += '<row r="' + (ri + 1) + '" ht="' + Math.max(20, imgH) + '" customHeight="1">';
       r.forEach((c, ci) => {
         const ref = colName(ci) + (ri + 1), s = STYLE_ID[c.s] === undefined ? 0 : STYLE_ID[c.s];
         if (c.f) {
@@ -81,7 +82,26 @@
     xml += '</sheetData>';
     if (sp.filter && rows.length > 1) xml += '<autoFilter ref="A1:' + colName(Math.max(maxCols - 1, 0)) + (sp.filterRows || rows.length) + '"/>';
     if (sp.merges && sp.merges.length) xml += '<mergeCells count="' + sp.merges.length + '">' + sp.merges.map((m) => '<mergeCell ref="' + m + '"/>').join('') + '</mergeCells>';
+    if (rows.some((r) => r.some((c) => c.img))) xml += '<drawing r:id="rId1"/>';
     return xml + '</worksheet>';
+  }
+  // 이미지가 들어 있는 셀 → 그림(drawing) 파일 묶음
+  function drawingParts(sp, n, imgStart) {   // n: 시트 번호, imgStart: 지금까지 쓴 이미지 수
+    const pics = []; sp.rows.forEach((r, ri) => r.map(norm).forEach((c, ci) => { if (c.img) pics.push({ r: ri, c: ci, img: c.img }); }));
+    if (!pics.length) return null;
+    const EMU = 9525;
+    const anchors = pics.map((p, i) => '<xdr:oneCellAnchor><xdr:from><xdr:col>' + p.c + '</xdr:col><xdr:colOff>' + 3 * EMU + '</xdr:colOff><xdr:row>' + p.r + '</xdr:row><xdr:rowOff>' + 3 * EMU + '</xdr:rowOff></xdr:from><xdr:ext cx="' + p.img.w * EMU + '" cy="' + p.img.h * EMU + '"/>' +
+      '<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="' + (i + 2) + '" name="Picture ' + (i + 1) + '"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rId' + (i + 1) + '"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>' +
+      '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + p.img.w * EMU + '" cy="' + p.img.h * EMU + '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>').join('');
+    const head = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+    return {
+      files: [
+        { name: 'xl/drawings/drawing' + n + '.xml', text: head + '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' + anchors + '</xdr:wsDr>' },
+        { name: 'xl/drawings/_rels/drawing' + n + '.xml.rels', text: head + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + pics.map((p, i) => '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image' + (imgStart + i + 1) + '.jpg"/>').join('') + '</Relationships>' },
+        { name: 'xl/worksheets/_rels/sheet' + n + '.xml.rels', text: head + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing' + n + '.xml"/></Relationships>' }
+      ].concat(pics.map((p, i) => ({ name: 'xl/media/image' + (imgStart + i + 1) + '.jpg', bytes: p.img.bytes }))),
+      count: pics.length
+    };
   }
   const safeName = (n) => String(n).replace(/[\[\]:*?\/\\]/g, ' ').trim().slice(0, 31) || 'Sheet';
 
@@ -93,6 +113,11 @@
       { name: 'xl/_rels/workbook.xml.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + sheets.map((_, i) => '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>').join('') + '<Relationship Id="rId' + (sheets.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
       { name: 'xl/styles.xml', text: STYLES }
     ].concat(sheets.map((s, i) => ({ name: 'xl/worksheets/sheet' + (i + 1) + '.xml', text: sheetXml(s) })));
+    let imgN = 0, any = false;
+    sheets.forEach((s, i) => { const d = drawingParts(s, i + 1, imgN); if (d) { any = true; imgN += d.count; d.files.forEach((f) => files.push(f)); } });
+    if (any) {
+      const ct = files[0]; ct.text = ct.text.replace('</Types>', '<Default Extension="jpg" ContentType="image/jpeg"/>' + sheets.map((s, i) => (s.rows.some((r) => r.some((c) => c && c.img)) ? '<Override PartName="/xl/drawings/drawing' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>' : '')).join('') + '</Types>');
+    }
     return zip(files);
   }
   const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -117,7 +142,8 @@
   };
   function cellData(c) {
     const o = {};
-    if (c.f) o.userEnteredValue = { formulaValue: '=' + c.f };
+    if (c.img) o.userEnteredValue = { formulaValue: '=IMAGE("' + c.img.url + '")' };
+    else if (c.f) o.userEnteredValue = { formulaValue: '=' + c.f };
     else if (typeof c.v === 'number') o.userEnteredValue = { numberValue: c.v };
     else if (c.v !== '' && c.v !== null && c.v !== undefined) o.userEnteredValue = { stringValue: String(c.v) };
     if (FORMAT[c.s]) o.userEnteredFormat = FORMAT[c.s];
@@ -130,7 +156,7 @@
         const rows = sp.rows.map((r) => r.map(norm)); const cols = rows.reduce((m, r) => Math.max(m, r.length), 0);
         const sheet = {
           properties: { sheetId: i + 1, title: safeName(sp.name), gridProperties: { frozenRowCount: sp.freezeRow || 0 } },
-          data: [{ startRow: 0, startColumn: 0, rowData: rows.map((r) => ({ values: r.map(cellData) })), columnMetadata: (sp.widths || []).map((w) => ({ pixelSize: Math.round(w * 7 + 8) })) }]
+          data: [{ startRow: 0, startColumn: 0, rowData: rows.map((r) => ({ values: r.map(cellData) })), rowMetadata: rows.map((r) => { const h = Math.max(0, ...r.map((c) => (c.img ? c.img.h + 8 : 0))); return h ? { pixelSize: h } : {}; }), columnMetadata: (sp.widths || []).map((w) => ({ pixelSize: Math.round(w * 7 + 8) })) }]
         };
         if (sp.merges && sp.merges.length) {
           const cn = (t) => { let n = 0; for (const ch of t.replace(/[0-9]/g, '')) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; }, rn = (t) => Number(t.replace(/[A-Z]/g, '')) - 1;

@@ -121,7 +121,7 @@ async function renderInfo() {
 }
 async function renderCards() {
   const cards = (await GP.buildBudgetCards()).filter((c) => !String(c.name).includes('친목회비'));
-  document.getElementById('cards').innerHTML = cards.map((c) => '<div class="bg-white border border-slate-200 rounded-xl p-3 shadow-sm"><div class="font-bold text-sm border-b pb-1 mb-1">' + esc(c.name) + '</div>' +
+  document.getElementById('cards').innerHTML = cards.map((c, i) => '<div class="border border-slate-200 rounded-xl p-3 shadow-sm" style="background:' + (c.color || ['#CFE2F3', '#FCE5CD', '#D9EAD3', '#FFFEB5', '#E4D7F5'][i % 5]) + '"><div class="font-bold text-sm border-b pb-1 mb-1">' + esc(c.name) + '</div>' +
     '<div class="flex justify-between text-xs"><span>배정액</span><b>' + fmt(c.assigned) + '</b></div><div class="flex justify-between text-xs"><span>사용액</span><b>' + fmt(c.used) + '</b></div>' +
     '<div class="flex justify-between text-sm mt-1 pt-1 border-t"><span>잔액</span><b class="' + (c.balance < 0 ? 'text-red-600' : 'text-blue-700') + '">' + fmt(c.balance) + '</b></div></div>').join('');
 }

@@ -322,7 +322,8 @@
       classes: uniq('list_class').sort(natural), subs: uniq('list_sub'), times: uniq('list_time').sort(natural),
       gyms: uniq('list_gym'), rooms: uniq('list_room'), teachers: uniq('list_t'),
       budgets: rows.filter((r) => str(r.list_budget).trim())
-        .map((r) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount) })),
+        .map((r, i) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount), color: str(r.list_budget_color).trim(), _o: (r.list_budget_order === undefined || r.list_budget_order === '' || r.list_budget_order === null) ? 1e6 + i : Number(r.list_budget_order) }))
+        .sort((a, b) => a._o - b._o).map(({ _o, ...b }) => b),
       budgetHeaders: uniq('list_budget_header')
     };
   }
@@ -379,7 +380,7 @@
       const assigned = merged ? heads[h].reduce((a, x) => a + x.amount, 0) : b.amount;
       const used = rows.filter((r) => { const n = str(r.budget_name).trim(); return n === name || n === h || n === b.name; })
         .reduce((a, r) => a + num(r.budget_num) * num(r.budget_price), 0);
-      cards.push({ name, assigned, used, balance: assigned - used });
+      cards.push({ name, assigned, used, balance: assigned - used, color: merged ? '' : b.color });
       done.add(h);
     });
     return cards;
