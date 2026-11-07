@@ -1,0 +1,22 @@
+name: unzip-deploy
+on:
+  push:
+    paths: ['gradeplanner.zip']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          if [ ! -f gradeplanner.zip ]; then exit 0; fi
+          unzip -q gradeplanner.zip -d /tmp/gp
+          rsync -a /tmp/gp/gradeplanner/ ./
+          rm gradeplanner.zip
+          git config user.name github-actions
+          git config user.email actions@github.com
+          git add -A
+          git commit -m "Update from zip" || exit 0
+          git push
