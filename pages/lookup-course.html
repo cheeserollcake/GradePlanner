@@ -192,6 +192,7 @@
                         globalSpecials = response.specials || {};
                         globalGroups = response.groups || [];
                         if (response.year) window.__YEAR__ = response.year;
+                        window.__PN = response.periods || [];
                         globalHolidays = response.holidays || {}; // 휴일 데이터 저장
                         
                         processEventsData(response.events || []);
@@ -375,7 +376,7 @@
                     }
                     tbody.appendChild(dateTr);
 
-                    for (let p = 1; p <= 6; p++) {
+                    for (let p = 1; p <= Math.max(1, (window.__PN || []).length || 6); p++) {
                         const pTr = document.createElement('tr');
                         
                         let thBgClass = "bg-gray-50";
@@ -383,7 +384,7 @@
                             thBgClass = week % 2 !== 0 ? "bg-[#fff2cc]" : "bg-[#cfe2f3]";
                         }
                         // 교시 헤더
-                        pTr.innerHTML = `<th class="${thBgClass} font-medium text-xs border-r border-gray-300">${p}교시</th>`;
+                        pTr.innerHTML = `<th class="${thBgClass} font-medium text-xs border-r border-gray-300">${(window.__PN && window.__PN[p - 1]) || (p + "교시")}</th>`;
 
                         for (let day = 0; day < 5; day++) {
                             const td = document.createElement('td');

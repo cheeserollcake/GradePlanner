@@ -34,7 +34,7 @@
   function toDate(v) {
     if (v === null || v === undefined || v === '') return null;
     if (typeof v === 'object' && typeof v.toDate === 'function') return strip(v.toDate());
-    if (v instanceof Date) return isNaN(v) ? null : strip(v);
+    if (Object.prototype.toString.call(v) === '[object Date]') return isNaN(v) ? null : strip(v);   // 다른 화면에서 만든 Date도 인식
     if (typeof v === 'object' && typeof v.seconds === 'number') return strip(new Date(v.seconds * 1000));
     if (typeof v === 'number') {
       if (v > 1e11) return strip(new Date(v));                       // epoch ms
@@ -782,9 +782,9 @@
     const holidays = [...hol.entries()].sort().map(([k, v]) => [isoLocal(toDate(k)), v]);
     const rows = (list, fd, fc, ft, fn) => list.map((r) => ({ d: toDate(r[fd]), r })).filter((x) => x.d && str(x.r[fc]).trim())
       .map((x) => slotRow(x.d, str(x.r[fc]), str(x.r[ft]), str(x.r[fn])));
-    const gcfg = await generalCfg();
+    const gcfg = await generalCfg(); const periods = await basicPeriods();
     return {
-      year: gcfg.year, holidays,
+      year: gcfg.year, holidays, periods, classCount: gcfg.classNames.length, classNames: gcfg.classNames,   // 표의 반 수·교시 수는 관리자 설정을 따름
       auditorium: rows(gym, 'gym_date', 'gym_class', 'gym_time', 'gym_place'),
       subject: rows(sub, 'sub_date', 'sub_class', 'sub_time', 'sub_name'),
       added: rows(add, 'add_date', 'add_class', 'add_time', 'add_name')
@@ -989,7 +989,7 @@
       const g = await generalCfg();
       if (page === 'p08') {
         const [hol, rawEvents] = await Promise.all([getHolidayMap(), groupedEvents()]);
-        return { success: true, holidays: [...hol.entries()].map(([k, v]) => ({ date: k, name: v })), rawEvents, year: g.year, classCount: g.classNames.length };
+        return { success: true, holidays: [...hol.entries()].map(([k, v]) => ({ date: k, name: v })), rawEvents, year: g.year, classCount: g.classNames.length, periods: await basicPeriods() };
       }
       // p09
       const [hol, add, groups] = await Promise.all([getHolidayMap(), getCol('data_add_timetable'), getCfg('course_groups', [])]);
@@ -997,7 +997,7 @@
         .map((x) => ({ date: ymd(x.d), classNm: str(x.r.add_class), period: str(x.r.add_time), course: str(x.r.add_name).trim() }));
       const dropdowns = [...new Set(events.map((e) => e.course).filter(Boolean))].sort(natural);
       const holidays = {}; hol.forEach((v, k) => { holidays[k] = v; });
-      return { success: true, dropdowns, groups, specials: { all: '', partial1: '', partial2: '', partial3: '', partial4: '', partial5: '', partial6: '', partial7: '' }, events, holidays, year: g.year };
+      return { success: true, dropdowns, groups, specials: { all: '', partial1: '', partial2: '', partial3: '', partial4: '', partial5: '', partial6: '', partial7: '' }, events, holidays, year: g.year, periods: await basicPeriods() };
     } catch (e) { return { success: false, error: e.toString() }; }
   };
   SERVER.saveCourseGroups = async function (groups) {

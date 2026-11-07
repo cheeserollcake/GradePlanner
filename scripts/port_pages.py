@@ -350,6 +350,46 @@ for folder, (fname, key) in PAGES.items():
         html = R("spaces={['컴1', '컴2', '음악']}", "spaces={settings.roomSpaces || []}")
         html = R("spaceIndices={[5, 6, 7]}", "spaceIndices={[]}")
         html = R("setSettings(prev => ({ ...prev, ...(res.settings || {}) }));", "if (res.settings && res.settings.classNames) classOptions = res.settings.classNames.concat(['불가']);\n            setSettings(prev => ({ ...prev, ...(res.settings || {}) }));")
+    if key == "p05":   # 반 수·교시 수를 관리자 설정에 맞춤 (표 폭·줄 수·구분선·색 띠 모두 계산식으로)
+        def _all(a, b, n):
+            global html
+            assert html.count(a) == n, (a, html.count(a))
+            html = html.replace(a, b)
+        _all("dbData.holidays = dbData.holidays || [];", "window.__P = Math.max(1, (dbData.periods || []).length || 6); window.__C = Math.max(1, dbData.classCount || 10); window.__PN = dbData.periods || []; window.__CN = dbData.classNames || [];\n          dbData.holidays = dbData.holidays || [];", 1)
+        _all("new Array(31)", "new Array(1 + 5 * window.__P)", 3)
+        _all("const colIdx = 1 + (i * 6);", "const colIdx = 1 + (i * window.__P);", 1)
+        _all("numCols: 6 }", "numCols: window.__P }", 1)
+        _all("for (let p = 1; p <= 6; p++) { \n                periodRow[1 + (i * 6) + (p - 1)] = p + \"교시\";", "for (let p = 1; p <= window.__P; p++) { \n                periodRow[1 + (i * window.__P) + (p - 1)] = window.__PN[p - 1] || (p + \"교시\");", 1)
+        _all("for (let cNum = 1; cNum <= 10; cNum++) {", "for (let cNum = 1; cNum <= window.__C; cNum++) {", 1)
+        _all("classRow[0] = `${cNum}반`;", "classRow[0] = window.__CN[cNum - 1] || `${cNum}반`;", 1)
+        _all("for (let p = 1; p <= 6; p++) {\n                  const colIdx = 1 + (dIdx * 6) + (p - 1);", "for (let p = 1; p <= window.__P; p++) {\n                  const colIdx = 1 + (dIdx * window.__P) + (p - 1);", 1)
+        _all("(r % 12 === 0)", "(r % (window.__C + 2) === 0)", 1)
+        _all("(r % 12 === 1)", "(r % (window.__C + 2) === 1)", 1)
+        _all("if ([6, 12, 18, 24].includes(c))", "if (c > 0 && c < 5 * window.__P && c % window.__P === 0)", 1)
+        _all("if (c === 30)", "if (c === 5 * window.__P)", 1)
+        _all("if (r % 12 === 11) {", "if (r % (window.__C + 2) === window.__C + 1) {", 1)
+        _all("if (r % 2 === 0) { ", "if ((r % (window.__C + 2)) % 2 === 0) { ", 1)
+        import re as _re
+        _m = _re.search(r"if \(c >= 1 && c <= 6\) style\.backgroundColor = '#e0f7fa';.*?if \(c >= 25 && c <= 30\) style\.backgroundColor = '#e0f7fa';", html, _re.S)
+        assert _m, "p05 색 띠를 찾지 못함"
+        html = html[:_m.start()] + "style.backgroundColor = ['#e0f7fa', '#f8f2eb', '#f3eefe', '#fef8e3', '#e0f7fa'][Math.min(4, Math.floor((c - 1) / window.__P))];" + html[_m.end():]
+        _all("if (r % 12 === 0 || r % 12 === 1) return '20px';", "if (r % (window.__C + 2) === 0 || r % (window.__C + 2) === 1) return '20px';", 1)
+        _all("minWidth: '1500px'", "minWidth: Math.max(900, 40 + 5 * (window.__P || 6) * 48) + 'px'", 1)
+        _all("Array.from({ length: 30 })", "Array.from({ length: 5 * (window.__P || 6) })", 1)
+        _all("'calc((100% - 40px) / 30)'", "'calc((100% - 40px) / ' + 5 * (window.__P || 6) + ')'", 1)
+    if key == "p08":   # 교시 수는 관리자 설정(교시 설정)을 따름
+        R = lambda a, b: must_replace(html, a, b, fname)
+        html = R("const periodList = [1, 2, 3, 4, 5, 6];", "let periodList = [1, 2, 3, 4, 5, 6]; window.__PN = [];\n        const pName = (p) => (window.__PN && window.__PN[p - 1]) || (p + '교시');")
+        html = R("            if (res.classCount && res.classCount !== classList.length) {",
+                 "            if (res.periods && res.periods.length && res.periods.join('|') !== (window.__PN || []).join('|')) {\n                window.__PN = res.periods; periodList = res.periods.map((_, i) => i + 1); renderModalCheckboxes();\n            }\n            if (res.classCount && res.classCount !== classList.length) {")
+        html = R("for (let p = 1; p <= 6; p++) {", "for (let p = 1; p <= periodList.length; p++) {")
+        html = R('${p}교시</th>`;', '${pName(p)}</th>`;')
+        html = R('<span class="badge-label">${num}교시</span>', '<span class="badge-label">${pName(num)}</span>')
+    if key == "p09":
+        R = lambda a, b: must_replace(html, a, b, fname)
+        html = R("for (let p = 1; p <= 6; p++) {", "for (let p = 1; p <= Math.max(1, (window.__PN || []).length || 6); p++) {")
+        html = R('${p}교시</th>`;', '${(window.__PN && window.__PN[p - 1]) || (p + "교시")}</th>`;')
+        html = R("if (response.year) window.__YEAR__ = response.year;", "if (response.year) window.__YEAR__ = response.year;\n                        window.__PN = response.periods || [];")
     if key == "p05":   # 처음 열면 오늘이 속한 달을 보여줌
         html = must_replace(html, "const isMergedCell = (r, c) => {", "useEffect(() => { fetchMonthData(new Date().getMonth() + 1); }, []);\n\n        const isMergedCell = (r, c) => {", fname)
     if key == "p03":   # 관리자 버튼·새로고침·제목줄 삭제 / 반 수는 관리자 설정 / 반별 표 크기 / 엑셀 다운로드·업로드
