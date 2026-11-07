@@ -1,6 +1,7 @@
 /* admin-ui.js : 학년 관리자 페이지 화면 (입력하면 바로 저장됩니다) */
 (function () {
   'use strict';
+  try { GP.getCol('app_config').catch(() => {}); GP.getCol('data_basic').catch(() => {}); } catch (e) {}   // 화면을 그리기 전에 필요한 자료를 미리 요청(모바일 로딩 단축)
   const { str, num, ymd, appDate, toDate, natural } = GP;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -101,12 +102,12 @@
     const draw = guardDraw(() => {
       const numIn = (i, k, v, ph) => '<input data-i="' + i + '" data-k="' + k + '" type="number" min="0" value="' + esc(v) + '" placeholder="' + ph + '" class="' + INP + ' w-full text-center">';
       view.innerHTML = '<div class="grid lg:grid-cols-3 gap-5"><div class="lg:col-span-2 ' + CARD + '"><h2 class="font-bold text-lg">과목 / 시수 / 전담 설정 <span class="text-xs font-normal text-slate-400">입력하면 바로 저장됩니다</span></h2>' +
-        '<table class="w-full text-sm"><thead><tr class="text-slate-500"><th class="text-left p-1">과목</th><th class="p-1 w-24">주당 시수</th><th class="p-1 w-28">1학기 총시수</th><th class="p-1 w-28">2학기 총시수</th><th class="p-1 w-14">전담</th><th class="w-8"></th></tr></thead><tbody>' +
-        subs.map((s, i) => '<tr><td class="p-1"><input data-i="' + i + '" data-k="name" value="' + esc(s.name) + '" class="' + INP + ' w-full"></td>' +
+        '<div class="overflow-x-auto"><table class="w-full text-sm" style="min-width:540px"><thead><tr class="text-slate-500"><th class="text-left p-1">과목</th><th class="p-1 w-24">주당 시수</th><th class="p-1 w-28">1학기 총시수</th><th class="p-1 w-28">2학기 총시수</th><th class="p-1 w-14">전담</th><th class="w-8"></th></tr></thead><tbody>' +
+        subs.map((s, i) => '<tr><td class="p-1"><input data-i="' + i + '" data-k="name" value="' + esc(s.name) + '" class="' + INP + ' w-full" style="min-width:104px"></td>' +
           '<td class="p-1">' + numIn(i, 'hours', s.hours, '') + '</td><td class="p-1">' + numIn(i, 'h1', s.h1, '') + '</td><td class="p-1">' + numIn(i, 'h2', s.h2, '') + '</td>' +
           '<td class="p-1 text-center"><input data-i="' + i + '" data-k="special" type="checkbox" ' + (s.special ? 'checked' : '') + ' class="w-4 h-4"></td>' +
           '<td class="p-1"><button data-del="' + i + '" class="text-slate-400 hover:text-red-600">✕</button></td></tr>').join('') +
-        '</tbody></table><div class="flex items-center justify-between"><button id="addSub" class="' + BTN_G + '">+ 과목 추가</button>' +
+        '</tbody></table></div><div class="flex items-center justify-between"><button id="addSub" class="' + BTN_G + '">+ 과목 추가</button>' +
         '<span class="text-sm text-slate-500">주당 시수 합계 <b id="hsum">' + sum() + '</b></span></div></div>' +
         '<div class="space-y-5"><div class="' + CARD + '"><h2 class="font-bold text-lg">교시 설정</h2><div class="space-y-2">' +
         times.map((t, i) => '<div class="flex gap-2"><input data-ti="' + i + '" value="' + esc(t) + '" class="' + INP + ' flex-1"><button data-tdel="' + i + '" class="text-slate-400 hover:text-red-600">✕</button></div>').join('') +
@@ -195,9 +196,10 @@
 
     const draw = guardDraw(() => {
       const { min, max } = rr();
-      const semHtml = APP.SEM_NAMES.map((n) => '<div class="flex flex-wrap items-center gap-2"><span class="w-20 font-semibold text-sm">' + n + '</span>' +
-        '<input type="date" data-sem="' + n + '" data-p="start" min="' + min + '" max="' + max + '" value="' + (sems[n] ? ymd(sems[n].start) : '') + '" class="' + INP + '"><span>~</span>' +
-        '<input type="date" data-sem="' + n + '" data-p="end" min="' + min + '" max="' + max + '" value="' + (sems[n] ? ymd(sems[n].end) : '') + '" class="' + INP + '"></div>').join('');
+      // 제목과 날짜 칸: 넓은 화면에서는 한 줄, 좁은 화면에서는 제목 아래에 두 날짜 칸을 나란히
+      const semHtml = APP.SEM_NAMES.map((n) => '<div class="grid gap-1 sm:grid-cols-[6rem_1fr] sm:items-center"><span class="font-semibold text-sm text-slate-700">' + n + '</span>' +
+        '<div class="flex items-center gap-2 max-w-md"><input type="date" data-sem="' + n + '" data-p="start" min="' + min + '" max="' + max + '" value="' + (sems[n] ? ymd(sems[n].start) : '') + '" class="' + INP + ' flex-1 min-w-0"><span class="text-slate-400">~</span>' +
+        '<input type="date" data-sem="' + n + '" data-p="end" min="' + min + '" max="' + max + '" value="' + (sems[n] ? ymd(sems[n].end) : '') + '" class="' + INP + ' flex-1 min-w-0"></div></div>').join('');
       const evHtml = items.map((e, i) => '<tr class="border-t"><td class="p-1.5 whitespace-nowrap">' + ymd(e.start) + (e.end && ymd(e.end) !== ymd(e.start) ? ' ~ ' + ymd(e.end) : '') + '</td>' +
         '<td class="p-1.5 whitespace-pre-wrap">' + (e.kind === 'holiday' ? '<span class="text-xs px-1.5 py-0.5 rounded bg-pink-100 text-red-600 mr-1">휴일</span>' : '') + esc(e.name) + '</td>' +
         '<td class="p-1.5 whitespace-nowrap text-right"><button data-eedit="' + i + '" class="text-slate-500 hover:text-indigo-600 mr-2">수정</button><button data-edel="' + i + '" class="text-slate-400 hover:text-red-600">삭제</button></td></tr>').join('');
@@ -217,9 +219,11 @@
         '<button data-spdel="' + i + '" class="text-slate-400 hover:text-red-600 ml-auto">✕</button></div>' + termUI('sp', i, s) + '</div>').join('');
 
       view.innerHTML = '<div class="space-y-5">' +
-        '<div class="' + CARD + '"><h2 class="font-bold text-lg">학년도 설정</h2><div class="flex flex-wrap items-center gap-2"><input id="year" type="number" value="' + g.year + '" class="' + INP + ' w-28"><span class="text-sm">학년도</span>' +
-        '<span class="text-sm font-semibold ml-3">학년</span><select id="grade" class="' + INP + '">' + [1, 2, 3, 4, 5, 6].map((n) => '<option value="' + n + '" ' + (n === (g.grade || 6) ? 'selected' : '') + '>' + n + '학년</option>').join('') + '</select>' +
-        '<button id="saveYear" class="' + BTN_P + '">이 학년도로 설정하기</button><span class="text-sm text-slate-500">' + appDate(range().start) + ' ~ ' + appDate(range().end) + '</span></div>' +
+        '<div class="' + CARD + '"><h2 class="font-bold text-lg">학년도 설정</h2><div class="flex flex-wrap items-end gap-3">' +
+        '<label class="text-xs font-semibold text-slate-500">학년도<span class="flex items-center gap-1.5 mt-1 text-sm font-normal text-slate-700"><input id="year" type="number" value="' + g.year + '" class="' + INP + ' w-24">학년도</span></label>' +
+        '<label class="text-xs font-semibold text-slate-500">학년<select id="grade" class="' + INP + ' block mt-1">' + [1, 2, 3, 4, 5, 6].map((n) => '<option value="' + n + '" ' + (n === (g.grade || 6) ? 'selected' : '') + '>' + n + '학년</option>').join('') + '</select></label>' +
+        '<button id="saveYear" class="' + BTN_P + '">이 학년도로 설정하기</button></div>' +
+        '<p class="text-sm text-slate-500">' + appDate(range().start) + ' ~ ' + appDate(range().end) + '</p>' +
         '<div class="space-y-2 pt-2 border-t"><p class="text-xs text-slate-400">날짜를 입력하면 바로 저장됩니다. (시작·종료를 모두 지우면 삭제됩니다)</p>' + semHtml + '</div></div>' +
         '<div class="' + CARD + '"><h2 class="font-bold text-lg">기초 일정</h2><div class="flex flex-wrap gap-2 items-center">' +
         '<input id="evName" placeholder="학교 행사" value="' + esc(ed ? ed.name : '') + '" class="' + INP + ' flex-1 min-w-[10rem]"><input id="evStart" type="date" min="' + min + '" max="' + max + '" value="' + (ed ? ymd(ed.start) : '') + '" class="' + INP + '">' +
@@ -375,7 +379,7 @@
       return '<div class="' + CARD + '"><h3 class="font-bold">' + title + '</h3><div class="flex flex-wrap gap-2 sticky top-0 bg-white">' +
         '<input type="date" data-exd="' + key + '" value="' + lastDate + '" class="' + INP + '"><select data-exp="' + key + '" class="' + INP + '">' + times.map((t) => '<option>' + esc(t) + '</option>').join('') + '</select>' +
         '<select data-exs="' + key + '" class="' + INP + '">' + all.map((s) => '<option>' + esc(s) + '</option>').join('') + '</select><button data-exadd="' + key + '" class="' + BTN + ' text-white ' + c.btn + '">추가</button></div>' +
-        '<div class="space-y-1 max-h-64 overflow-auto">' + (cfg[key] || []).map((e, i) => '<div class="flex items-center justify-between rounded-lg px-3 py-1.5 text-sm ' + c.item + '"><span>' + esc(e.date) + ' · ' + esc(e.period) + ' · ' + esc(e.space) + '</span><button data-exdel="' + key + '" data-i="' + i + '" class="text-slate-500 hover:text-red-700">✕</button></div>').join('') + '</div></div>';
+        '<div class="space-y-1 max-h-64 overflow-auto">' + (cfg[key] || []).map((e, i) => '<div class="flex items-center justify-between rounded-lg px-3 py-1.5 text-sm ' + c.item + '"><span>' + esc(e.date) + ' · ' + esc(e.period) + ' · ' + esc(e.space) + '</span><button data-exdel="' + key + '" data-i="' + i + '" class="text-slate-500 hover:text-red-700 px-2 py-1 -my-1 -mr-2 text-base leading-none" aria-label="삭제">✕</button></div>').join('') + '</div></div>';
     };
 
     const drawLists = () => {
@@ -432,10 +436,11 @@
       root.querySelectorAll('[data-exadd]').forEach((b) => b.onclick = () => {
         const k = b.dataset.exadd; const date = root.querySelector('[data-exd="' + k + '"]').value; if (!date) return toast('날짜를 입력하세요.', true);
         const e = { date, period: root.querySelector('[data-exp="' + k + '"]').value, space: root.querySelector('[data-exs="' + k + '"]').value };
-        lastDate = date; cfg[k] = (cfg[k] || []).concat([e]); mutateOpen((c) => { c[k] = (c[k] || []).concat([e]); }).then(drawTables);
+        lastDate = date; cfg[k] = (cfg[k] || []).concat([e]); drawTables();   // 화면은 바로 고치고 저장은 뒤에서 진행(모바일에서 반응이 없어 보이던 문제)
+        mutateOpen((c) => { c[k] = (c[k] || []).concat([e]); }).then(() => toast('저장되었습니다.'));
       });
-      root.querySelectorAll('[data-exdel]').forEach((b) => b.onclick = () => { const k = b.dataset.exdel, i = +b.dataset.i; const e = cfg[k][i]; cfg[k].splice(i, 1);
-        mutateOpen((c) => { c[k] = (c[k] || []).filter((x) => !(x.date === e.date && x.period === e.period && x.space === e.space)); }).then(drawTables); });
+      root.querySelectorAll('[data-exdel]').forEach((b) => b.onclick = () => { const k = b.dataset.exdel, i = +b.dataset.i; const e = cfg[k][i]; if (!e) return; cfg[k].splice(i, 1); drawTables();
+        mutateOpen((c) => { c[k] = (c[k] || []).filter((x) => !(x.date === e.date && x.period === e.period && x.space === e.space)); }).then(() => toast('삭제되었습니다.')); });
     };
     const drawOrphans = async () => {
       let list = []; try { list = await GP.spaceOrphans(); } catch (e) { /* 무시 */ }

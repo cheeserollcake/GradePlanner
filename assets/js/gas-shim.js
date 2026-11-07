@@ -17,8 +17,10 @@
   'use strict';
 
   // ---------------------------------------------------------------- 초기화
-  firebase.initializeApp(window.FIREBASE_CONFIG);
+  if (!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);   // 바깥 틀이 이미 연결해 둔 경우 그대로 사용(fb-boot.js)
   const db = firebase.firestore();
+  // 모바일·학교망처럼 기본 연결 방식이 막히거나 느릴 때 자동으로 다른 방식으로 연결합니다.
+  if (!window.__GP_SHARED_FB) { try { db.settings({ experimentalAutoDetectLongPolling: true, ignoreUndefinedProperties: true, merge: true }); } catch (e) { /* 이미 시작됨 */ } }
   const storage = firebase.storage ? firebase.storage() : null;
   // 저장소에 연결이 안 될 때 10분 동안 재시도하며 멈춰 있지 않도록, 20초 안에 실패로 알려 줍니다.
   try { if (storage) { storage.setMaxUploadRetryTime(20000); storage.setMaxOperationRetryTime(20000); } } catch (e) { /* 무시 */ }
@@ -78,9 +80,17 @@
   const CACHE_TTL = 6 * 3600 * 1000;   // 안전장치: 6시간이 지나면 번호가 같아도 다시 받습니다.
   const DELETE = firebase.firestore.FieldValue.delete();
   const LS = (() => { try { localStorage.setItem('__gp', '1'); localStorage.removeItem('__gp'); return localStorage; } catch (e) { return null; } })();
+  // 이 기기에 저장해 둔 사본: 시크릿/사생활 보호 모드에서는 localStorage 가 막히거나 창을 닫으면 사라지므로,
+  // 바깥 틀(index.html)이 열려 있는 동안은 그 메모리에도 함께 두어 페이지를 옮겨 다녀도 다시 내려받지 않게 합니다.
+  const MEM = (() => { try { if (window.__GP_SHARED_FB && window.parent && window.parent !== window) return window.parent.__gpMem || (window.parent.__gpMem = {}); } catch (e) { /* 단독 실행 */ } return {}; })();
+  const readLocal = (name) => { try { const raw = MEM[name] || (LS && LS.getItem(lsKey(name))); return raw ? JSON.parse(raw) : null; } catch (e) { return null; } };
   const lsKey = (n) => 'gp_c_' + n;
   const idcmp = (a, b) => (a._id < b._id ? -1 : a._id > b._id ? 1 : 0);
-  const saveLocal = (name, v, rows) => { if (!LS) return; try { LS.setItem(lsKey(name), JSON.stringify({ v, t: Date.now(), rows })); } catch (e) { /* 용량 초과: 사본 없이 동작 */ } };
+  const saveLocal = (name, v, rows) => {
+    let raw; try { raw = JSON.stringify({ v, t: Date.now(), rows }); } catch (e) { return; }
+    MEM[name] = raw;
+    if (LS) { try { LS.setItem(lsKey(name), raw); } catch (e) { /* 용량 초과: 메모리 사본만 사용 */ } }
+  };
   const fetchCol = (name) => db.collection(name).get().then((snap) => snap.docs.map((d) => Object.assign({ _id: d.id }, d.data())).sort(idcmp));
   const getVersions = () => versions || (versions = db.collection('app_meta').doc('version').get().then((s) => (s.exists ? s.data() : {})).catch((e) => { console.warn('version read failed', e); return null; }));
   // 다른 사람이 바꿨는지 다시 확인하고 싶을 때(1건 읽기). 바뀐 컬렉션만 새로 받습니다.
@@ -92,8 +102,8 @@
     cache[name] = (async () => {
       const vers = force ? null : await getVersions();
       const want = vers ? Number(vers[name] || 0) : null;
-      if (vers && LS) {
-        try { const loc = JSON.parse(LS.getItem(lsKey(name))); if (loc && Number(loc.v) === want && Date.now() - loc.t < CACHE_TTL) { loadedVer[name] = want; return loc.rows; } } catch (e) { /* 사본 없음 */ }
+      if (vers) {
+        const loc = readLocal(name); if (loc && Number(loc.v) === want && Date.now() - loc.t < CACHE_TTL) { loadedVer[name] = want; return loc.rows; }
       }
       const rows = await fetchCol(name);
       loadedVer[name] = want; if (want !== null) saveLocal(name, want, rows);
@@ -126,8 +136,12 @@
   async function commit(ops) {
     // ops: [{type:'set'|'update'|'delete', col, id, data, merge}]
     if (!ops || !ops.length) return;
+    const cols = [...new Set(ops.map((o) => o.col))];
+    const inc = {}; cols.forEach((c) => { inc[c] = firebase.firestore.FieldValue.increment(1); });
+    const verRef = db.collection('app_meta').doc('version');
     for (let i = 0; i < ops.length; i += 400) {
-      const batch = db.batch();
+      const batch = db.batch(); const last = i + 400 >= ops.length;
+      if (last) batch.set(verRef, inc, { merge: true });   // 변경 번호는 같은 묶음(1회 통신)으로 올림 — 모바일에서 저장이 느리던 원인 중 하나(통신 3번 → 2번)
       ops.slice(i, i + 400).forEach((o) => {
         const ref = db.collection(o.col).doc(o.id);
         if (o.type === 'delete') batch.delete(ref);
@@ -137,15 +151,13 @@
       try { await batch.commit(); }
       catch (e) {   // 다른 곳에서 이미 지워진 문서를 고치려 한 경우: 없는 문서는 새로 만들며 합쳐서 다시 저장
         if (!/no document to update|not.found/i.test(String(e && (e.message || e.code)))) throw e;
-        const b2 = db.batch();
+        const b2 = db.batch(); if (last) b2.set(verRef, inc, { merge: true });
         ops.slice(i, i + 400).forEach((o) => { const ref = db.collection(o.col).doc(o.id); if (o.type === 'delete') b2.delete(ref); else b2.set(ref, o.data, { merge: o.type === 'update' || !!o.merge }); });
         await b2.commit();
       }
     }
-    const cols = [...new Set(ops.map((o) => o.col))];
-    const inc = {}; cols.forEach((c) => { inc[c] = firebase.firestore.FieldValue.increment(1); });
     let after = null;
-    try { const ref = db.collection('app_meta').doc('version'); await ref.set(inc, { merge: true }); after = (await ref.get()).data() || {}; } catch (e) { console.warn('version bump failed', e); }
+    try { after = (await verRef.get()).data() || {}; } catch (e) { console.warn('version read failed', e); }
     versions = after ? Promise.resolve(after) : null;
     for (const c of cols) {
       // 우리가 알던 번호 바로 다음 번호면 그 사이 다른 사람의 저장이 없었던 것 → 사본을 직접 고침. 아니면 다음에 새로 받음.
@@ -195,8 +207,9 @@
     return { sem1: src.sem1 || {}, sem2: src.sem2 || {}, exceptions: src.exceptions || [], closeExceptions: src.closeExceptions || [], colors: base.colors || {} };
   }
   async function saveOpen(year, o) {
-    await setCfg('space_open_' + year, { sem1: o.sem1 || {}, sem2: o.sem2 || {}, exceptions: o.exceptions || [], closeExceptions: o.closeExceptions || [] });
-    await setCfg('space_open', { colors: o.colors || {} });   // 이전 형식(학년도 구분 없음)의 설정은 여기서 정리됩니다.
+    const now = new Date().toISOString(), cfgOp = (id, obj) => ({ type: 'set', col: 'app_config', id, data: { json: JSON.stringify(obj), updatedAt: now } });
+    await commit([cfgOp('space_open_' + year, { sem1: o.sem1 || {}, sem2: o.sem2 || {}, exceptions: o.exceptions || [], closeExceptions: o.closeExceptions || [] }),
+      cfgOp('space_open', { colors: o.colors || {} })]);   // 두 문서를 한 번에 저장. (이전 형식(학년도 구분 없음)의 설정은 여기서 정리됩니다.)
   }
   async function saveGeneral(g) {
     const gen = await getCfg('general', {});

@@ -142,3 +142,10 @@ data_mall(쇼핑몰 ID), data_links(바로가기)
 - 관리자 > 예산 설정: 카드마다 "표시할 예산 페이지"(학년 예산/학습준비물/추가한 예산 페이지)를 고르고(`list_budget_pages`), 페이지별 카드 순서는 `app_config/budget_layout`에 저장됩니다. 보기 탭: 전체 / 각 페이지.
 - 모든 예산 페이지(학습준비물, 추가 페이지 포함) 상단에 카드 구역과 "⚙ 관리자" 버튼이 있습니다.
 - 사진이 들어간 구글 스프레드시트 내보내기는 사진 포함 엑셀을 드라이브에 올려 구글 시트로 변환합니다(Google Drive API 사용 설정 필요).
+
+## 성능 관련 구조 (모바일/시크릿 모드)
+- Tailwind CDN 대신 미리 만든 CSS(`assets/css/tw-base.css`, `tw-util.css`)를 사용합니다. 클래스를 새로 쓰면 `node scripts/build_css.mjs`(tailwindcss 필요)로 다시 만드세요.
+- Firebase SDK/연결은 상위 창(index.html)이 한 번만 초기화하고 각 페이지(iframe)가 공유합니다(`assets/js/fb-boot.js`).
+- 시크릿 모드에서는 localStorage가 유지되지 않으므로, 앱을 켜 둔 동안은 메모리 캐시(`parent.__gpMem`)로 Firestore 읽기를 줄입니다.
+- 저장은 변경 번호 갱신을 같은 묶음(batch)에 넣어 통신 횟수를 줄였습니다.
+- 바로가기: 이름/URL/메모(선택)를 한 팝업에서 입력합니다.

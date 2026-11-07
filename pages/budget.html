@@ -4,16 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>예산</title>
+  <link rel="stylesheet" href="../assets/css/tw-base.css">
   <script>window.__GP_PAGE__ = 'budget';</script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+  <script src="../assets/js/fb-boot.js"></script>
   <script src="../assets/js/firebase-config.js"></script>
   <script src="../assets/js/gas-shim.js"></script>
   <script src="../assets/js/app-data.js"></script>
   <script src="../assets/js/xlsx-lite.js"></script>
   <script src="../assets/js/gsheet-export.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     /* ---- 구글 스프레드시트 느낌의 표 ---- */
@@ -28,7 +26,12 @@
     .sheet .rn .rtools { display:none; align-items:center; justify-content:center; gap:3px; height:32px; }
     .sheet .rn .rtools > * { font-style:normal; font-size:13px; line-height:1; padding:2px; border-radius:4px; cursor:pointer; background:transparent; border:0; }
     .sheet .rn .rtools > *:hover { background:#dbe4f3; }
-    .sheet .rn .grip { cursor:grab; color:#6b7280; letter-spacing:-2px; }
+    .sheet .rn .grip { cursor:grab; color:#6b7280; letter-spacing:-2px; touch-action:none; -webkit-user-select:none; user-select:none; }
+    @media (hover:none) {   /* 터치 화면: 마우스를 올릴 수 없으므로 줄 도구(이동·색·삭제)를 항상 보여 줌 */
+      .sheet tbody tr:not(.blank) .rn span { display:none; }
+      .sheet tbody tr:not(.blank) .rn .rtools { display:flex; gap:0; }
+      .sheet .rn .rtools > * { padding:6px 5px; }
+    }
     .sheet .rn button[data-del] { color:#b91c1c; }
     .sheet tbody tr:hover .rn span { display:none; }
     .sheet tbody tr:hover .rn .rtools { display:flex; }
@@ -70,6 +73,7 @@
     .colx { position:absolute; right:2px; top:1px; font-size:11px; color:#9aa0a6; display:none; line-height:1; }
     .sheet th:hover .colx { display:block; } .colx:hover { color:#b91c1c; }
   </style>
+  <link rel="stylesheet" href="../assets/css/tw-util.css">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
   <div class="max-w-7xl mx-auto space-y-4">
@@ -187,6 +191,10 @@ function enqueue(fn) {
     .catch((e) => { pendingN--; console.error(e); setState('error', e.message); });
   return queue;
 }
+// 입력 도중 화면을 떠나거나(모바일에서 앱 전환 등) 닫아도 마지막 칸이 저장되도록 함
+const flushActive = () => { const a = document.activeElement; if (a && a.matches && a.matches('input.cell') && a.value !== a._orig) { try { saveCell(a); } catch (e) { console.error(e); } } };
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushActive(); });
+window.addEventListener('pagehide', flushActive);
 window.addEventListener('beforeunload', (e) => { if (pendingN > 0) { e.preventDefault(); e.returnValue = ''; } });
 
 function blankDoc(kind, preset) {
@@ -217,7 +225,7 @@ async function renderCards() {
   box.innerHTML = cards.map((c, i) => '<div class="border border-slate-200 rounded-xl p-3 shadow-sm" style="background:' + esc(c.color || PALETTE[i % PALETTE.length]) + '"><div class="font-bold text-sm border-b border-black/10 pb-1 mb-1">' + esc(c.name) + '</div>' +
     '<div class="flex justify-between text-xs"><span>배정액</span><b>' + fmt(c.assigned) + '</b></div><div class="flex justify-between text-xs"><span>사용액</span><b>' + fmt(c.used) + '</b></div>' +
     '<div class="flex justify-between text-sm mt-1 pt-1 border-t border-black/10"><span>잔액</span><b class="' + (c.balance < 0 ? 'text-red-600' : 'text-blue-700') + '">' + fmt(c.balance) + '</b></div></div>').join('') +
-    '<div class="flex items-end"><button id="cardAdmin" class="text-xs px-2 py-1 rounded-md bg-white border border-slate-300 text-slate-500 hover:bg-slate-50" title="예산 카드 관리(관리자)">⚙ 관리자</button></div>';
+    '<div class="flex items-end"><button id="cardAdmin" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600 border border-indigo-100" title="관리자 페이지로 이동 (예산 카드 관리)" aria-label="관리자"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 2.5h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7v-.2a2 2 0 0 0-2-2Z" /><circle cx="12" cy="12" r="3" /></svg></button></div>';
   $('cardAdmin').onclick = openAdminGate;
 }
 function renderFilters() {
@@ -449,6 +457,26 @@ gw.addEventListener('dragover', (e) => {
   tr.classList.add(after ? 'drop-after' : 'drop-before'); dropInfo = { target: blank ? null : tr.dataset.id, after };
 });
 gw.addEventListener('drop', (e) => { if (!dragId) return; e.preventDefault(); const id = dragId, info = dropInfo; dragId = null; dropInfo = null; clearDropMarks(); if (info) moveRow(id, info.target, info.after); });
+// ---- 터치(모바일)로 줄 이동: 왼쪽 ⠿ 를 누른 채 위아래로 끌기 ----
+let tdrag = null;
+gw.addEventListener('touchstart', (e) => {
+  const g = e.target.closest && e.target.closest('.grip'); if (!g) return; const tr = g.closest('tr'); if (!tr || !tr.dataset.id) return;
+  const t = e.touches[0]; tdrag = { id: tr.dataset.id, info: null, x: t.clientX, y: t.clientY, timer: null }; tr.classList.add('dragging');
+  tdrag.timer = setInterval(() => {   // 손가락이 위·아래 가장자리에 있으면 표를 스크롤
+    if (!tdrag) return; const r = gw.getBoundingClientRect();
+    if (tdrag.y < r.top + 50) gw.scrollTop -= 14; else if (tdrag.y > r.bottom - 50) gw.scrollTop += 14; else return; touchMark();
+  }, 30);
+}, { passive: true });
+function touchMark() {
+  if (!tdrag) return; clearDropMarks();
+  const el = document.elementFromPoint(tdrag.x, tdrag.y); const tr = el && el.closest ? el.closest('#gridWrap tbody tr') : null;
+  if (!tr || tr.dataset.id === tdrag.id) { tdrag.info = null; return; }
+  const r = tr.getBoundingClientRect(); const blank = tr.classList.contains('blank'); const after = !blank && tdrag.y > r.top + r.height / 2;
+  tr.classList.add(after ? 'drop-after' : 'drop-before'); tdrag.info = { target: blank ? null : tr.dataset.id, after };
+}
+gw.addEventListener('touchmove', (e) => { if (!tdrag) return; const t = e.touches[0]; tdrag.x = t.clientX; tdrag.y = t.clientY; touchMark(); }, { passive: true });
+const endTouch = (cancel) => { if (!tdrag) return; const d = tdrag; tdrag = null; clearInterval(d.timer); clearDropMarks(); document.querySelectorAll('#gridWrap tr.dragging').forEach((t) => t.classList.remove('dragging')); if (!cancel && d.info) moveRow(d.id, d.info.target, d.info.after); };
+gw.addEventListener('touchend', () => endTouch(false)); gw.addEventListener('touchcancel', () => endTouch(true));
 gw.addEventListener('dragend', () => { dragId = null; dropInfo = null; clearDropMarks(); document.querySelectorAll('#gridWrap tr.dragging').forEach((t) => t.classList.remove('dragging')); });
 
 const PALETTE = [['#fee2e2', '빨강'], ['#ffedd5', '주황'], ['#fef9c3', '노랑'], ['#dcfce7', '초록'], ['#dbeafe', '파랑'], ['#ede9fe', '보라'], ['#fce7f3', '분홍'], ['#e5e7eb', '회색']];
@@ -736,7 +764,7 @@ async function doSync() {
   if (foc) { const tr = [...document.querySelectorAll('#gridWrap tbody tr')].find((t) => t.dataset.id === foc.id); const i2 = tr && tr.querySelector('input[data-ci="' + foc.ci + '"]'); if (i2) { i2.focus(); try { i2.setSelectionRange(foc.pos, foc.pos); } catch (e) { /* 무시 */ } } }
   const el = $('saveState'); el.textContent = '↻ 다른 사람이 수정한 내용을 반영했습니다'; el.className = 'text-xs text-indigo-600 ml-auto'; setTimeout(() => { if (el.textContent.startsWith('↻')) el.textContent = ''; }, 4000);
 }
-function startWatch() { try { GP.db.collection('app_meta').doc('version').onSnapshot(onVersion, (e) => console.warn('실시간 동기화를 사용할 수 없습니다', e)); } catch (e) { console.warn(e); } }
+function startWatch() { try { const unsub = GP.db.collection('app_meta').doc('version').onSnapshot(onVersion, (e) => console.warn('실시간 동기화를 사용할 수 없습니다', e)); window.addEventListener('pagehide', () => { try { unsub(); } catch (e) { /* 무시 */ } }); } catch (e) { console.warn(e); } }   // 공유 연결을 쓰므로 페이지를 떠날 때 구독을 끊음
 
 // ======================= 시작 =======================
 async function load(fresh) {

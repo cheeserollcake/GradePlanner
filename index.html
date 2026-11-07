@@ -32,8 +32,13 @@
   <div id="overlay"></div>
   <nav id="drawer"><div id="drawerTitle"></div></nav>
   <iframe id="frame" title="내용"></iframe>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="assets/js/firebase-config.js"></script>
 <script>
 (function () {
+  // Firebase 도구는 여기서 한 번만 불러와 연결하고, 안쪽 페이지들이 그대로 가져다 씁니다(fb-boot.js).
+  try { firebase.initializeApp(window.FIREBASE_CONFIG); firebase.firestore().settings({ experimentalAutoDetectLongPolling: true, ignoreUndefinedProperties: true }); } catch (e) { console.warn('firebase init failed', e); }
   var CFG = {
     apiKey: "AIzaSyDonpgXJGlSjqv-sFVAdlokpZ0XhONpjY0", authDomain: "gradeplanner-d5499.firebaseapp.com", projectId: "gradeplanner-d5499",
     storageBucket: "gradeplanner-d5499.firebasestorage.app", messagingSenderId: "1084828628942", appId: "1:1084828628942:web:255327f94a2be511d99d9f", measurementId: "G-R5VZNEYT45"
@@ -78,13 +83,7 @@
 
   // 학년도/학년은 관리자 설정(app_config/general)에서 가져옵니다. (화면은 저장된 값으로 먼저 그림)
   function loadScript(src) { return new Promise(function (res, rej) { var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
-  var dbReady = null;
-  function getDb() {
-    if (!dbReady) dbReady = loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js')
-      .then(function () { return loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js'); })
-      .then(function () { firebase.initializeApp(CFG); return firebase.firestore(); });
-    return dbReady;
-  }
+  function getDb() { try { return Promise.resolve(firebase.firestore()); } catch (e) { return Promise.reject(e); } }
   function refreshMeta() {
     getDb().then(function (db) { return db.collection('app_config').doc('general').get(); }).then(function (snap) {
       var g = snap.exists && snap.data() && snap.data().json ? JSON.parse(snap.data().json) : {};

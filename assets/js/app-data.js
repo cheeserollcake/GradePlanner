@@ -97,8 +97,8 @@
 
   // ------------------------------------------------------------ 하루 일정 수정 (연필 아이콘)
   const sameDay = (a, b) => a && b && ymd(a) === ymd(b);
-  async function getDayState(d) {
-    G.fresh();
+  async function getDayState(d, fresh) {   // fresh: 저장 직전에만 서버 최신 상태를 확인(수정 창을 열 때는 이미 받아 둔 데이터를 씀 — 모바일에서 수정 창이 늦게 뜨던 원인)
+    if (fresh) G.fresh();
     const [ts, tm, basic] = await Promise.all([getCol('data_task_school'), getCol('data_task_memo'), getCol('data_basic')]);
     const single = (rows, fs, fe, fn) => rows.filter((r) => { const a = toDate(r[fs]), b = toDate(r[fe]); return sameDay(a, d) && (!b || sameDay(b, d)) && str(r[fn]).trim(); });
     const range = (rows, fs, fe, fn) => rows.filter((r) => { const a = toDate(r[fs]), b = toDate(r[fe]); return a && b && !sameDay(a, b) && a <= d && b >= d && str(r[fn]).trim(); });
@@ -126,7 +126,7 @@
     await commit(ops);
   }
   async function saveDay(d, v) {
-    const st = await getDayState(d);
+    const st = await getDayState(d, true);
     const ops = [];
     if (st.holiday.length) await clearHolidayRows(st.holiday); else st.school.forEach((r) => ops.push({ type: 'delete', col: 'data_task_school', id: r._id }));
     st.memo.forEach((r) => ops.push({ type: 'delete', col: 'data_task_memo', id: r._id }));
@@ -263,7 +263,10 @@
     const j = await res.json(); return j.createTime ? new Date(j.createTime) : null;
   }
   async function storageFilesIn(folder, r) {
-    if (!G.storage) return []; const hit = [];
+    if (!G.storage) {   // 이 페이지에는 Storage 도구를 미리 넣지 않았으므로 필요할 때만 불러옴(속도)
+      try { await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js'; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); }); G.storage = firebase.storage(); } catch (e) { return []; }
+    }
+    const hit = [];
     const list = await G.storage.ref(folder).listAll();
     for (const it of list.items) { const m = await it.getMetadata(); if (inRange(toDate(new Date(m.timeCreated)), r)) hit.push(it); }
     return hit;

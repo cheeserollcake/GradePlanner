@@ -17,11 +17,14 @@ PAGES = {  # 폴더명 -> (새 파일명, 페이지키)
     "Page 11":  ("mall-id.html", "p11"),
 }
 FB = "https://www.gstatic.com/firebasejs/10.12.2/"
+# 관리자 버튼용 톱니바퀴(선 아이콘). 예산 페이지의 버튼과 같은 모양.
+GEAR_SVG = '<path d="M12.2 2.5h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7v-.2a2 2 0 0 0-2-2Z" /><circle cx="12" cy="12" r="3" />'
+
 INJECT = lambda key: f"""
   <script>window.__GP_PAGE__ = '{key}';</script>
-  <script src="{FB}firebase-app-compat.js"></script>
-  <script src="{FB}firebase-firestore-compat.js"></script>
-  <script src="{FB}firebase-storage-compat.js"></script>
+  <script src="../assets/js/fb-boot.js"></script>
+  {'<script src="' + FB + 'firebase-storage-compat.js"></script>' if key == 'p10' else ''}
+  <link rel="stylesheet" href="../assets/css/tw-base.css">
   <script src="../assets/js/firebase-config.js"></script>
   <script src="../assets/js/gas-shim.js"></script>
 """
@@ -44,6 +47,10 @@ def finalize(html):
         html = re.sub(r'\s*<script src="https://cdnjs\.cloudflare\.com/ajax/libs/react/[^"]*"></script>', '\n  <script src="../assets/js/react.min.js"></script>', html, count=1)
         html = re.sub(r'\s*<script src="https://cdnjs\.cloudflare\.com/ajax/libs/react-dom/[^"]*"></script>', '', html)
         html = re.sub(r'\s*<script src="https://cdnjs\.cloudflare\.com/ajax/libs/babel-standalone/[^"]*"></script>', '', html)
+    # 모바일 속도: Tailwind CDN(브라우저에서 CSS 생성) 대신 미리 만든 CSS (scripts/build_css.mjs)
+    html = re.sub(r'[ \t]*<script src="https://cdn\.tailwindcss\.com"></script>\n?', '', html)
+    if '</head>' in html and 'tw-util.css' not in html:
+        html = html.replace('</head>', '  <link rel="stylesheet" href="../assets/css/tw-util.css">\n</head>', 1)
     return html
 
 def must_replace(txt, old, new, name):
@@ -66,6 +73,8 @@ for folder, (fname, key) in PAGES.items():
         html = INJECT(key) + html
 
     if key == "p06":   # 탭을 관리자 설정(전담교사 매칭)에서 가져옴
+        html, _n = re.subn(r"\{saveStatus === 'saved' && \(\s*<span className=\"status-saved\">[\s\S]*?</span>\s*\)\}", "", html, count=1)   # "모든 내용 저장됨" 문구 삭제
+        if not _n: raise SystemExit("p06 저장됨 문구를 찾지 못했습니다")
         html = must_replace(html, "if (targetVal !== currentVal) {", "if (targetVal && targetVal !== currentVal) {", fname)
         html = must_replace(html, "useState('전담(과학1)')", "useState('')", fname)
         html = must_replace(html, "const tabs = ['전담(과학1)', '전담(과학2)', '전담(영어1)', '전담(영어2)', '전담(영어3)'];", "const tabs = Object.keys(cachedData);", fname)
@@ -135,6 +144,20 @@ for folder, (fname, key) in PAGES.items():
         html = R("""{subjects.filter(s=>s).map(s => <option key={s} value={s}>{s}</option>)}""", """{(isOff(cIdx+1, rIdx+1) ? (cell ? [cell] : []) : subjects.filter(s=>s)).map(s => <option key={s} value={s}>{s}</option>)}""")
         html = R("""<td key={cIdx} className={`border p-0 ${cellClass} ${cellBold} h-8 relative`}>""", """<td key={cIdx} className={`border p-0 ${cellClass} ${cellBold} h-8 relative`} style={isOff(cIdx+1, rIdx+1) ? OFF_STYLE : undefined}>""")
     if key == "p07":   # 관리자 설정 버튼은 새 관리자 페이지로 이동
+        # 상단 아이콘을 한 벌의 선(line) 아이콘으로 통일 (굵기·모서리 동일) — 관리자 버튼(톱니)도 예산 페이지와 같은 모양
+        def _ico(name, inner, cls="w-5 h-5"):
+            return f'      {name}: () => <svg className="{cls}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" strokeWidth={{1.8}} strokeLinecap="round" strokeLinejoin="round">{inner}</svg>,\n'
+        _ICONS = {
+            "Sports": '<circle cx="12" cy="12" r="9.5" /><path d="M12 2.5v19M2.5 12h19" /><path d="M5.3 5.3c3.1 3.2 3.1 10.2 0 13.4M18.7 5.3c-3.1 3.2-3.1 10.2 0 13.4" />',
+            "Computer": '<rect x="2.5" y="3.5" width="19" height="13" rx="2.2" /><path d="M8 21h8M12 16.5V21" />',
+            "Photo": '<rect x="3.5" y="3.5" width="17" height="17" rx="3" /><circle cx="9" cy="9" r="1.6" /><path d="m20.5 15.5-4.3-4.3a2 2 0 0 0-2.8 0L5.5 20.5" />',
+            "Shield": '<path d="M12 3 5 5.8v5.4c0 4.4 2.9 8 7 9.8 4.1-1.8 7-5.4 7-9.8V5.8L12 3Z" /><path d="m9 12 2.2 2.2L15 10.4" />',
+            "Key": GEAR_SVG,
+            "Gear": GEAR_SVG,
+        }
+        for _n, _inner in _ICONS.items():
+            html, _c = re.subn(r"      " + _n + r": \(\) => <svg.*?</svg>,?\n", lambda m, n=_n, i=_inner: _ico(n, i), html, count=1, flags=re.S)
+            if not _c: raise SystemExit("아이콘을 찾지 못했습니다: " + _n)
         html = must_replace(html, "onClick={() => isAdmin ? setView('admin') : setAuthModal('admin')}", "onClick={() => { try { parent.location.hash = '#/admin'; } catch (e) { location.href = 'admin.html'; } }}", fname)
     if key == "p05":   # 학년도 연도는 서버(관리자 설정) 값을 사용
         html = must_replace(html, "const baseYear = 2026;", "const baseYear = dbData.year || 2026;", fname)
@@ -306,7 +329,7 @@ for folder, (fname, key) in PAGES.items():
           "const semester = (selectedMonth >= 3 && selectedMonth <= 7) ? 'sem1' : 'sem2';\n      const semKeyOf = (dt) => { const sems = settings?.semesters || []; const iso = getLocalISODate(dt); const s1 = sems.find(x => x.name === '1학기'); const s2 = sems.find(x => x.name === '2학기'); if (s2 && iso >= s2.start && iso <= s2.end) return 'sem2'; if (s1 && iso >= s1.start && iso <= s1.end) return 'sem1'; return semester; };")
         html = R("const isoDate = getLocalISODate(dayObj);", "const isoDate = getLocalISODate(dayObj);\n                      const semester = semKeyOf(dayObj);")
         html = R("const headerClass = tableType === 'sports' ? 'sticky-header-sports' : 'sticky-header-com';",
-          "const headerClass = tableType === 'sports' ? 'sticky-header-sports' : 'sticky-header-com';\n      const colW = 62 + spaces.length * 54;\n      const tdStyle = {};\n      const tblStyle = {};\n      const gridStyle = { display: 'grid', gridTemplateColumns: '1.3fr repeat(' + spaces.length + ', 1fr)', width: '100%' };\n      const periodCount = (settings?.times?.length || 6);")
+          "const headerClass = tableType === 'sports' ? 'sticky-header-sports' : 'sticky-header-com';\n      const colW = 62 + spaces.length * 54;\n      // 열 최소 너비: 머리글(공간 이름)이 잘리지 않는 크기. 모든 열(교시 칸 포함)을 같은 너비로 나눔\n      const _cw = (t) => [...String(t)].reduce((a, ch) => a + (/[ㄱ-힣]/.test(ch) ? 12 : 7), 0);\n      const colMin = Math.max(40, Math.round(Math.max(24, ...spaces.flatMap(sp => String(sp).split(/(?=\\()/)).map(_cw)) + 10));\n      const tdStyle = {};\n      const tblStyle = {};\n      const gridStyle = { display: 'grid', gridTemplateColumns: 'repeat(' + (spaces.length + 1) + ', minmax(' + colMin + 'px, 1fr))', width: '100%' };\n      const periodCount = (settings?.times?.length || 6);")
         html = R("<th key={wd} className={`${headerClass} p-3 text-center font-extrabold`}>", "<th key={wd} style={tdStyle} className={`${headerClass} p-3 text-center font-extrabold`}>")
         html = R("<td key={dIdx} className={`border-r bg-slate-50 ${tdWidthClass}`}></td>", "<td key={dIdx} style={tdStyle} className={`border-r bg-slate-50 ${tdWidthClass}`}></td>")
         html = R("<td key={dIdx} className={`border-r p-1 align-top ${tdWidthClass} ${isHoliday ? 'bg-holiday' : ''}`}>", "<td key={dIdx} style={tdStyle} className={`border-r p-1 align-top ${tdWidthClass} ${isHoliday ? 'bg-holiday' : ''}`}>")
@@ -366,9 +389,11 @@ for folder, (fname, key) in PAGES.items():
         };
         """ + html[b:]
         html = R("</style>", """.nl-table { table-layout: fixed; width: 100%; margin: 0 auto; box-sizing: border-box; }
-      /* 열 너비는 '최대' 너비: 넓은 화면에서만 고정하고, 좁아지면 비율로 함께 줄어듭니다 */
-      .nl-table col.c-no, .nl-table col.c-gd { width: 10%; } .nl-table col.c-nm, .nl-table col.c-nt { width: 22%; }
-      .nl-table col.c-bd { width: 28%; } .nl-table col.c-dl { width: 8%; }
+      /* 좁은 화면: 열 너비는 내용이 잘리지 않는 크기(번호·성별·생년월일·삭제는 고정 px, 이름·기타는 나머지)이고, 화면보다 표가 넓으면 가로로 스크롤됩니다 */
+      .nl-table { min-width: 360px; }
+      .nl-table col.c-no { width: 40px; } .nl-table col.c-gd { width: 50px; } .nl-table col.c-nm, .nl-table col.c-nt { width: auto; }
+      .nl-table col.c-bd { width: 108px; } .nl-table col.c-dl { width: 36px; }
+      .nl-table th { white-space: nowrap; }
       .nl-table input { min-width: 0; font-size: clamp(11px, 3.2vw, 16px); }
       .nl-table th, .nl-table td { overflow: hidden; }
       @media (min-width: 900px) {
@@ -488,9 +513,9 @@ for folder, (fname, key) in PAGES.items():
                  "onUpload={(data, name, type, cb) => { google.script.run.withSuccessHandler((res)=>{ if (res && res.success === false) alert('업로드하지 못했습니다: ' + res.error); else if (res && res.item) setImages(prev => [...prev, res.item]); else fetchImages(); cb(); }).withFailureHandler((e)=>{ alert('업로드하지 못했습니다: ' + e); cb(); }).uploadImage(data, name, type); }}")
     if key == "p07":   # 공간 수가 바뀌어도(추가/삭제) 표 열 수가 맞도록 격자 열을 공간 개수로 계산
         n0 = html.count("className={`${gridRowClass} ")
-        html = html.replace("className={`${gridRowClass} ", "style={{ gridTemplateColumns: '1.5fr repeat(' + spaces.length + ', 1fr)' }} className={`${gridRowClass} ")
+        html = html.replace("className={`${gridRowClass} ", "style={{ gridTemplateColumns: 'repeat(' + (spaces.length + 1) + ', minmax(' + colMin + 'px, 1fr))' }} className={`${gridRowClass} ")
         print("  p07 격자 행", n0)
-        html = must_replace(html, "<table className=\"border-collapse bg-white shadow-sm rounded-lg mx-auto inline-table text-left\" style={{tableLayout: 'fixed'}}>", "<table className=\"border-collapse bg-white shadow-sm rounded-lg mx-auto inline-table text-left\" style={{tableLayout: 'fixed', minWidth: Math.round(5 * (spaces.length + 1.5) * 28) + 'px'}}>", fname)
+        html = must_replace(html, "<table className=\"border-collapse bg-white shadow-sm rounded-lg mx-auto inline-table text-left\" style={{tableLayout: 'fixed'}}>", "<table className=\"border-collapse bg-white shadow-sm rounded-lg mx-auto inline-table text-left\" style={{tableLayout: 'fixed', minWidth: (5 * ((spaces.length + 1) * colMin + 12)) + 'px'}}>", fname)
     if key == "p07":   # 구글 이미지 크기 접미사 제거
         html = must_replace(html, 'img.url + "=s800"', 'img.url', fname)
     if key == "p10":   # 구글 드라이브 미리보기 -> Firebase Storage 주소

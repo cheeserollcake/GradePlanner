@@ -3,16 +3,15 @@
   <head>
   <meta charset="UTF-8">
   <script>window.__GP_PAGE__ = 'p05';</script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+  <script src="../assets/js/fb-boot.js"></script>
+  
+  <link rel="stylesheet" href="../assets/css/tw-base.css">
   <script src="../assets/js/firebase-config.js"></script>
   <script src="../assets/js/gas-shim.js"></script>
 
     
     <!-- unpkg 대신 가장 안정적인 cdnjs로 변경 및 Babel 7 버전 고정 -->
   <script src="../assets/js/react.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
       /* 1. 폰트 Arial 고정 */
       body { font-family: Arial, sans-serif; background-color: #f8fafc; }
@@ -75,7 +74,8 @@
         overflow: hidden;
       }
     </style>
-  </head>
+    <link rel="stylesheet" href="../assets/css/tw-util.css">
+</head>
   <body>
     <div id="root"></div>
     <script>const{useState,useEffect}=React,MonthlyTimetableApp=()=>{const[M,A]=useState(null),[N,D]=useState([]),[$,j]=useState([]),[v,C]=useState(!1),_=[3,4,5,6,7,8,9,10,11,12,1,2],H=(o,e)=>{if(!e)return;e.holidays=e.holidays||[],e.auditorium=e.auditorium||[],e.subject=e.subject||[],e.added=e.added||[];const l=e.year||2026,t=o===1||o===2?l+1:l,i=s=>`${s.getFullYear()}-${s.getMonth()+1}-${s.getDate()}`,c={};e.holidays.forEach(s=>{if(s[0]){const f=new Date(s[0]);isNaN(f.getTime())||(c[i(f)]=s[1])}});const d={},p=(s,f,m,x)=>{if(!s||!x)return;const r=new Date(s);if(isNaN(r.getTime()))return;const n=i(r),u=String(f).split(",").map(a=>parseInt(a.replace(/[^0-9]/g,""))).filter(a=>!isNaN(a)&&a>0),b=String(m).split(",").map(a=>parseInt(a.replace(/[^0-9]/g,""))).filter(a=>!isNaN(a)&&a>0);u.length===0||b.length===0||u.forEach(a=>{b.forEach(y=>{const h=`${n}_${a}_${y}`;d[h]?d[h]+=`
