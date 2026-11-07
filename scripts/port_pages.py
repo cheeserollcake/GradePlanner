@@ -340,6 +340,10 @@ for folder, (fname, key) in PAGES.items():
         html = R("<div key={i} className={`grid-col ${i < spaces.length - 1 ? 'border-r border-slate-300' : ''}`}>{sp}</div>", "<div key={i} style={{ backgroundColor: (settings?.colors || {})[sp], whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'keep-all', lineHeight: 1.15, fontSize: '9pt', padding: '2px 1px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className={`grid-col ${i < spaces.length - 1 ? 'border-r border-slate-300' : ''}`}><span>{String(sp).split(/(?=\\()/).map((t, k) => <React.Fragment key={k}>{k > 0 && <br />}{t}</React.Fragment>)}</span></div>")
         a = html.index("// 다목의 경우 팝업 및 병합 표시 특별 처리"); b = html.index("// 일반 공간 처리")
         html = html[:a] + html[b:]
+        # 체육 공간(강당·나래마당·운동장 … 앞으로 추가할 공간 포함)은 모두 체크박스 다중 선택, 컴실 등은 드롭다운 그대로
+        html = R("if (spName === '운동장') {", "if (tableType === 'sports') {")
+        html = R("onClick={() => setMultiSelectModal({ cellKey, selected: value ? value.split(', ') : [] })}", "onClick={() => setMultiSelectModal({ cellKey, space: spName, selected: value ? value.split(', ').filter(Boolean) : [] })}")
+        html = R('운동장 다중 선택</h3>', '{multiSelectModal.space || \'\'} 다중 선택</h3>')
         html = R("const globalSpaceIdx = spaceIndices[localIdx];", "const globalSpaceIdx = spName;")
         html = html.replace("parseInt(ex.spaceIdx) === globalSpaceIdx", "ex.space === globalSpaceIdx")
         html = R("const spNameMapping = allSpaces[globalSpaceIdx];", "const spNameMapping = spName;")

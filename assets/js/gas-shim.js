@@ -335,7 +335,7 @@
       classes: uniq('list_class').sort(natural), subs: uniq('list_sub'), times: uniq('list_time').sort(natural),
       gyms: uniq('list_gym'), rooms: uniq('list_room'), teachers: uniq('list_t'),
       budgets: rows.filter((r) => str(r.list_budget).trim())
-        .map((r, i) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount), color: str(r.list_budget_color).trim(), pages: str(r.list_budget_pages).trim() ? str(r.list_budget_pages).split(',').filter(Boolean) : ['budget'], _o: (r.list_budget_order === undefined || r.list_budget_order === '' || r.list_budget_order === null) ? 1e6 + i : Number(r.list_budget_order) }))
+        .map((r, i) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount), color: str(r.list_budget_color).trim(), pages: str(r.list_budget_pages).trim() ? str(r.list_budget_pages).split(',').filter(Boolean).map((p) => (p === 'supply' ? 'supply1' : p)) : ['budget'], _o: (r.list_budget_order === undefined || r.list_budget_order === '' || r.list_budget_order === null) ? 1e6 + i : Number(r.list_budget_order) }))
         .sort((a, b) => a._o - b._o).map(({ _o, ...b }) => b),
       budgetHeaders: uniq('list_budget_header')
     };
@@ -380,15 +380,35 @@
   }
 
   // pageId 를 주면 그 예산 페이지에 표시하기로 한 카드만, 그 페이지에서 정한 순서대로 돌려줍니다. 주지 않으면 모든 카드.
+  // 예산 표(학년 예산 + 추가한 예산 페이지)의 모든 줄: { name, amount, fee }
+  //  fee = 학년회비·학교친목회비인데 규격에 학급을 체크한 줄 → 사용액이 아니라 배정액에 더해집니다.
+  const FEE_RE = /학년회비|친목회비/;
+  async function budgetLines() {
+    const lists = await getLists(); const classes = lists.classes.filter((c) => c !== '학년공통'); const out = [];
+    const add = (name, spec, n, p) => {
+      name = str(name).trim(); if (!name) return;
+      out.push({ name, amount: num(n) * num(p), fee: FEE_RE.test(name) && str(spec).split(',').map((x) => x.trim()).some((t) => classes.indexOf(t) >= 0) });
+    };
+    (await getCol('data_budget')).forEach((r) => add(r.budget_name, r.budget_spec, r.budget_num, r.budget_price));
+    const cfg = await getCfg('budget_sheets', { sheets: [] }), sheets = Array.isArray(cfg.sheets) ? cfg.sheets : [];
+    if (sheets.length) {
+      const rows = await getCol('data_sheet_rows');
+      sheets.forEach((s) => {
+        const by = (n) => (s.cols || []).find((c) => str(c.name).trim() === n), cn = by('예산종류'), cs = by('규격'), cq = by('수량'), cp = by('단가'); if (!cn || !cq || !cp) return;
+        rows.filter((r) => r.sheet === s.id).forEach((r) => add(r['f_' + cn.id], cs ? r['f_' + cs.id] : '', r['f_' + cq.id], r['f_' + cp.id]));
+      });
+    }
+    return out;
+  }
   async function buildBudgetCards(pageId) {
     const lists = await getLists();
-    const rows = await getCol('data_budget');
+    const lines = await budgetLines();
     const heads = {};
     lists.budgets.forEach((b) => { const h = b.name.split('/')[0]; (heads[h] = heads[h] || []).push(b); });
     const cards = []; const done = new Set();
     let list = lists.budgets;
     if (pageId) {
-      const lay = (await getCfg('budget_layout', {}))[pageId]; const pos = (n) => { const i = Array.isArray(lay) ? lay.indexOf(n) : -1; return i < 0 ? 1e6 : i; };
+      const layAll = (await getCfg('budget_layout', {})) || {}; const lay = layAll[pageId] || (pageId === 'supply1' ? layAll.supply : undefined); const pos = (n) => { const i = Array.isArray(lay) ? lay.indexOf(n) : -1; return i < 0 ? 1e6 : i; };
       list = list.filter((b) => (b.pages || ['budget']).indexOf(pageId) >= 0).map((b, i) => ({ b, i })).sort((x, y) => pos(x.b.name) - pos(y.b.name) || x.i - y.i).map((x) => x.b);
     }
     list.forEach((b) => {
@@ -396,9 +416,10 @@
       if (done.has(h)) return;
       const merged = heads[h].length > 1;
       const name = merged ? h : b.name;
-      const assigned = merged ? heads[h].reduce((a, x) => a + x.amount, 0) : b.amount;
-      const used = rows.filter((r) => { const n = str(r.budget_name).trim(); return n === name || n === h || n === b.name; })
-        .reduce((a, r) => a + num(r.budget_num) * num(r.budget_price), 0);
+      const base = merged ? heads[h].reduce((a, x) => a + x.amount, 0) : b.amount;
+      const mine = lines.filter((r) => r.name === name || r.name === h || r.name === b.name);
+      const used = mine.filter((r) => !r.fee).reduce((a, r) => a + r.amount, 0);
+      const assigned = base + mine.filter((r) => r.fee).reduce((a, r) => a + r.amount, 0);   // 학년회비 등 학급을 체크한 줄은 배정액에 추가
       cards.push({ name, assigned, used, balance: assigned - used, color: merged ? '' : b.color });
       done.add(h);
     });
@@ -1107,6 +1128,6 @@
   window.google = { script: { run: runner(null, null), host: { close() {}, setHeight() {} } } };
 
   // 직접 Firestore를 쓰는 새 페이지(예산/바로가기/교실배치도)를 위한 공용 도구
-  window.GP = { db, storage, TS, getCol, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
+  window.GP = { db, storage, TS, budgetLines, getCol, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
     getPw, setPw, readList, writeList, spaceOrphans, countSpaceData, purgeSpaceData, renameSpaceData, listSpaceData, deleteSpaceRows, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
 })();
