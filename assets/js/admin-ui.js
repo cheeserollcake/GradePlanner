@@ -388,6 +388,7 @@
         } catch (e) { console.error(e); toast('실패: ' + e.message, true); }
       };
 
+      if (part === 'year') {   // 학기·방학 칸은 '학년도 설정' 탭에만 있습니다
       // 학기·방학: 날짜를 고르면 바로 저장. 앞 기간의 종료일 다음 날이 다음 기간의 시작일로 자동 입력됩니다.
       document.querySelectorAll('[data-ystep]').forEach((b) => b.onclick = () => { const i = $('year'); i.value = (parseInt(i.value, 10) || g.year) + (+b.dataset.ystep); });
       const semIn = (n, p) => view.querySelector('[data-sem="' + n + '"][data-p="' + p + '"]');
@@ -429,6 +430,7 @@
       view.querySelectorAll('input[data-sem]').forEach((inp) => { inp.oninput = paintSem; inp.onchange = () => { onSem(inp.dataset.sem, inp.dataset.p); paintSem(); }; });
       paintSem();
       if (!APP.SEM_NAMES.some((n) => sems[n]) && window.__semDefSaved !== g.year) { window.__semDefSaved = g.year; const { upd } = collect(APP.SEM_NAMES); if (Object.keys(upd).length) autosave(async () => { await APP.saveSemesters(g.year, upd); sems = await APP.getSemesterRows(g.year); }, '기본 학기·방학 기간이 저장되었습니다.'); }
+      }
 
       // 기초 일정 (학교 행사 / 휴일)
       const readEv = () => {
