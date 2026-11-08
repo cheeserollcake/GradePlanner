@@ -111,7 +111,7 @@
         '<span class="text-sm text-slate-500">주당 시수 합계 <b id="hsum">' + sum() + '</b></span></div></div>' +
         '<div class="space-y-5"><div class="' + CARD + '"><h2 class="font-bold text-lg">교시 설정</h2><div class="space-y-2">' +
         times.map((t, i) => '<div class="flex gap-2"><input data-ti="' + i + '" value="' + esc(t) + '" class="' + INP + ' flex-1"><button data-tdel="' + i + '" class="text-slate-400 hover:text-red-600">✕</button></div>').join('') +
-        '</div><button id="addTime" class="' + BTN_G + '">+ 교시 추가</button></div>' + slotCard() + '</div></div>';
+        '</div><button id="addTime" class="' + BTN_G + '">+ 교시 추가</button></div>' + slotCard() + '</div></div>' + bulkHtml();
       view.querySelectorAll('[data-k]').forEach((el) => el.onchange = () => {
         const s = subs[+el.dataset.i], k = el.dataset.k; s[k] = el.type === 'checkbox' ? el.checked : el.value; if (k === 'hours') $('hsum').textContent = sum(); saveSubs();
       });
@@ -124,9 +124,109 @@
       view.querySelectorAll('[data-ti]').forEach((el) => el.onchange = () => { times[+el.dataset.ti] = el.value; saveTimes(); draw(); });
       view.querySelectorAll('[data-tdel]').forEach((b) => b.onclick = () => { times.splice(+b.dataset.tdel, 1); draw(); saveTimes(); });
       $('addTime').onclick = () => { times.push((times.length + 1) + '교시'); draw(); saveTimes(); };
+      bindBulk();
     });
     draw();
     if (subs.some((s) => !s.stored && s.hours !== '')) saveSubs();   // 기본 시수를 처음 한 번 저장해 둡니다.
+  }
+
+
+  // ---------------- 전담·강좌별 시간표 일괄 업로드 ----------------
+  const bulkHtml = () => '<div class="' + CARD + ' mt-5"><h2 class="font-bold text-lg">시간표 일괄 업로드 <span class="text-xs font-normal text-slate-400">양식을 내려받아 고친 뒤 올리면 한꺼번에 등록됩니다</span></h2>' +
+    '<div class="grid lg:grid-cols-2 gap-5">' +
+    '<div class="space-y-2 border rounded-xl p-4"><h3 class="font-semibold">전담 시간표</h3>' +
+    '<p class="text-sm text-slate-500">전담 시간표 페이지와 같은 모양의 엑셀(.xlsx)입니다. 전담교사·학기마다 시트가 하나씩 있고, 지금 등록된 내용이 채워져 있습니다. 칸에 학급 번호(예: 3)를 적으면 등록되고, 비운 칸은 삭제됩니다. 시트 이름과 표 모양은 바꾸지 마세요.</p>' +
+    '<div class="flex flex-wrap gap-2"><button id="spTpl" class="' + BTN_G + '">양식 다운로드 (.xlsx)</button><label class="' + BTN_G + ' cursor-pointer">엑셀 업로드<input id="spUp" type="file" accept=".xlsx" class="hidden"></label></div></div>' +
+    '<div class="space-y-2 border rounded-xl p-4"><h3 class="font-semibold">강좌별 시간표 조회</h3>' +
+    '<p class="text-sm text-slate-500">한 줄에 강좌 하나: 날짜 · 학급 · 교시 · 강좌명. 학급과 교시는 쉼표로 여러 개 적을 수 있습니다(예: 1,2,3 / 4,5). 이미 있는 일정과 같으면 건너뜁니다. 엑셀(.xlsx)과 CSV 모두 올릴 수 있습니다.</p>' +
+    '<div class="flex flex-wrap gap-2"><button id="coTpl" class="' + BTN_G + '">양식 다운로드 (.xlsx)</button><label class="' + BTN_G + ' cursor-pointer">엑셀·CSV 업로드<input id="coUp" type="file" accept=".xlsx,.csv,text/csv" class="hidden"></label></div></div>' +
+    '</div></div>';
+  const saveXlsx = (sheets, fileName) => {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(XlsxLite.toBlob(sheets)); a.download = fileName; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  };
+  const sheetNameOf = (label, sem) => (String(label).replace(/[\[\]:*?\/\\]/g, ' ').slice(0, 24) + '_' + sem + '학기');
+  const cellOf = (sh, r, c) => { const x = sh.cells[r + ',' + c]; return x ? String(x.v).trim() : ''; };
+  const specialData = async () => { const r = JSON.parse(await GP.SERVER.getAllTimetableData()); if (!r.success) throw new Error(r.error || '전담 시간표를 불러오지 못했습니다.'); return r.data || {}; };
+  function bindBulk() {
+    if (!$('spTpl')) return;
+    $('spTpl').onclick = () => guard(async () => {
+      const data = await specialData(); const labels = Object.keys(data); if (!labels.length) throw new Error('등록된 전담교사가 없습니다. 학년 기초 설정에서 전담교사를 먼저 등록하세요.');
+      const sheets = []; const days = ['월', '화', '수', '목', '금'];
+      labels.forEach((label) => [1, 2].forEach((n) => {
+        const d = data[label]['sem' + n]; if (!d) return; const np = d.np || 6; const merges = [];
+        const head1 = [{ v: d.title, s: 'title' }]; const head2 = [{ v: '', s: 'header' }, { v: '', s: 'header' }]; const head3 = [{ v: '주', s: 'header' }, { v: '기간', s: 'header' }];
+        days.forEach((dn, i) => { for (let p = 0; p < np; p++) { head2.push({ v: p === 0 ? dn + '요일' : '', s: 'header' }); head3.push({ v: p + 1, s: 'header' }); } merges.push(XlsxLite.colName(2 + i * np) + '2:' + XlsxLite.colName(2 + i * np + np - 1) + '2'); });
+        const body = d.bottom.map((row) => row.map((v, ci) => ({ v: v === '' ? '' : v, s: ci < 2 ? 'center' : 'center' })));
+        sheets.push({ name: sheetNameOf(label, n), widths: [6, 14].concat(Array(5 * np).fill(5)), freezeRow: 3, merges, rows: [head1, head2, head3].concat(body) });
+      }));
+      sheets.push({ name: '사용법', widths: [90], rows: [[{ v: '사용법', s: 'title' }], ['전담교사·학기마다 시트가 하나씩 있습니다. 시트 이름과 위 3줄(제목·요일·교시 번호), 주·기간 열은 바꾸지 마세요.'], ['칸에 학급 번호(예: 3 또는 3반)를 적으면 그 교시에 등록되고, 칸을 비우면 삭제됩니다.'], ['시수가 비어 있어도 상관없습니다. 학급이 담당 학급이 아니거나 잘못된 값이면 올릴 때 알려 드립니다.'], ['저장한 뒤 학년 관리자 > 시간표 설정 > 전담 시간표 > 엑셀 업로드로 올리세요.']].map((r) => r.map((c) => (typeof c === 'string' ? { v: c, s: 'text' } : c))) });
+      saveXlsx(sheets, '전담시간표_양식.xlsx'); toast('양식을 내려받았습니다.');
+    });
+    $('spUp').onchange = (ev) => guard(async () => {
+      const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+      const parsed = await ExtViewer.parseXlsx(new Uint8Array(await f.arrayBuffer())); const data = await specialData();
+      const byName = {}; Object.keys(data).forEach((label) => [1, 2].forEach((n) => { if (data[label]['sem' + n]) byName[sheetNameOf(label, n)] = { label, n, d: data[label]['sem' + n] }; }));
+      const list = [], bad = [], summary = [];
+      parsed.forEach((sh) => {
+        const t = byName[sh.name]; if (!t) return; const np = t.d.np || 6; let hr = -1;
+        for (let r = 0; r < Math.min(sh.rows, 8); r++) if (cellOf(sh, r, 0) === '주' && cellOf(sh, r, 1) === '기간') { hr = r; break; }
+        if (hr < 0) { bad.push(sh.name + ': 표 머리글(주·기간)을 찾지 못했습니다.'); return; }
+        const ncols = sh.cols - 2; if (ncols !== 5 * np) { bad.push(sh.name + ': 교시 수가 맞지 않습니다. (현재 설정 ' + np + '교시 — 양식을 다시 내려받으세요)'); return; }
+        let changed = 0;
+        t.d.bottom.forEach((row, w) => {
+          const r = hr + 1 + w; if (r >= sh.rows) return;
+          for (let c = 2; c < 2 + 5 * np; c++) {
+            let v = cellOf(sh, r, c).replace(/반$/, '').trim(); const cur = String(row[c] === undefined || row[c] === null ? '' : row[c]);
+            if (v === cur) continue;
+            if (v && t.d.options.indexOf(v) < 0) { bad.push(sh.name + ' ' + (r + 1) + '행 ' + XlsxLite.colName(c) + '열: "' + v + '" 은(는) 이 전담의 담당 학급이 아닙니다.'); continue; }
+            list.push({ sheetName: t.label, semester: t.n, r: w, c, value: v }); changed++;
+          }
+        });
+        summary.push(t.label + ' ' + t.n + '학기 ' + changed + '칸');
+      });
+      if (!summary.length && !bad.length) throw new Error('올린 파일에서 전담 시간표 시트를 찾지 못했습니다. 내려받은 양식으로 작성해 주세요.');
+      if (bad.length) { alert('올릴 수 없는 칸이 있습니다. 고친 뒤 다시 올려 주세요.\n\n' + bad.slice(0, 15).join('\n') + (bad.length > 15 ? '\n… 외 ' + (bad.length - 15) + '건' : '')); return; }
+      if (!list.length) { toast('바뀐 내용이 없습니다.'); return; }
+      if (!confirm('다음 내용으로 전담 시간표를 바꿉니다.\n\n' + summary.join('\n') + '\n\n계속할까요?')) return;
+      for (let i = 0; i < list.length; i += 300) { const r = JSON.parse(await GP.SERVER.updateBatchSpecialTimetable(list.slice(i, i + 300))); if (!r.success) throw new Error(r.error || '저장 실패'); }
+      toast('전담 시간표 ' + list.length + '칸을 반영했습니다.');
+    });
+
+    // ---- 강좌별 시간표 조회 (추가 일정)
+    $('coTpl').onclick = () => guard(async () => {
+      const y = (await APP.getGeneral()).year;
+      saveXlsx([
+        { name: '강좌 일정', widths: [14, 18, 14, 30], freezeRow: 1, rows: [['날짜', '학급', '교시', '강좌명'].map((v) => ({ v, s: 'header' }))] },
+        { name: '작성 예시', widths: [14, 18, 14, 30], rows: [['날짜', '학급', '교시', '강좌명'].map((v) => ({ v, s: 'header' })), [y + '-11-02', '1,4,8', '4,5', '심폐소생술'], [y + '-11-09', '2반', '3', '우쿨렐레'], ['※ 이 시트는 읽지 않습니다. "강좌 일정" 시트에 같은 형식으로 적어 주세요.', '', '', '']].map((r, i) => r.map((v) => (i === 0 ? v : { v, s: 'text' }))) }
+      ], '강좌별시간표_양식.xlsx'); toast('양식을 내려받았습니다.');
+    });
+    $('coUp').onchange = (ev) => guard(async () => {
+      const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+      let rows;
+      if (/\.xlsx$/i.test(f.name)) { const sh = (await ExtViewer.parseXlsx(new Uint8Array(await f.arrayBuffer()))); const s0 = sh.find((x) => x.name === '강좌 일정') || sh[0]; rows = []; for (let r = 0; r < s0.rows; r++) rows.push([0, 1, 2, 3].map((c) => cellOf(s0, r, c))); rows = rows.filter((r) => r.some((x) => x)); }
+      else rows = parseCSV(await readCsvFile(f));
+      const g = await APP.getGeneral(); const classes = g.classNames; const times = (await GP.readList('list_time')).map((i) => i.value);
+      const body = rows.length && /날짜|일자/.test(str(rows[0][0])) ? rows.slice(1) : rows;
+      const serial = (v) => (/^\d{5}$/.test(v) ? (() => { const d = new Date(Math.round((Number(v) - 25569) * 86400000)); return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); })() : null);
+      const tuples = [], bad = [];
+      body.forEach((c, i) => {
+        const line = (i + 2) + '행'; const raw = str(c[0]).trim(); const d = serial(raw) || toDate(raw); const name = str(c[3]).trim();
+        const cls = str(c[1]).split(/[,，、\s]+/).map((x) => x.trim()).filter(Boolean).map((x) => (/^\d+$/.test(x) ? x + '반' : x));
+        const per = str(c[2]).split(/[,，、]+/).map((x) => x.trim()).filter(Boolean).map((x) => (/^\d+$/.test(x) ? (times[+x - 1] || x + '교시') : (/^\d+교시$/.test(x) ? (times[parseInt(x, 10) - 1] || x) : x)));
+        if (!d) return bad.push(line + ': 날짜를 읽을 수 없습니다. ("' + raw + '")');
+        if (!cls.length) return bad.push(line + ': 학급이 비어 있습니다.'); const wrong = cls.filter((x) => classes.indexOf(x) < 0); if (wrong.length) return bad.push(line + ': 없는 학급 ' + wrong.join(', '));
+        if (!per.length) return bad.push(line + ': 교시가 비어 있습니다.'); if (!name) return bad.push(line + ': 강좌명이 비어 있습니다.');
+        cls.forEach((k) => per.forEach((p) => tuples.push({ d, cls: k, per: p, name })));
+      });
+      if (bad.length) { alert('올릴 수 없는 줄이 있습니다. 고친 뒤 다시 올려 주세요.\n\n' + bad.slice(0, 15).join('\n') + (bad.length > 15 ? '\n… 외 ' + (bad.length - 15) + '건' : '')); return; }
+      if (!tuples.length) throw new Error('등록할 줄이 없습니다.');
+      const exist = new Set((await GP.getCol('data_add_timetable')).map((r) => { const d = GP.toDate(r.add_date); return d ? [GP.ymd(d), str(r.add_class).trim(), str(r.add_time).trim(), str(r.add_name).trim()].join('|') : ''; }));
+      const ops = []; const seen = new Set();
+      tuples.forEach((t) => { const k = [GP.ymd(t.d), t.cls, t.per, t.name].join('|'); if (exist.has(k) || seen.has(k)) return; seen.add(k); ops.push({ type: 'set', col: 'data_add_timetable', id: GP.newId('data_add_timetable'), data: { add_date: GP.appDate(t.d), add_class: t.cls, add_time: t.per, add_name: t.name } }); });
+      if (!ops.length) { toast('모두 이미 등록된 일정입니다.'); return; }
+      if (!confirm('강좌 일정 ' + ops.length + '건을 등록합니다. (이미 있는 ' + (tuples.length - ops.length) + '건은 건너뜀)\n\n계속할까요?')) return;
+      await GP.commit(ops); toast('강좌별 시간표 ' + ops.length + '건을 등록했습니다.');
+    });
   }
 
   // ================================================================ 2) 학년 기초 설정
@@ -154,7 +254,13 @@
     const range = () => APP.yearRange(g.year);
     const rr = () => { const r = range(); return { min: ymd(r.start), max: ymd(r.end) }; };
     const blankHr = (c) => ({ className: c, teacher: '', terms: ['1학기', '2학기'], period: null });
-    const ensureHr = () => { g.homerooms = g.homerooms.filter((e) => g.classNames.indexOf(e.className) >= 0); g.classNames.forEach((c) => { if (!g.homerooms.some((e) => e.className === c)) g.homerooms.push(blankHr(c)); }); };
+    // 전담교사: 한 장의 카드(과목+담당학급)에 기간별 교사를 여러 명 둘 수 있습니다. 같은 카드의 줄은 같은 gid 를 가집니다.
+    const ensureSp = () => {
+      const byKey = {}; let n = 0; g.specials.forEach((e) => { if (e.gid) n = Math.max(n, parseInt(String(e.gid).replace(/\D/g, ''), 10) || 0); });
+      g.specials.forEach((e) => { if (e.gid) return; const k = str(e.subject) + '|' + (e.classes || []).slice().sort().join(','); if (!byKey[k]) byKey[k] = 'g' + (++n); e.gid = byKey[k]; });
+    };
+    const spGroups = () => { const ids = []; g.specials.forEach((e) => { if (ids.indexOf(e.gid) < 0) ids.push(e.gid); }); return ids; };
+    const ensureHr = () => { ensureSp(); g.homerooms = g.homerooms.filter((e) => g.classNames.indexOf(e.className) >= 0); g.classNames.forEach((c) => { if (!g.homerooms.some((e) => e.className === c)) g.homerooms.push(blankHr(c)); }); };
     const loadYearData = async () => { sems = await APP.getSemesterRows(g.year); items = await APP.listBaseItems(g.year); };
 
     // ---- 학급·교사 자동 저장
@@ -172,6 +278,11 @@
       all.forEach((e) => { if (e.period) { const a = toDate(e.period.start), b = toDate(e.period.end); if (a > b) throw new Error('기간의 종료 날짜가 시작 날짜보다 빠릅니다.'); if (a < r.start || b > r.end) throw new Error('기간이 학년도 범위를 벗어났습니다.'); } });
       const hr = gs.homerooms.filter((e) => e.teacher);
       hr.forEach((e) => { if (!e.period && !(e.terms || []).length) throw new Error(e.teacher + ': 기간(학기)을 선택하세요.'); });
+      const sp = gs.specials.filter((e) => e.teacher);
+      sp.forEach((e) => { if (!e.period && !(e.terms || []).length) throw new Error(e.teacher + ': 기간(학기)을 선택하세요.'); });
+      for (let i = 0; i < sp.length; i++) for (let j = i + 1; j < sp.length; j++) {
+        const a = sp[i], b = sp[j]; if (a.gid === b.gid && a.teacher !== b.teacher && overlap(a, b)) throw new Error((a.subject || '전담') + ': 같은 기간에 전담교사가 둘 이상입니다. (' + a.teacher + ', ' + b.teacher + ')');
+      }
       for (let i = 0; i < hr.length; i++) for (let j = i + 1; j < hr.length; j++) {
         const a = hr[i], b = hr[j]; if (!overlap(a, b)) continue;
         if (a.teacher === b.teacher && a.className !== b.className) throw new Error(a.teacher + ': 같은 기간에 두 학급(' + a.className + ', ' + b.className + ')의 담임으로 입력되어 있습니다.');
@@ -212,12 +323,17 @@
           (idx.length > 1 ? '<button data-hrdel="' + i + '" class="text-slate-400 hover:text-red-600">✕</button>' : '') + '</div>' + termUI('hr', i, g.homerooms[i]) + '</div>').join('') +
           '<button data-hradd="' + esc(n) + '" class="text-xs text-indigo-600 hover:underline">+ 담임 추가 (기간별)</button></div>';
       }).join('');
-      const spHtml = g.specials.map((s, i) => '<div class="border rounded-lg p-2 space-y-2 bg-slate-50"><div class="flex flex-wrap gap-2 items-center">' +
-        '<select data-f="sp" data-i="' + i + '" data-k="subject" class="' + INP + '"><option value="">과목</option>' + subs.concat(s.subject && subs.indexOf(s.subject) < 0 ? [s.subject] : []).map((x) => '<option ' + (s.subject === x ? 'selected' : '') + '>' + esc(x) + '</option>').join('') + '</select>' +
-        '<details class="relative"><summary class="' + INP + ' cursor-pointer list-none">담당학급 (' + (s.classes || []).length + ')</summary><div class="absolute z-20 bg-white border rounded-lg shadow p-2 mt-1 w-40 max-h-52 overflow-auto">' +
-        g.classNames.map((c) => '<label class="flex gap-2 text-sm py-0.5"><input type="checkbox" data-spc="' + i + '" value="' + esc(c) + '" ' + ((s.classes || []).indexOf(c) >= 0 ? 'checked' : '') + '>' + esc(c) + '</label>').join('') + '</div></details>' +
-        '<input data-f="sp" data-i="' + i + '" data-k="teacher" value="' + esc(s.teacher || '') + '" placeholder="교사 이름" class="' + INP + ' w-32">' +
-        '<button data-spdel="' + i + '" class="text-slate-400 hover:text-red-600 ml-auto">✕</button></div>' + termUI('sp', i, s) + '</div>').join('');
+      const spHtml = spGroups().map((gid) => {
+        const idx = g.specials.map((e, i) => (e.gid === gid ? i : -1)).filter((i) => i >= 0); const s = g.specials[idx[0]];
+        return '<div class="border rounded-lg p-2 space-y-2 bg-slate-50"><div class="flex flex-wrap gap-2 items-center">' +
+          '<select data-spsub="' + esc(gid) + '" class="' + INP + '"><option value="">과목</option>' + subs.concat(s.subject && subs.indexOf(s.subject) < 0 ? [s.subject] : []).map((x) => '<option ' + (s.subject === x ? 'selected' : '') + '>' + esc(x) + '</option>').join('') + '</select>' +
+          '<details class="relative"><summary class="' + INP + ' cursor-pointer list-none">담당학급 (' + (s.classes || []).length + ')</summary><div class="absolute z-20 bg-white border rounded-lg shadow p-2 mt-1 w-40 max-h-52 overflow-auto">' +
+          g.classNames.map((c) => '<label class="flex gap-2 text-sm py-0.5"><input type="checkbox" data-spc="' + esc(gid) + '" value="' + esc(c) + '" ' + ((s.classes || []).indexOf(c) >= 0 ? 'checked' : '') + '>' + esc(c) + '</label>').join('') + '</div></details>' +
+          '<button data-spdel="' + esc(gid) + '" title="이 전담 카드 삭제" class="text-slate-400 hover:text-red-600 ml-auto">✕</button></div>' +
+          idx.map((i) => '<div class="space-y-1 pl-2 border-l-2 border-slate-200"><div class="flex gap-2"><input data-f="sp" data-i="' + i + '" data-k="teacher" value="' + esc(g.specials[i].teacher || '') + '" placeholder="전담교사 이름" class="' + INP + ' flex-1">' +
+            (idx.length > 1 ? '<button data-spent="' + i + '" title="이 교사 삭제" class="text-slate-400 hover:text-red-600">✕</button>' : '') + '</div>' + termUI('sp', i, g.specials[i]) + '</div>').join('') +
+          '<button data-spadd="' + esc(gid) + '" class="text-xs text-indigo-600 hover:underline">+ 전담 추가 (기간별)</button></div>';
+      }).join('');
 
       view.innerHTML = '<div class="space-y-5">' +
         '<div class="' + CARD + '"><h2 class="font-bold text-lg">학년도 설정</h2><div class="flex flex-wrap items-end gap-3">' +
@@ -331,11 +447,15 @@
       });
       view.querySelectorAll('[data-hradd]').forEach((b) => b.onclick = () => { g.homerooms.push({ className: b.dataset.hradd, teacher: '', terms: [], period: null }); draw(); });
       view.querySelectorAll('[data-hrdel]').forEach((b) => b.onclick = () => { g.homerooms.splice(+b.dataset.hrdel, 1); ensureHr(); draw(); saveGeneral(); });
+      view.querySelectorAll('[data-spsub]').forEach((el) => el.onchange = () => { g.specials.forEach((e) => { if (e.gid === el.dataset.spsub) e.subject = el.value; }); saveGeneralSoon(); });
       view.querySelectorAll('[data-spc]').forEach((cb) => cb.onchange = () => {
-        g.specials[+cb.dataset.spc].classes = [...view.querySelectorAll('[data-spc="' + cb.dataset.spc + '"]:checked')].map((x) => x.value); saveGeneralSoon();
+        const cls = [...view.querySelectorAll('[data-spc="' + cb.dataset.spc + '"]:checked')].map((x) => x.value); g.specials.forEach((e) => { if (e.gid === cb.dataset.spc) e.classes = cls.slice(); }); saveGeneralSoon();
       });
-      $('addSp').onclick = () => { g.specials.push({ subject: '', classes: [], teacher: '', terms: ['1학기', '2학기'], period: null }); draw(); };
-      view.querySelectorAll('[data-spdel]').forEach((b) => b.onclick = () => { g.specials.splice(+b.dataset.spdel, 1); draw(); saveGeneral(); });
+      const newGid = () => 'g' + (Math.max(0, ...g.specials.map((e) => parseInt(String(e.gid).replace(/\D/g, ''), 10) || 0)) + 1);
+      $('addSp').onclick = () => { g.specials.push({ gid: newGid(), subject: '', classes: [], teacher: '', terms: ['1학기', '2학기'], period: null }); draw(); };
+      view.querySelectorAll('[data-spadd]').forEach((b) => b.onclick = () => { const f = g.specials.find((e) => e.gid === b.dataset.spadd); g.specials.push({ gid: f.gid, subject: f.subject, classes: (f.classes || []).slice(), teacher: '', terms: [], period: null }); draw(); });
+      view.querySelectorAll('[data-spent]').forEach((b) => b.onclick = () => { g.specials.splice(+b.dataset.spent, 1); draw(); saveGeneral(); });
+      view.querySelectorAll('[data-spdel]').forEach((b) => b.onclick = () => { if (!confirm('이 전담 카드(기간별 교사 포함)를 삭제할까요?')) return; g.specials = g.specials.filter((e) => e.gid !== b.dataset.spdel); draw(); saveGeneral(); });
     };
 
     ensureHr(); await loadYearData(); draw();
@@ -467,7 +587,7 @@
     try { const j = sessionStorage.getItem('gp_admin_budget_page'); if (j) { sessionStorage.removeItem('gp_admin_budget_page'); bdSel = j; } } catch (e) { /* 무시 */ }
     const rowsB = await GP.getCol('data_budget'); const lines = await GP.budgetLines();
     const sheetCfg = await GP.getCfg('budget_sheets', { sheets: [] });
-    const PAGES = [['budget', '학년 예산'], ['fee', '학년회비'], ['supply1', '학습준비물 1학기'], ['supply2', '학습준비물 2학기']].concat((Array.isArray(sheetCfg.sheets) ? sheetCfg.sheets : []).map((x) => ['sheet:' + x.id, x.name]));
+    const PAGES = [['budget', '학년 예산'], ['fee', '학년회비']].concat((Array.isArray(sheetCfg.sheets) ? sheetCfg.sheets : []).map((x) => ['sheet:' + x.id, x.name]));
     if (bdSel !== 'all' && !PAGES.some((x) => x[0] === bdSel)) bdSel = 'all';
     const pageName = (id) => (PAGES.find((x) => x[0] === id) || [id, id])[1];
     let layout = await GP.getCfg('budget_layout', {}); if (!layout || typeof layout !== 'object') layout = {};

@@ -589,7 +589,7 @@ for folder, (fname, key) in PAGES.items():
         if not _n: raise SystemExit("p11 로그인 화면을 찾지 못했습니다")
         html = html.replace("</head>", LOCKCSS + "</head>", 1)
     if key == "p10":
-        html = html.replace("</head>", LOCKCSS + "</head>", 1)
+        html = html.replace("</head>", LOCKCSS + '<script src="../assets/js/ext-viewer.js"></script></head>', 1)
         html, _n = re.subn(r'<h2 class="[^"]*">내선번호</h2>\s*<input type="password" id="user-pwd"[^>]*>\s*<button id="user-login-btn"[^>]*>확인</button>',
           '<h2 style="margin:0 0 22px;font-size:19px;font-weight:700;color:#0f172a" class="gp-lock-card-h">내선번호</h2>'
           '<input type="password" id="user-pwd" onkeypress="if(event.key === \'Enter\') checkUserPwd()" class="gp-lock-in" placeholder="비밀번호" autocomplete="off">'
@@ -603,6 +603,7 @@ for folder, (fname, key) in PAGES.items():
         if not _n: raise SystemExit("p10 관리자 로그인 화면을 찾지 못했습니다")
     if key == "p11":   # 헤더의 관리자 설정 버튼 삭제
         html = re.sub(r'\s*<button class="admin-btn" onclick="showAdminLogin\(\)">[^<]*</button>', '', html, count=1)
+        html = must_replace(html, "    </style>", "      @media (max-width: 600px) {\n        html, body { height: auto; }\n        body { display: block; min-height: 100vh; }\n        #main-app { height: auto !important; min-height: 100vh; overflow: visible !important; }\n        .list-section { overflow-x: auto; overflow-y: visible; flex-grow: 0; }\n      }\n    </style>", fname)
         if 'class="admin-btn" onclick' in html: raise SystemExit("p11 관리자 설정 버튼을 찾지 못했습니다")
     if key == "p10":   # 열람 비밀번호 설정 영역·저장 버튼 삭제
         html, _n = re.subn(r'<!-- 2\. 비밀번호 변경 영역 -->[\s\S]*?</div>\s*<div class="flex gap-2\.5">\s*<button onclick="changePassword\(\)"[^>]*>저장</button>', '<div class="flex gap-2.5">', html, count=1)
@@ -612,7 +613,9 @@ for folder, (fname, key) in PAGES.items():
         html = must_replace(html, "'https://drive.google.com/uc?export=view&id=' + id", "id", fname)
         html = html.replace("'https://drive.google.com/file/d/' + id + '/preview'", "docSrc(id, mimeType)")
         html = must_replace(html, "function updateViewerSource(id, mimeType) {",
-            "function docSrc(url, mime) {\n      if (mime && mime.indexOf('pdf') !== -1) return url;\n      return 'https://docs.google.com/gview?embedded=1&url=' + encodeURIComponent(url);\n    }\n\n    function updateViewerSource(id, mimeType) {", fname)
+            "function docSrc(url, mime) {\n      if (mime && mime.indexOf('pdf') !== -1) return url;\n      return 'https://docs.google.com/gview?embedded=1&url=' + encodeURIComponent(url);\n    }\n\n    function updateViewerSource(id, mimeType) {\n      if (window.ExtViewer && ExtViewer.handle(id, mimeType)) return;", fname)
+        html = must_replace(html, 'accept=".xlsx, .xls, .pdf, image/*"', 'accept=".xlsx, .pdf, image/*"', fname)
+        html = must_replace(html, ".uploadFile(currentAdminPwd, base64Data, file.name, file.type)", ".uploadFile(currentAdminPwd, base64Data, file.name, ExtViewer.mimeOf(file))", fname)
         # 기존 코드에 들어 있던 비밀번호 하드코딩 폴백 제거
         html = html.replace("pwd === 'qlcrkdhs01*'", "false")
         html = html.replace("updateViewerSource('1B73wD3pzJYCOxFcsZg-z2GFq0GJT2yF9', 'image/png');", "")

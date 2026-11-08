@@ -18,7 +18,7 @@
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     #zoom-zone { touch-action: none; }
   </style>
-<link rel="stylesheet" href="../assets/css/lock.css">  <link rel="stylesheet" href="../assets/css/tw-util.css">
+<link rel="stylesheet" href="../assets/css/lock.css"><script src="../assets/js/ext-viewer.js"></script>  <link rel="stylesheet" href="../assets/css/tw-util.css">
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center relative font-sans m-0 p-0 overflow-hidden">
 
@@ -59,7 +59,7 @@
               <i id="upload-icon" class="fa-solid fa-cloud-arrow-up text-3xl text-gray-400 mb-2"></i>
               <p class="text-xs text-gray-500" id="file-display-name">파일 선택 (EXCEL, PDF, JPG, PNG)</p>
             </div>
-            <input type="file" id="file-uploader" accept=".xlsx, .xls, .pdf, image/*" class="hidden" onchange="displaySelectedFileName(this)">
+            <input type="file" id="file-uploader" accept=".xlsx, .pdf, image/*" class="hidden" onchange="displaySelectedFileName(this)">
           </label>
         </div>
         
@@ -245,6 +245,7 @@
     }
 
     function updateViewerSource(id, mimeType) {
+      if (window.ExtViewer && ExtViewer.handle(id, mimeType)) return;
       const imgEl = document.getElementById('pdf-image');
       const iframeEl = document.getElementById('document-iframe');
       const zoomZone = document.getElementById('zoom-zone');
@@ -386,7 +387,7 @@
               setSpinner(false);
               showMessage('업로드 통신 실패: ' + err.message, 'text-red-500');
             })
-            .uploadFile(currentAdminPwd, base64Data, file.name, file.type);
+            .uploadFile(currentAdminPwd, base64Data, file.name, ExtViewer.mimeOf(file));
         } else {
            setTimeout(function() {
              setSpinner(false);

@@ -393,6 +393,12 @@
         .form-grid { grid-template-columns: 1fr; }
         #login-screen { margin-top: 30vh; border: none; box-shadow: none; }
       }
+      @media (max-width: 600px) {
+        html, body { height: auto; }
+        body { display: block; min-height: 100vh; }
+        #main-app { height: auto !important; min-height: 100vh; overflow: visible !important; }
+        .list-section { overflow-x: auto; overflow-y: visible; flex-grow: 0; }
+      }
     </style>
   <link rel="stylesheet" href="../assets/css/lock.css">  <link rel="stylesheet" href="../assets/css/tw-util.css">
 </head>

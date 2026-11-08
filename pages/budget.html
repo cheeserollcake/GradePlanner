@@ -704,7 +704,7 @@ function openPick(inp) {
   const NUM = (q, v) => '<input type="number" min="0" inputmode="numeric" data-q="' + esc(q) + '" value="' + (v || '') + '" class="w-20 border rounded px-2 py-1 text-right" placeholder="0">';
   if (c.t === 'sup') {
     const cur = {}; parseSup(row || {}).forEach((x) => { cur[x.c] = x.n; });
-    $('pickTitle').textContent = '학급별 수량';
+    $('pickTitle').style.display = ''; $('pickTitle').textContent = '학급별 수량';
     const line = (x, extra) => '<div class="flex items-center justify-between gap-2 border rounded-lg px-3 py-1.5 text-sm' + (extra || '') + '"><label class="flex items-center gap-2 font-semibold"><input type="checkbox" data-sc="' + esc(x) + '"' + (cur[x] ? ' checked' : '') + ' class="w-4 h-4 accent-indigo-600">' + esc(x) + '</label>' +
       '<input type="number" min="1" inputmode="numeric" data-q="' + esc(x) + '" value="' + (cur[x] || '') + '"' + (cur[x] ? '' : ' disabled') + ' class="w-20 border rounded px-2 py-1 text-right" placeholder="수량"></div>';
     box.innerHTML = '<p class="text-xs text-slate-500">수량을 넣을 학급에 체크하고 수량을 입력하세요. 체크한 학급의 수량을 모두 더해 금액(합)을 계산합니다.</p><div class="grid grid-cols-2 gap-2">' +
@@ -712,12 +712,11 @@ function openPick(inp) {
     box.querySelectorAll('[data-sc]').forEach((cb) => { cb.onchange = () => { const q = box.querySelector('[data-q="' + CSS.escape(cb.dataset.sc) + '"]'); q.disabled = !cb.checked; if (cb.checked) { if (!q.value) q.value = '1'; q.focus(); q.select(); } else q.value = ''; }; });
   } else {
     const cur = splitList(row && row[kind.F.spec]);
-    $('pickTitle').textContent = '규격 – 학급·+ 선택 (직접 입력도 가능)';
-    box.innerHTML = '<div class="flex gap-2 text-xs"><button type="button" id="pkAll" class="px-2 py-1 rounded bg-slate-100">전체 선택</button><button type="button" id="pkNone" class="px-2 py-1 rounded bg-slate-100">전체 해제</button></div>' +
+    $('pickTitle').style.display = 'none';
+    box.innerHTML = '<div class="border rounded-xl p-3 space-y-2"><div class="flex items-center justify-between"><span class="font-bold text-sm">입금체크</span><div class="flex gap-2 text-xs"><button type="button" id="pkAll" class="px-2 py-1 rounded bg-slate-100">전체 선택</button><button type="button" id="pkNone" class="px-2 py-1 rounded bg-slate-100">전체 해제</button></div></div>' +
       '<div class="grid grid-cols-3 gap-2">' + cls.map((x) => '<label class="flex items-center gap-2 border rounded-lg px-3 py-1.5 text-sm"><input type="checkbox" data-c="' + esc(x) + '"' + (cur.indexOf(x) >= 0 ? ' checked' : '') + ' class="w-4 h-4 accent-indigo-600"><span class="font-semibold">' + esc(x) + '</span></label>').join('') + '</div>' +
-      '<label class="flex items-center gap-2 border rounded-lg px-3 py-1.5 text-sm bg-amber-50"><input type="checkbox" data-plus' + (cur.indexOf('+') >= 0 ? ' checked' : '') + ' class="w-4 h-4 accent-indigo-600"><span class="font-semibold">+</span><span class="text-xs text-slate-500">돈을 모은 줄 (금액이 예산 카드 배정액에 더해짐)</span></label>' +
-      '<label class="block text-sm font-semibold">직접 입력 <span class="font-normal text-slate-400 text-xs">(선택)</span><input id="pkFree" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-normal" placeholder="자유롭게 적을 수 있어요" value="' + esc(cur.filter((t) => t !== '+' && classNames().indexOf(t) < 0).join(', ')) + '"></label>' +
-      '<p class="text-xs text-slate-500">학급을 체크하면 학급 수가 수량에 자동으로 들어갑니다. 학급을 체크하거나 +를 고른 줄의 금액은 사용액이 아니라 배정액에 더해집니다.</p>';
+      '<p class="text-xs text-slate-500">입금한 학급을 체크하면 체크한 수가 수량이 되어 단가와 곱해집니다. 이 금액은 사용액이 아니라 예산 카드의 배정액에 더해집니다.</p></div>' +
+      '<label class="block text-sm font-semibold">직접 입력 <span class="font-normal text-slate-400 text-xs">(선택)</span><input id="pkFree" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-normal" placeholder="자유롭게 적을 수 있어요" value="' + esc(cur.filter((t) => t !== '+' && classNames().indexOf(t) < 0).join(', ')) + '"></label>';
     $('pkAll').onclick = () => box.querySelectorAll('[data-c]').forEach((i) => { i.checked = true; });
     $('pkNone').onclick = () => box.querySelectorAll('[data-c]').forEach((i) => { i.checked = false; });
   }
@@ -732,7 +731,7 @@ $('pickOk').onclick = () => {
     patch = { supply_class: toks.join(', '), supply_class_num: nums.join(', ') };
   } else {
     const picked = [...box.querySelectorAll('[data-c]')].filter((i) => i.checked).map((i) => i.dataset.c);
-    const toks = picked.slice(); if (box.querySelector('[data-plus]').checked) toks.push('+'); const free = ($('pkFree').value || '').split(',').map((x) => x.trim()).filter(Boolean); free.forEach((f) => { if (toks.indexOf(f) < 0) toks.push(f); });
+    const toks = picked.slice(); const free = ($('pkFree').value || '').split(',').map((x) => x.trim()).filter(Boolean); free.forEach((f) => { if (toks.indexOf(f) < 0) toks.push(f); });
     patch = { [kind.F.spec]: toks.join(', ') }; if (picked.length && kind.F.num) patch[kind.F.num] = String(picked.length);   // 체크한 만큼 수량에 반영
   }
   closePick(); applyPatch(tr, patch);

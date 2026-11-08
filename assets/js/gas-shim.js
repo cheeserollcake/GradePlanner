@@ -332,7 +332,8 @@
     const rows = await getBasicRows();
     const uniq = (f) => [...new Set(rows.map((r) => str(r[f]).trim()).filter(Boolean))];
     return {
-      classes: uniq('list_class').sort(natural), subs: uniq('list_sub'), times: uniq('list_time').sort(natural),
+      classes: (await loadGeneral()).classNames.slice(),   // 학급 수·이름은 관리자 > 학년 기초 설정을 따릅니다
+      subs: uniq('list_sub'), times: uniq('list_time').sort(natural),
       gyms: uniq('list_gym'), rooms: uniq('list_room'), teachers: uniq('list_t'),
       budgets: rows.filter((r) => str(r.list_budget).trim())
         .map((r, i) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount), color: str(r.list_budget_color).trim(), pages: str(r.list_budget_pages).trim() ? str(r.list_budget_pages).split(',').filter(Boolean).map((p) => (p === 'supply' ? 'supply1' : p)) : ['budget'], _o: (r.list_budget_order === undefined || r.list_budget_order === '' || r.list_budget_order === null) ? 1e6 + i : Number(r.list_budget_order) }))
@@ -1057,9 +1058,14 @@
   };
 
   // ===== Page 10 : 내선번호 파일 =====
+  // 내선번호 파일은 Firebase Storage 대신 Firestore(data_files)에 조각(약 450KB)으로 나눠 저장합니다. (카드 등록·Blaze 요금제 불필요)
   SERVER.getFileMetadata = async function () {
     const meta = await getCfg('ext_file', null);
-    return meta ? { id: meta.url, mimeType: meta.mimeType, name: meta.name } : { id: '', mimeType: 'image/png', name: '' };
+    if (!meta) return { id: '', mimeType: 'image/png', name: '' };
+    if (meta.kind !== 'fs') return { id: meta.url, mimeType: meta.mimeType, name: meta.name };   // 예전에 Storage 에 올린 파일
+    const parts = await Promise.all((meta.chunks || []).map((id) => db.collection('data_files').doc(id).get()));
+    const b64 = parts.map((d) => (d.exists ? d.data().data : '')).join('');
+    return { id: 'data:' + meta.mimeType + ';base64,' + b64, mimeType: meta.mimeType, name: meta.name };
   };
   SERVER.changeUserPassword = async function (adminPwd, newPwd) {
     const pw = await getPw();
@@ -1067,17 +1073,29 @@
     pw.access = newPwd; await setPw(pw);
     return { success: true, message: '비밀번호가 성공적으로 변경되었습니다.' };
   };
+  const shrinkImage = (b64, mime) => new Promise((res, rej) => {
+    const im = new Image();
+    im.onload = () => { const k = Math.min(1, 2000 / Math.max(im.width, im.height)), w = Math.round(im.width * k), h = Math.round(im.height * k); const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(im, 0, 0, w, h); res(c.toDataURL('image/jpeg', 0.82).split(',')[1]); };
+    im.onerror = () => rej(new Error('이미지를 읽을 수 없습니다.')); im.src = 'data:' + mime + ';base64,' + b64;
+  });
   SERVER.uploadFile = async function (adminPwd, base64, fileName, mime) {
     const pw = await getPw();
     if (adminPwd !== pw.admin) return { success: false, message: '관리자 권한이 유효하지 않습니다.' };
     try {
-      const old = await getCfg('ext_file', null);
-      if (old && old.path) { try { await storage.ref(old.path).delete(); } catch (e) { /* 이미 삭제됨 */ } }
-      const path = `extension/${Date.now()}_${safeName(fileName)}`;
-      const ref = storage.ref(path); await ref.putString(base64, 'base64', { contentType: mime });
-      const url = await ref.getDownloadURL();
-      await setCfg('ext_file', { url, path, mimeType: mime, name: fileName });
-      return { success: true, message: '새 파일이 정상적으로 교체 업로드되었습니다.', fileId: url };
+      mime = str(mime); const lower = str(fileName).toLowerCase();
+      if (/\.xls$/.test(lower) || mime === 'application/vnd.ms-excel') return { success: false, message: '구형 엑셀(.xls)은 올릴 수 없습니다. 엑셀에서 .xlsx 로 다시 저장해서 올려 주세요.' };
+      if (!mime) mime = /\.xlsx$/.test(lower) ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : /\.pdf$/.test(lower) ? 'application/pdf' : '';
+      const isImg = mime.indexOf('image/') === 0, isPdf = mime === 'application/pdf', isXlsx = /spreadsheetml\.sheet$/.test(mime);
+      if (!isImg && !isPdf && !isXlsx) return { success: false, message: '엑셀(.xlsx), PDF, 이미지 파일만 올릴 수 있습니다.' };
+      if (isImg) { base64 = await shrinkImage(base64, mime); mime = 'image/jpeg'; }
+      if (base64.length > 6000000) return { success: false, message: '파일이 너무 큽니다. (약 4.5MB 이하로 올려 주세요)' };
+      const old = await getCfg('ext_file', null); const stamp = Date.now(), CH = 450000, ids = [], ops = [];
+      for (let i = 0; i * CH < base64.length; i++) { const id = `ext_${stamp}_${i}`; ids.push(id); ops.push({ type: 'set', col: 'data_files', id, data: { data: base64.slice(i * CH, (i + 1) * CH), i, name: fileName } }); }
+      await commit(ops);
+      await setCfg('ext_file', { kind: 'fs', chunks: ids, mimeType: mime, name: fileName, size: base64.length, updatedAt: new Date().toISOString() });
+      if (old && old.kind === 'fs' && old.chunks && old.chunks.length) { try { await commit(old.chunks.map((id) => ({ type: 'delete', col: 'data_files', id }))); } catch (e) { /* 남은 조각은 무시 */ } }
+      else if (old && old.path && storage) { try { await storage.ref(old.path).delete(); } catch (e) { /* 이미 삭제됨 */ } }
+      return { success: true, message: '새 파일이 정상적으로 교체 업로드되었습니다.', fileId: ids[0] };
     } catch (e) { return { success: false, message: '파일 업로드 실패: ' + e.toString() }; }
   };
 
