@@ -572,6 +572,13 @@ for folder, (fname, key) in PAGES.items():
         html = must_replace(html, "<table className=\"border-collapse bg-white shadow-sm rounded-lg mx-auto inline-table text-left\" style={{tableLayout: 'fixed'}}>", "<table className=\"border-collapse bg-white shadow-sm rounded-lg mx-auto inline-table text-left\" style={{tableLayout: 'fixed', minWidth: (5 * ((spaces.length + 1) * colMin + 12)) + 'px'}}>", fname)
     if key == "p07":   # 구글 이미지 크기 접미사 제거
         html = must_replace(html, 'img.url + "=s800"', 'img.url', fname)
+    if key == "p11":   # 헤더의 관리자 설정 버튼 삭제
+        html = re.sub(r'\s*<button class="admin-btn" onclick="showAdminLogin\(\)">[^<]*</button>', '', html, count=1)
+        if 'class="admin-btn" onclick' in html: raise SystemExit("p11 관리자 설정 버튼을 찾지 못했습니다")
+    if key == "p10":   # 열람 비밀번호 설정 영역·저장 버튼 삭제
+        html, _n = re.subn(r'<!-- 2\. 비밀번호 변경 영역 -->[\s\S]*?</div>\s*<div class="flex gap-2\.5">\s*<button onclick="changePassword\(\)"[^>]*>저장</button>', '<div class="flex gap-2.5">', html, count=1)
+        if not _n: raise SystemExit("p10 열람 비밀번호 영역을 찾지 못했습니다")
+        html = must_replace(html, "document.getElementById('new-user-pwd').value = '';", "", fname)
     if key == "p10":   # 구글 드라이브 미리보기 -> Firebase Storage 주소
         html = must_replace(html, "'https://drive.google.com/uc?export=view&id=' + id", "id", fname)
         html = html.replace("'https://drive.google.com/file/d/' + id + '/preview'", "docSrc(id, mimeType)")

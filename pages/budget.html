@@ -200,7 +200,7 @@ function supplyKind(sem) {
     { k: 'supply_class', label: '수량', w: 110, t: 'sup' }, { k: 'supply_unit', label: '단위', w: 70 }, { k: 'supply_price', label: '단가', w: 100, t: 'num' },
     { label: '금액(합)', w: 110, t: 'calc', sum: 1, id: 'calc', calc: (r) => num(r.supply_price) * supQty(r) },
     { k: 'supply_sub', label: '과목', w: 110, t: 'sel', opts: () => (lists && lists.subs) || [] }, { k: 'supply_link', label: '링크', w: 120, t: 'link' }],
-    filters: [['과목', 'supply_sub']] };
+    filters: [['신청학급', 'supply_class']] };
 }
 const SHEET_COL = 'data_sheet_rows';
 const WATCH = ['data_budget', 'data_supply', 'data_sheet_rows', 'app_config'];
@@ -230,7 +230,8 @@ const byOrder = (a, b) => ord(a) - ord(b) || (a._id < b._id ? -1 : a._id > b._id
 const inSupply = (r, sem) => { const m = str(r.supply_year).match(/\d{4}/); return !!m && parseInt(m[0], 10) === curYear && str(r.supply_semester).trim().charAt(0) === String(sem); };
 const srcArr = (kind) => (kind.custom ? data.sheetRows : kind.col === 'data_budget' ? data.budget : data.supply);
 const allRows = (kind) => (kind.custom ? data.sheetRows.filter((r) => r.sheet === kind.custom.id) : kind.col === 'data_budget' ? data.budget : data.supply.filter((r) => inSupply(r, kind.sem)));
-const viewRows = (kind) => allRows(kind).filter((r) => kind.filters.every(([, k]) => !filters[k] || str(r[k]) === filters[k]));
+const hasClass = (r, c) => parseSup(r).some((x) => x.c === c) || (!splitList(r && r.supply_class_num).length && splitList(r && r.supply_class).indexOf(c) >= 0);
+const viewRows = (kind) => allRows(kind).filter((r) => kind.filters.every(([, k]) => !filters[k] || (k === 'supply_class' ? hasClass(r, filters[k]) : str(r[k]) === filters[k])));
 const findRow = (kind, id) => allRows(kind).find((r) => r._id === id);
 
 // ======================= 저장(순서대로 하나씩) =======================
@@ -261,7 +262,7 @@ function blankDoc(kind, preset) {
   d.row_order = Date.now() * 100 + (seq++ % 100);
   return d;
 }
-const presetFor = (kind) => { const p = {}; kind.filters.forEach(([, k]) => { if (filters[k]) p[k] = filters[k]; }); return p; };   // 걸러 보는 중이면 새 줄에 같은 값을 미리 넣어 줌
+const presetFor = (kind) => { const p = {}; kind.filters.forEach(([, k]) => { if (filters[k] && k !== 'supply_class') p[k] = filters[k]; }); return p; };   // 걸러 보는 중이면 새 줄에 같은 값을 미리 넣어 줌
 const storeVal = (c, v) => (c.t === 'num' ? String(v).replace(/,/g, '').trim() : c.t === 'chk' ? (str(v).trim() && !/^(0|false|n|no|x)$/i.test(str(v).trim()) ? '완료' : '') : String(v));
 
 // ======================= 화면 =======================
@@ -290,7 +291,7 @@ function renderFilters() {
   const uniq = (k) => [...new Set(allRows(kind).map((r) => str(r[k]).trim()).filter(Boolean))].sort(natural);
   f.style.display = kind.filters.length ? '' : 'none';
   f.innerHTML = kind.filters.map(([label, k]) => '<select data-k="' + k + '" class="border rounded-lg px-3 py-1.5 bg-white text-sm"><option value="">' + label + ' 전체</option>' +
-    uniq(k).map((v) => '<option ' + (filters[k] === v ? 'selected' : '') + ' value="' + esc(v) + '">' + esc(v) + '</option>').join('') + '</select>').join('');
+    (k === 'supply_class' ? ['학년공통'].concat(classNames()) : uniq(k)).map((v) => '<option ' + (filters[k] === v ? 'selected' : '') + ' value="' + esc(v) + '">' + esc(v) + '</option>').join('') + '</select>').join('');
   f.querySelectorAll('select').forEach((s) => s.onchange = () => { filters[s.dataset.k] = s.value; renderGrid(); });
 }
 function renderTools() {
@@ -344,7 +345,7 @@ const IMG_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" str
 const attBtn = (ci, n) => '<button class="attbtn' + (n ? ' has' : '') + '" data-att="' + ci + '" title="이미지·파일 첨부" tabindex="-1">' + IMG_SVG + (n ? '<b>' + n + '</b>' : '') + '</button>';
 const rtoolsHtml = () => '<div class="rtools"><i class="grip" draggable="true" title="끌어서 순서 변경">⠿</i><button data-color title="행 색깔">🎨</button><button data-del title="이 줄 삭제">✕</button></div>';
 function rowHtml(kind, r, idx, listIds) {
-  const col = r && r.row_color ? String(r.row_color) : '';
+  const col = r && r.row_color ? String(r.row_color) : (r && kind.sem && hasClass(r, '학년공통') ? '#fff3a0' : '');   // 학년공통 준비물은 자동으로 노란색
   return '<tr data-id="' + (r ? esc(r._id) : '') + '" class="' + (r ? '' : 'blank') + (col ? ' colored' : '') + '"' + (col ? ' style="--rc:' + esc(col) + '"' : '') + '><th class="rn"><span>' + (idx + 2) + '</span>' + (r ? rtoolsHtml() : '') + '</th>' +
     kind.cols.map((c, ci) => cellHtml(kind, c, ci, r, listIds)).join('') + '</tr>';
 }
@@ -867,7 +868,7 @@ function addImageCols(sheet, imgs, headerRow, widths) {   // sheet.rows: [머리
 }
 async function buildExport() {
   const g = await APP.getGeneral(); const label = g.year + '학년도';
-  const rows = (window.__rows || []).slice();
+  const rows = (window.__rows && window.__rows.length ? window.__rows : allRows(kindOf(mode)).slice().sort(byOrder)).slice();
   if (mode === 'budget') {
     const n = rows.length; let sum = 0; const kb = kindOf('budget');
     const body = rows.map((r, i) => { const x = i + 2; const amt = num(r.budget_num) * num(r.budget_price); sum += amt;
@@ -886,9 +887,9 @@ async function buildExport() {
   if (kind.sem) {   // 학습준비물 1·2학기
     let sum = 0;
     const body = rows.map((r, i) => { const x = i + 2; const q = supQty(r), amt = num(r.supply_price) * q; sum += amt;
-      return [T(r.supply_product), T(r.supply_spec), N(q), T(r.supply_unit), N(r.supply_price), { v: amt, s: 'int', f: 'C' + x + '*E' + x }, T(r.supply_sub), linkCell(r.supply_link), T(supText(r))]; });
+      return [T(r.supply_product), T(r.supply_spec), T(supText(r)), T(r.supply_unit), N(r.supply_price), { v: amt, s: 'int', f: 'E' + x + '*I' + x }, T(r.supply_sub), linkCell(r.supply_link), N(q)]; });
     const tot = totalRow(n, 9); tot[5] = { v: sum, s: 'totalNum' }; if (n) tot[5].f = 'SUM(F2:F' + (n + 1) + ')';
-    const sheet = { name: kind.name, widths: [28, 22, 8, 8, 11, 13, 12, 34, 34], freezeRow: 1, filter: true, filterRows: n + 1, rows: [['품명', '규격', '수량', '단위', '단가', '금액(합)', '과목', '링크', '희망학급 및 학급별 수량'].map(H)].concat(body, [tot]) };
+    const sheet = { name: kind.name, widths: [28, 22, 30, 8, 11, 13, 12, 34, 9], freezeRow: 1, filter: true, filterRows: n + 1, rows: [['품명', '규격', '수량', '단위', '단가', '금액(합)', '과목', '링크', '총수량'].map(H)].concat(body, [tot]) };
     const st = supplyStats(kind);
     const sum2 = { name: '학급별 사용액', widths: [24, 16], rows: [['구분', '금액'].map(H), [T('학습준비물 총액'), N(st.total)], [T('학년공통사용액'), N(st.common)], [T('반별배부액'), N(st.alloc)]].concat(st.cls.map((c) => [T(c + ' 사용액'), N(st.use[c])])) };
     return { fileName: '학습준비물' + kind.sem + '학기_' + label, title: label + ' ' + g.grade + '학년 ' + kind.name, sheets: [sheet, sum2] };
