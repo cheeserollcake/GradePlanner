@@ -11,5 +11,5 @@ button.gp-lock-sub { display:block; width:100%; margin:6px 0 0; padding:8px; bor
 button.gp-lock-sub:hover { color:#475569; }
 .gp-lock-card .gp-lock-err { margin:12px 0 0; color:#dc2626; font-size:13px; font-weight:500; white-space:pre-line; }
 /* 쇼핑몰 학교 ID 의 기존 로그인 상자 스타일 덮어쓰기 */
-#login-screen.gp-lock-card { margin:0 !important; max-width:340px !important; padding:34px 28px 28px !important; border:1px solid #e2e8f0 !important; box-shadow:0 10px 30px rgba(15,23,42,.07) !important; border-radius:20px !important; }
+#login-screen.gp-lock-card { position:fixed !important; top:50% !important; left:50% !important; transform:translate(-50%,-50%) !important; width:calc(100% - 32px) !important; margin:0 !important; max-width:340px !important; padding:34px 28px 28px !important; border:1px solid #e2e8f0 !important; box-shadow:0 10px 30px rgba(15,23,42,.07) !important; border-radius:20px !important; }
 .gp-lock.hidden, .gp-lock-err.hidden { display:none !important; }

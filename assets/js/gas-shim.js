@@ -97,7 +97,15 @@
   function fresh() { versions = null; Object.keys(cache).forEach((k) => delete cache[k]); Object.keys(loadedVer).forEach((k) => delete loadedVer[k]); }
   const invalidate = () => { /* 저장할 때 사본을 함께 고치므로 따로 비울 필요가 없습니다. 최신 확인은 fresh() */ };
 
+  // 학년도별로 나뉘는 컬렉션: 문서에 _year(학년도) 표시가 있으면 그 학년도에서만 보이고, 표시가 없으면 '지금 학년도' 것으로 봅니다.
+  //  학년도를 바꿀 때(app-data setYear) 표시 없는 문서에 이전 학년도 표시를 붙여 둡니다. (데이터는 지우지 않고 감춥니다)
+  const YEARED = new Set(['data_student', 'data_basic_timetable', 'data_budget', 'data_sheet_rows']);
   function getCol(name, force) {
+    const p = rawCol(name, force); if (!YEARED.has(name)) return p;
+    return p.then(async (rows) => { const y = (await loadGeneral()).year; return rows.filter((r) => r._year === undefined || r._year === null || Number(r._year) === y); });
+  }
+  const yearSpan = (y) => ({ start: new Date(y, 1, 1), end: new Date(y + 1, 2, 0, 23, 59, 59) });   // 학년도: 2월 1일 ~ 다음 해 2월 말일
+  function rawCol(name, force) {
     if (!force && cache[name]) return cache[name];
     cache[name] = (async () => {
       const vers = force ? null : await getVersions();
@@ -954,8 +962,9 @@
   const blobToDataUrl = (blob) => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => rej(fr.error || new Error('이미지를 읽지 못했습니다.')); fr.readAsDataURL(blob); });
   SERVER.getImages = async function () {
     try {
-      const snap = await db.collection('data_images').get();
+      const snap = await db.collection('data_images').get(); const sp = yearSpan((await loadGeneral()).year);   // 지금 학년도에 올린 이미지만
       return snap.docs.map((d) => { const x = d.data(); return { id: d.id, url: x.dataUrl, name: x.name || '', t: x.createdAt || '' }; })
+        .filter((x) => { const d = x.t ? new Date(x.t) : null; return !d || (d >= sp.start && d <= sp.end); })
         .sort((p, q) => String(p.t).localeCompare(String(q.t))).map(({ id, url, name }) => ({ id, url, name }));
     } catch (e) { console.warn(e); return []; }
   };
@@ -1015,8 +1024,9 @@
         return { success: true, holidays: [...hol.entries()].map(([k, v]) => ({ date: k, name: v })), rawEvents, year: g.year, classCount: g.classNames.length, periods: await basicPeriods() };
       }
       // p09
-      const [hol, add, groups] = await Promise.all([getHolidayMap(), getCol('data_add_timetable'), getCfg('course_groups', [])]);
-      const events = add.map((r) => ({ d: toDate(r.add_date), r })).filter((x) => x.d)
+      const [hol, add, allGroups] = await Promise.all([getHolidayMap(), getCol('data_add_timetable'), getCfg('course_groups', [])]);
+      const sp = yearSpan(g.year); const groups = allGroups.filter((x) => x.year === undefined || x.year === null || Number(x.year) === g.year);   // 범주도 지금 학년도 것만
+      const events = add.map((r) => ({ d: toDate(r.add_date), r })).filter((x) => x.d && x.d >= sp.start && x.d <= sp.end)   // 지금 학년도 날짜의 강좌만
         .map((x) => ({ date: ymd(x.d), classNm: str(x.r.add_class), period: str(x.r.add_time), course: str(x.r.add_name).trim() }));
       const dropdowns = [...new Set(events.map((e) => e.course).filter(Boolean))].sort(natural);
       const holidays = {}; hol.forEach((v, k) => { holidays[k] = v; });
@@ -1025,9 +1035,11 @@
   };
   SERVER.saveCourseGroups = async function (groups) {
     try {
-      const prev = await getCfg('course_groups', []); const was = {}; prev.forEach((g) => { if (g.createdAt) was[g.name] = g.createdAt; });
-      const clean = (groups || []).map((x) => ({ name: str(x.name).trim(), courses: [...new Set((x.courses || []).map((c) => str(c).trim()).filter(Boolean))], createdAt: was[str(x.name).trim()] || x.createdAt || new Date().toISOString() })).filter((x) => x.name);   // 작성일 기록(학년도 삭제 기준)
-      await setCfg('course_groups', clean); return { success: true, groups: clean };
+      const prev = await getCfg('course_groups', []); const yr = (await loadGeneral()).year; const was = {};
+      const isMine = (g) => g.year === undefined || g.year === null || Number(g.year) === yr; const others = prev.filter((g) => !isMine(g));
+      prev.filter(isMine).forEach((g) => { if (g.createdAt) was[g.name] = g.createdAt; });
+      const clean = (groups || []).map((x) => ({ name: str(x.name).trim(), courses: [...new Set((x.courses || []).map((c) => str(c).trim()).filter(Boolean))], createdAt: was[str(x.name).trim()] || x.createdAt || new Date().toISOString(), year: yr })).filter((x) => x.name);   // 학년도 표시
+      await setCfg('course_groups', others.concat(clean)); return { success: true, groups: clean };
     } catch (e) { return { success: false, error: e.toString() }; }
   };
   // 수정/삭제/추가: 추가된 일정(add)만 고칩니다. 같은 일정으로 묶인 모든 반이 함께 바뀝니다. (전담·체육 공간 일정은 각자의 시간표 페이지에서 수정)
@@ -1063,6 +1075,7 @@
   SERVER.getFileMetadata = async function () {
     const meta = await getCfg('ext_file', null);
     if (!meta) return { id: '', mimeType: 'image/png', name: '' };
+    if (meta.updatedAt) { const sp = yearSpan((await loadGeneral()).year), d = new Date(meta.updatedAt); if (d < sp.start || d > sp.end) return { id: '', mimeType: 'image/png', name: '' }; }   // 지금 학년도에 올린 파일만
     if (meta.kind !== 'fs') return { id: meta.url, mimeType: meta.mimeType, name: meta.name };   // 예전에 Storage 에 올린 파일
     const parts = await Promise.all((meta.chunks || []).map((id) => db.collection('data_files').doc(id).get()));
     const b64 = parts.map((d) => (d.exists ? d.data().data : '')).join('');
@@ -1146,6 +1159,6 @@
   window.google = { script: { run: runner(null, null), host: { close() {}, setHeight() {} } } };
 
   // 직접 Firestore를 쓰는 새 페이지(예산/바로가기/교실배치도)를 위한 공용 도구
-  window.GP = { db, storage, TS, budgetLines, getCol, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
+  window.GP = { db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
     getPw, setPw, readList, writeList, spaceOrphans, countSpaceData, purgeSpaceData, renameSpaceData, listSpaceData, deleteSpaceRows, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
 })();

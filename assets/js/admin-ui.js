@@ -66,6 +66,7 @@
   // 예산 페이지에서 비밀번호를 확인하고 넘어온 경우에는 다시 묻지 않습니다.
   try { const jump = sessionStorage.getItem('gp_admin_open'); if (jump) { sessionStorage.removeItem('gp_admin_open'); if (TABS_KEYS.indexOf(jump) >= 0) tab = jump; setTimeout(() => start(), 0); } } catch (e) { /* 무시 */ }
   function start() {
+    if (!window.__migTried) { window.__migTried = true; APP.migrateYearTags().then((ch) => { if (ch) toast('이전 학년도 데이터를 정리했습니다. 다른 페이지는 새로고침하면 반영됩니다.'); }).catch((e) => console.warn('학년도 표시 정리 보류', e)); }
     $('gate').classList.add('hidden'); $('app').classList.remove('hidden');
     $('tabs').innerHTML = TABS.map(([k, l]) => '<button data-t="' + k + '" class="px-4 py-2 text-sm font-semibold rounded-t-lg border-b-2 ' + (k === tab ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800') + '">' + l + '</button>').join('');
     $('tabs').querySelectorAll('button').forEach((b) => b.onclick = () => { tab = b.dataset.t; start(); });
@@ -726,23 +727,38 @@
       '<label class="text-sm font-semibold">페이지 접근 비밀번호<span class="block text-xs font-normal text-slate-400">학생 명렬표, 내선번호 등에 공통 적용</span><input id="pwAccess" value="' + esc(pw.access) + '" class="' + INP + ' w-full mt-1"></label>' +
       '<label class="text-sm font-semibold">관리자 페이지 비밀번호<span class="block text-xs font-normal text-slate-400">이 관리자 페이지 접근용</span><input id="pwAdmin" value="' + esc(pw.admin) + '" class="' + INP + ' w-full mt-1"></label></div>' +
       '<div class="text-right"><button id="savePw" class="' + BTN_P + '">비밀번호 저장</button></div></div>' +
-      '<div class="' + CARD + ' border-red-200"><h2 class="font-bold text-lg text-red-700">데이터 삭제</h2><p class="text-sm text-slate-500">선택한 학년도(2월 1일~다음 해 2월 말일)의 데이터를 삭제합니다.<br><b>날짜로 구분되는 데이터:</b> 학교 행사, 학년 일정, 추가된 일정, 체육 공간·특별실·전담 시간표, 학기·방학·휴일 설정, 학습준비물(연도), 담임·전담교사 매칭, 공간 개방 설정<br><b>작성일이 그 학년도인 데이터:</b> 학생 명렬표, 개요 비고, 예산(추가한 예산 페이지 포함), 강좌 범주, 이미지·파일(특별실·교실배치도·내선번호·예산 비고 첨부)<br><b>삭제되지 않음:</b> 쇼핑몰 ID, 바로가기, 비밀번호, 학급·과목·교시·공간 목록</p>' +
+      '<div class="' + CARD + ' border-red-200"><h2 class="font-bold text-lg text-red-700">데이터 삭제</h2><p class="text-sm text-slate-500">선택한 학년도(2월 1일~다음 해 2월 말일)의 데이터 중 삭제할 항목을 팝업에서 골라 지웁니다.<br>학년도를 바꾸면 명렬표·기초시간표·예산·강좌·이미지·교실배치도·내선번호는 새 학년도에서 빈 화면으로 보이고, 이전 데이터는 여기서 삭제하기 전까지 남아 있습니다.<br><b>삭제되지 않음:</b> 쇼핑몰 ID, 바로가기, 비밀번호, 학급·과목·교시·공간 목록</p>' +
       '<div class="flex gap-2 items-center"><select id="delYear" class="' + INP + '">' + years.map((y) => '<option value="' + y + '">' + y + '학년도</option>').join('') + '</select><button id="delBtn" class="' + BTN + ' bg-red-600 text-white hover:bg-red-700">과거 데이터 삭제</button></div></div>' +
       '<div class="' + CARD + '"><h2 class="font-bold text-lg">임시 저장 데이터 새로고침</h2><p class="text-sm text-slate-500">속도와 사용량을 줄이려고 기기에 저장해 둔 데이터는 앱에서 저장할 때마다 자동으로 갱신됩니다. 파이어베이스 콘솔에서 데이터를 직접 고쳤다면 이 버튼으로 모든 기기가 새로 받게 하세요.</p><button id="resetCache" class="' + BTN_G + '">모든 기기 데이터 새로고침</button></div></div>' +
-      '<div id="dm" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50"><div class="bg-white rounded-2xl p-5 w-full max-w-md space-y-3"><h3 class="font-bold text-lg text-red-700">정말 삭제할까요?</h3>' +
-      '<p class="text-sm text-slate-600"><b id="dmY"></b> 데이터는 <b>삭제하면 복구할 수 없습니다.</b> 계속하려면 아래에 <b>과거 데이터 삭제</b> 를 입력하세요.</p><input id="dmIn" class="' + INP + ' w-full" placeholder="과거 데이터 삭제">' +
-      '<div class="flex justify-end gap-2"><button id="dmNo" class="' + BTN_G + '">취소</button><button id="dmYes" disabled class="' + BTN + ' bg-red-600 text-white disabled:opacity-40">삭제</button></div></div></div>';
+      '<div id="dm" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50"><div class="bg-white rounded-2xl p-5 w-full max-w-md space-y-3 max-h-[92vh] overflow-y-auto"><h3 class="font-bold text-lg text-red-700">삭제할 항목 선택</h3>' +
+      '<p class="text-sm text-slate-600"><b id="dmY"></b> 데이터 중 지울 항목을 체크하세요. <b>삭제하면 복구할 수 없습니다.</b></p>' +
+      '<div class="flex gap-2 text-xs"><button id="dmAll" type="button" class="' + BTN_G + ' !py-1">전체 선택</button><button id="dmNone" type="button" class="' + BTN_G + ' !py-1">전체 해제</button></div>' +
+      '<div id="dmList" class="space-y-1 border rounded-lg p-2 max-h-72 overflow-y-auto text-sm"><p class="text-slate-400 p-2">확인 중...</p></div>' +
+      '<p class="text-sm text-slate-600">계속하려면 아래에 <b>과거 데이터 삭제</b> 를 입력하세요.</p><input id="dmIn" class="' + INP + ' w-full" placeholder="과거 데이터 삭제">' +
+      '<div class="flex justify-end gap-2"><button id="dmNo" class="' + BTN_G + '">취소</button><button id="dmYes" disabled class="' + BTN + ' bg-red-600 text-white disabled:opacity-40">선택한 항목 삭제</button></div></div></div>';
     $('savePw').onclick = () => guard(async () => {
       const a = $('pwAccess').value.trim(), b = $('pwAdmin').value.trim(); if (!a || !b) throw new Error('비밀번호를 입력하세요.');
       await GP.setPw({ access: a, admin: b });
     }, '비밀번호가 저장되었습니다.');
     $('resetCache').onclick = () => guard(() => GP.resetCaches(), '모든 기기가 다음에 열 때 데이터를 새로 받습니다.');
     const modal = $('dm'); const show = (v) => { modal.classList.toggle('hidden', !v); modal.classList.toggle('flex', v); };
-    $('delBtn').onclick = () => { $('dmY').textContent = $('delYear').value + '학년도'; $('dmIn').value = ''; $('dmYes').disabled = true; show(true); };
-    $('dmNo').onclick = () => show(false); $('dmIn').oninput = () => { $('dmYes').disabled = $('dmIn').value.trim() !== '과거 데이터 삭제'; };
+    const picked = () => [...modal.querySelectorAll('[data-dk]:checked')].map((c) => c.dataset.dk);
+    const refresh = () => { $('dmYes').disabled = $('dmIn').value.trim() !== '과거 데이터 삭제' || !picked().length; };
+    $('delBtn').onclick = async () => {
+      const y = parseInt($('delYear').value, 10); $('dmY').textContent = y + '학년도'; $('dmIn').value = ''; $('dmYes').disabled = true; $('dmList').innerHTML = '<p class="text-slate-400 p-2">확인 중...</p>'; show(true);
+      try {
+        const items = await APP.previewDelete(y);
+        $('dmList').innerHTML = items.map((it) => '<label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 ' + (it.count ? '' : 'text-slate-400') + '"><input type="checkbox" data-dk="' + it.key + '" ' + (it.count ? 'checked' : 'disabled') + ' class="w-4 h-4"><span class="flex-1">' + esc(it.label) + '</span><span class="text-xs">' + it.count + '건</span></label>').join('');
+        modal.querySelectorAll('[data-dk]').forEach((c) => c.onchange = refresh); refresh();
+      } catch (e) { console.error(e); $('dmList').innerHTML = '<p class="text-red-600 p-2">확인하지 못했습니다: ' + esc(String(e.message || e)) + '</p>'; }
+    };
+    $('dmAll').onclick = () => { modal.querySelectorAll('[data-dk]:not(:disabled)').forEach((c) => { c.checked = true; }); refresh(); };
+    $('dmNone').onclick = () => { modal.querySelectorAll('[data-dk]').forEach((c) => { c.checked = false; }); refresh(); };
+    $('dmNo').onclick = () => show(false); $('dmIn').oninput = refresh;
     $('dmYes').onclick = () => guard(async () => {
-      const s = await APP.deleteYear(parseInt($('delYear').value, 10)); show(false);
-      toast('삭제 완료 (' + Object.keys(s).map((k) => k.replace('data_', '') + ' ' + s[k]).join(', ') + ')'); renderData();
+      const keys = picked(); if (!keys.length) return;
+      const s = await APP.deleteYear(parseInt($('delYear').value, 10), keys); show(false);
+      toast('삭제 완료 (' + Object.keys(s).map((k) => k + ' ' + s[k]).join(', ') + ')'); renderData();
     });
   }
 })();

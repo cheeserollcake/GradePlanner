@@ -4,13 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>교실배치도</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261109a">
-  <script src="../assets/js/fb-boot.js?v=20261109a"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261109b">
+  <script src="../assets/js/fb-boot.js?v=20261109b"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
-  <script src="../assets/js/firebase-config.js?v=20261109a"></script>
-  <script src="../assets/js/gas-shim.js?v=20261109a"></script>
+  <script src="../assets/js/firebase-config.js?v=20261109b"></script>
+  <script src="../assets/js/gas-shim.js?v=20261109b"></script>
   <style>body{font-family:'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR',sans-serif;background:#f8fafc}</style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109a">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109b">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
 <div class="max-w-5xl mx-auto space-y-4">
@@ -19,20 +19,24 @@
   <div id="view" class="bg-white border border-slate-200 rounded-xl shadow-sm p-3 text-center"></div>
 </div>
 <script>
+async function listMine(){   // 지금 학년도에 올린 배치도만 (이전 학년도 파일은 지우지 않고 감춥니다)
+  const res=await GP.storage.ref('classroom').listAll(); const sp=GP.yearSpan(await GP.curYear()); const mine=[];
+  for(const it of res.items){ try{ const d=new Date((await it.getMetadata()).timeCreated); if(d>=sp.start&&d<=sp.end) mine.push(it); }catch(_){ mine.push(it); } }
+  return mine.sort((a,b)=>b.name.localeCompare(a.name));
+}
 async function load(){
   const v=document.getElementById('view');
   try{
-    const res=await GP.storage.ref('classroom').listAll();
-    const items=res.items.sort((a,b)=>b.name.localeCompare(a.name));
+    const items=await listMine();
     if(!items.length){ v.innerHTML='<p class="text-slate-400 py-10">등록된 교실배치도가 없습니다.</p>'; return; }
     v.innerHTML='<img class="max-w-full h-auto mx-auto" src="'+await items[0].getDownloadURL()+'">';
   }catch(e){ v.innerHTML='<p class="text-red-500 py-10">불러오기 실패: '+e.message+'</p>'; }
 }
 document.getElementById('file').onchange=async(e)=>{
   const f=e.target.files[0]; if(!f) return;
-  const res=await GP.storage.ref('classroom').listAll();
+  const old=await listMine();
   await GP.storage.ref('classroom/'+Date.now()+'_'+f.name.replace(/[^\w.\-]+/g,'_')).put(f);
-  for(const it of res.items){ try{await it.delete();}catch(_){} }
+  for(const it of old){ try{await it.delete();}catch(_){} }
   load();
 };
 load();

@@ -1,20 +1,22 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261109a">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261109b">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>학년 개요</title>
-  <script src="../assets/js/fb-boot.js?v=20261109a"></script>
-  <script src="../assets/js/firebase-config.js?v=20261109a"></script>
-  <script src="../assets/js/gas-shim.js?v=20261109a"></script>
-  <script src="../assets/js/app-data.js?v=20261109a"></script>
+  <script src="../assets/js/fb-boot.js?v=20261109b"></script>
+  <script src="../assets/js/firebase-config.js?v=20261109b"></script>
+  <script src="../assets/js/gas-shim.js?v=20261109b"></script>
+  <script src="../assets/js/app-data.js?v=20261109b"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     .cell { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
     /* 학년 개요 표: 반 열은 균등 배분. 구분 열 최대 5글자, 계 열 최대 3글자, 반 열 최대 8글자 너비(표가 좁아지면 같은 비율로 줄어듦) */
-    #info { table-layout: fixed; width: 100%; min-width: 720px; }
-    @media (max-width: 767px) { #info th, #info td { padding: .5rem .25rem; } }
+    #info { table-layout: fixed; width: 100%; }
+    #info.narrow { font-size: 11px; }   /* 좁은 화면: 글자·여백을 줄여 가로 스크롤 없이 한 화면에 */
+    #info.narrow th, #info.narrow td { padding: .4rem .1rem; overflow: hidden; }
+    #info.narrow input.memo { font-size: 11px; padding: 0; }
     #info col.ovh { width: var(--ph); }
     #info col.ovc { width: var(--pc); }
     #info col.ovs { width: var(--ps); }
@@ -26,7 +28,7 @@
     .row-today td:first-child { box-shadow: inset 3px 0 0 #2563eb, inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
     .row-today td:last-child { box-shadow: inset -3px 0 0 #2563eb, inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
   </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109a">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109b">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
 <div class="max-w-7xl mx-auto space-y-6">
@@ -107,10 +109,20 @@ async function renderInfo() {
   const numRow = (label, a) => '<tr><td class="' + th + ' ">' + label + '</td>' + a.map((v) => '<td class="' + td + '">' + v + '</td>').join('') + '<td class="' + td + ' font-bold">' + sum(a) + '</td></tr>';
   const memoRow = () => '<tr><td class="' + th + '">비고</td>' + names.map((_, i) => '<td class="' + td + '"><input data-c="' + (i + 1) + '" value="' + esc((ovMap['r5_' + general.year] || ovMap.r5 || {})['c' + (i + 1)] || '') + '" class="memo w-full text-center bg-transparent border-b border-dashed border-slate-300 focus:outline-none focus:border-indigo-500"></td>').join('') + '<td class="' + td + '"></td></tr>';
   const homeRow = () => '<tr><td class="' + th + '">담임</td>' + names.map((c) => '<td class="' + td + '">' + esc(APP.homeroomFor(general, c, todayDate(), semRows)) + '</td>').join('') + '<td class="' + td + '"></td></tr>';
-  { const t = document.getElementById('info'), wh = 6, ws = 4, wc = 9, tot = wh + ws + wc * n;   // em 단위 최대 너비(글자 수 + 안쪽 여백)
-    t.style.maxWidth = tot + 'em'; t.style.setProperty('--ph', (wh / tot * 100).toFixed(3) + '%'); t.style.setProperty('--pc', (wc / tot * 100).toFixed(3) + '%'); t.style.setProperty('--ps', (ws / tot * 100).toFixed(3) + '%'); }
+  const fitInfo = () => {   // 표 너비: 넓은 화면은 최대 너비(구분 5글자·계 3글자·반 8글자)까지만, 좁은 화면은 화면 폭에 딱 맞게
+    const t = document.getElementById('info'), W = t.parentElement.clientWidth;
+    if (W < 768) {
+      const ph = 40, ps = 32, pc = Math.max(20, Math.floor((W - ph - ps - 2) / n));
+      t.classList.add('narrow'); t.style.maxWidth = 'none'; t.style.setProperty('--ph', ph + 'px'); t.style.setProperty('--ps', ps + 'px'); t.style.setProperty('--pc', pc + 'px');
+    } else {
+      const wh = 6, ws = 4, wc = 9, tot = wh + ws + wc * n;   // em 단위 최대 너비(글자 수 + 안쪽 여백)
+      t.classList.remove('narrow'); t.style.maxWidth = tot + 'em'; t.style.setProperty('--ph', (wh / tot * 100).toFixed(3) + '%'); t.style.setProperty('--pc', (wc / tot * 100).toFixed(3) + '%'); t.style.setProperty('--ps', (ws / tot * 100).toFixed(3) + '%');
+    }
+  };
+  window.addEventListener('resize', fitInfo);
   document.getElementById('info').innerHTML = '<colgroup><col class="ovh">' + names.map(() => '<col class="ovc">').join('') + '<col class="ovs"></colgroup><thead><tr><th class="' + th + '">구분</th>' + names.map((c) => '<th class="' + th + '">' + esc(c) + '</th>').join('') + '<th class="' + th + '">계</th></tr></thead><tbody>' +
     numRow('학생수', all) + numRow('남', m) + numRow('여', f) + memoRow() + homeRow() + '</tbody>';
+  fitInfo();
   document.querySelectorAll('.memo').forEach((inp) => inp.onchange = async () => {
     // 비고는 학년도별 문서(r5_<학년도>)에 저장합니다. 이전 형식(r5)이 있으면 처음 수정할 때 현재 학년도로 옮깁니다.
     const key = 'r5_' + general.year, cur = ovMap[key], legacy = ovMap.r5, field = 'c' + inp.dataset.c;

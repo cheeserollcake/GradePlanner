@@ -16,8 +16,35 @@
   const getGeneral = () => G.loadGeneral();                      // 학년도별 담임/전담교사 포함
   const saveGeneral = (g) => G.saveGeneral(g);
   // 학년도 변경: 이전 학년도 설정은 그대로 보관하고, 새 학년도의 담임/전담교사/공간 개방 설정은 비어 있는 상태로 시작
+  // 이 기능이 생기기 전에 이미 학년도를 바꿔 둔 경우: 문서를 처음 만든 시각(REST createTime)으로 학년도를 추정해 한 번만 표시를 붙입니다.
+  async function migrateYearTags() {
+    const flag = await getCfg('year_tag', null); if (flag && flag.done) return false;
+    const cur = (await G.loadGeneral()).year; const ops = [];
+    for (const col of G.YEARED) {
+      const rows = (await G.getColAll(col)).filter((r) => r._year === undefined || r._year === null); if (!rows.length) continue;
+      const times = await createTimes(col);   // 확인하지 못하면 오류 → 아무것도 하지 않고 나중에 다시 시도
+      rows.forEach((r) => { const t = times.get(r._id); if (t) { const y = yearOf(t); if (y !== cur) { if (col === BT && /^class_\d+$/.test(r._id)) ops.push(...archiveOps(r, y)); else ops.push({ type: 'update', col, id: r._id, data: { _year: y } }); } } });
+    }
+    await commit(ops); await setCfg('year_tag', { done: true, at: new Date().toISOString() }); return ops.length > 0;
+  }
+  // 학년도 표시(_year)가 없는 문서는 '지금 학년도' 것입니다. 학년도를 바꾸기 직전에 그 문서들에 지금 학년도를 적어 둡니다.
+  // 기초시간표는 학급마다 문서 하나(class_N)라서, 학년도가 바뀌면 지난 학년도 문서를 class_N__y<학년도> 로 옮겨 두고 새 학년도의 보관본이 있으면 되돌립니다.
+  const BT = 'data_basic_timetable';
+  const archiveOps = (row, y) => { const d = Object.assign({}, row); delete d._id; d._year = y; return [{ type: 'set', col: BT, id: row._id + '__y' + y, data: d }, { type: 'delete', col: BT, id: row._id }]; };
+  async function tagYear(y, newYear) {
+    const ops = [];
+    for (const col of G.YEARED) (await G.getColAll(col)).forEach((r) => {
+      if (r._year !== undefined && r._year !== null) return;
+      if (col === BT && /^class_\d+$/.test(r._id)) ops.push(...archiveOps(r, y)); else ops.push({ type: 'update', col, id: r._id, data: { _year: y } });
+    });
+    if (newYear) (await G.getColAll(BT)).forEach((r) => { const m = r._id.match(/^(class_\d+)__y(\d+)$/); if (m && Number(m[2]) === newYear) { const d = Object.assign({}, r); delete d._id; delete d._year; ops.push({ type: 'set', col: BT, id: m[1], data: d }, { type: 'delete', col: BT, id: r._id }); } });
+    await commit(ops);
+    const groups = await getCfg('course_groups', []);
+    if (groups.some((g) => g.year === undefined || g.year === null)) await setCfg('course_groups', groups.map((g) => (g.year === undefined || g.year === null ? Object.assign({}, g, { year: y }) : g)));
+  }
   async function setYear(year) {
     const cur = await G.loadGeneral(); await G.saveGeneral(cur);   // 이전 형식의 데이터가 있으면 현재 학년도 것으로 먼저 옮김
+    if (year !== cur.year) await tagYear(cur.year, year);   // 지금까지의 명렬표·기초시간표·예산 등에 '이전 학년도' 표시를 붙여 새 학년도에서는 빈 화면으로 보이게 함(삭제 아님)
     cur.year = year; await G.setCfg('general', { year, grade: cur.grade, classCount: cur.classCount, classNames: cur.classNames, legacyMigrated: true });
   }
   // 학기/기간 매칭: entry = {terms:[...], period:{start,end}|null}, sems = {학기이름:{start,end}}
@@ -272,49 +299,47 @@
     return hit;
   }
 
-  async function deleteYear(year) {
-    const r = yearRange(year); const ops = []; const summary = {};
-    const created = (d) => !!d && inRange(toDate(d), r);
-    // 1) 날짜 필드로 구분되는 데이터
-    for (const [c, f] of Object.entries(DATE_FIELDS)) {
-      const hit = (await getCol(c)).filter((x) => inRange(toDate(x[f]), r));
-      hit.forEach((x) => ops.push({ type: 'delete', col: c, id: x._id })); summary[c] = hit.length;
-    }
-    const basic = await getCol('data_basic');
-    const semRows = basic.filter((x) => str(x.semester).trim() && inRange(toDate(x.semester_start_date), r));
-    const holRows = basic.filter((x) => str(x.holiday).trim() && inRange(toDate(x.holiday_start_date), r));
-    semRows.forEach((x) => ops.push(...basicStripOps([x], ['semester', 'semester_start_date', 'semester_end_date'])));
-    holRows.forEach((x) => { if (!semRows.includes(x)) ops.push(...basicStripOps([x], ['holiday', 'holiday_start_date', 'holiday_end_date'])); });
-    summary.data_basic = semRows.length + holRows.length;
-    const sup = (await getCol('data_supply')).filter((x) => { const m = str(x.supply_year).match(/\d{4}/); return !!m && parseInt(m[0], 10) === year; });   // 예: '2026년'
-    sup.forEach((x) => ops.push({ type: 'delete', col: 'data_supply', id: x._id })); summary.data_supply = sup.length;
-    ['year_' + year, 'space_open_' + year].forEach((id) => ops.push({ type: 'delete', col: 'app_config', id }));   // 그 학년도의 담임/전담교사, 공간 개방 설정
-    summary.app_config = 2;
-    // 2) 작성일이 그 학년도인 데이터 (먼저 모두 확인하고, 하나라도 확인하지 못하면 아무것도 지우지 않습니다)
-    for (const col of ['data_student', 'data_budget', 'data_overview', 'data_sheet_rows']) {
-      const times = await createTimes(col); let n = 0;
-      times.forEach((t, id) => { if (created(t)) { ops.push({ type: 'delete', col, id }); n++; } });
-      summary[col] = n;
-    }
-    const groups = await getCfg('course_groups', []);
-    const docT = groups.some((g) => !g.createdAt) ? await docCreateTime('app_config', 'course_groups') : null;   // 작성일이 기록되지 않은 범주는 설정 문서의 작성일을 따름
-    const keep = groups.filter((g) => !created(g.createdAt ? new Date(g.createdAt) : docT));
-    summary.course_groups = groups.length - keep.length;
-    if (keep.length !== groups.length) ops.push({ type: 'set', col: 'app_config', id: 'course_groups', data: { json: JSON.stringify(keep), updatedAt: new Date().toISOString() } });
-    const imgs = (await GP.db.collection('data_images').get()).docs.filter((d) => created(new Date(d.data().createdAt || 0)));
-    summary.data_images = imgs.length;
-    const atts = (await GP.db.collection('data_files').get()).docs.filter((d) => created(new Date(d.data().createdAt || 0)));
-    summary.data_files = atts.length;
-    const files = []; for (const folder of ['special_room', 'classroom', 'extension', 'budget']) (await storageFilesIn(folder, r)).forEach((it) => files.push(it));
-    summary.files = files.length;
-    const ext = await getCfg('ext_file', null); if (ext && files.some((it) => it.fullPath === ext.path)) ops.push({ type: 'delete', col: 'app_config', id: 'ext_file' });
-    // 3) 실제 삭제
+  // ---- 학년도 데이터 정리 계획: 항목마다 {key,label,count,ops,after} 를 만들고, 고른 항목만 실제로 지웁니다.
+  const YEAR_ITEMS = [
+    ['school', '학교 행사'], ['memo', '학년 일정'], ['add', '추가된 일정 (강좌별 시간표 조회)'], ['sub', '전담 시간표'], ['gym', '체육 공간 시간표'], ['room', '특별실 시간표'],
+    ['sem', '학기·방학·휴일 설정'], ['cfg', '담임·전담교사, 공간 개방 설정'], ['groups', '강좌별 시간표 범주'], ['student', '학년 전체 명렬표'], ['basictt', '기초시간표'], ['budget', '예산 내역 (학년 예산·학년회비·추가한 예산 페이지)'],
+    ['supply', '학습준비물'], ['overview', '학년 개요 비고'], ['images', '특별실 시간표 이미지'], ['atts', '예산 첨부 이미지·파일'], ['ext', '내선번호 파일'], ['classroom', '교실 배치도 파일'], ['files', '그 밖에 이전 방식으로 올린 파일']
+  ];
+  async function planYear(year) {
+    const r = yearRange(year); const created = (d) => !!d && inRange(toDate(d), r); const cur = await G.curYear(); const plan = [];
+    const add = (key, count, ops, after) => plan.push({ key, label: YEAR_ITEMS.find((x) => x[0] === key)[1], count, ops: ops || [], after });
+    const dateCol = { school: ['data_task_school', 'task_school_date_start'], memo: ['data_task_memo', 'task_memo_date_start'], add: ['data_add_timetable', 'add_date'], sub: ['data_sub_timetable', 'sub_date'], gym: ['data_gym_timetable', 'gym_date'], room: ['data_room_timetable', 'room_date'] };
+    for (const [k, [c, f]] of Object.entries(dateCol)) { const hit = (await getCol(c)).filter((x) => inRange(toDate(x[f]), r)); add(k, hit.length, hit.map((x) => ({ type: 'delete', col: c, id: x._id }))); }
+    const basic = await getCol('data_basic'); const semRows = basic.filter((x) => str(x.semester).trim() && inRange(toDate(x.semester_start_date), r)); const holRows = basic.filter((x) => str(x.holiday).trim() && inRange(toDate(x.holiday_start_date), r));
+    const sops = []; semRows.forEach((x) => sops.push(...basicStripOps([x], ['semester', 'semester_start_date', 'semester_end_date']))); holRows.forEach((x) => { if (!semRows.includes(x)) sops.push(...basicStripOps([x], ['holiday', 'holiday_start_date', 'holiday_end_date'])); });
+    add('sem', semRows.length + holRows.length, sops);
+    const cfgs = (await getCol('app_config')).filter((x) => x._id === 'year_' + year || x._id === 'space_open_' + year); add('cfg', cfgs.length, cfgs.map((x) => ({ type: 'delete', col: 'app_config', id: x._id })));
+    const groups = await getCfg('course_groups', []); const mineG = (g) => (g.year === undefined || g.year === null ? cur : Number(g.year)) === year; const keepG = groups.filter((g) => !mineG(g));
+    add('groups', groups.length - keepG.length, groups.length !== keepG.length ? [{ type: 'set', col: 'app_config', id: 'course_groups', data: { json: JSON.stringify(keepG), updatedAt: new Date().toISOString() } }] : []);
+    const yeared = async (col) => (await G.getColAll(col)).filter((x) => (x._year === undefined || x._year === null ? cur : Number(x._year)) === year);
+    const stu = await yeared('data_student'); add('student', stu.length, stu.map((x) => ({ type: 'delete', col: 'data_student', id: x._id })));
+    const btt = await yeared('data_basic_timetable'); add('basictt', btt.length, btt.map((x) => ({ type: 'delete', col: 'data_basic_timetable', id: x._id })));
+    const bud = await yeared('data_budget'), shr = await yeared('data_sheet_rows'); add('budget', bud.length + shr.length, bud.map((x) => ({ type: 'delete', col: 'data_budget', id: x._id })).concat(shr.map((x) => ({ type: 'delete', col: 'data_sheet_rows', id: x._id }))));
+    const sup = (await getCol('data_supply')).filter((x) => { const m = str(x.supply_year).match(/\d{4}/); return !!m && parseInt(m[0], 10) === year; }); add('supply', sup.length, sup.map((x) => ({ type: 'delete', col: 'data_supply', id: x._id })));
+    const ovs = (await getCol('data_overview')).filter((x) => x._id === 'r5_' + year); add('overview', ovs.length, ovs.map((x) => ({ type: 'delete', col: 'data_overview', id: x._id })));
+    const docsIn = async (col) => { try { return (await GP.db.collection(col).get()).docs.filter((d) => created(new Date(d.data().createdAt || 0))); } catch (e) { return []; } };
+    const imgs = await docsIn('data_images'); add('images', imgs.length, [], async () => { for (const d of imgs) await d.ref.delete(); });
+    const atts = await docsIn('data_files'); add('atts', atts.length, [], async () => { for (const d of atts) await d.ref.delete(); });
+    const ext = await getCfg('ext_file', null); const extHit = !!(ext && ext.updatedAt && created(new Date(ext.updatedAt)));
+    add('ext', extHit ? 1 : 0, extHit ? [{ type: 'delete', col: 'app_config', id: 'ext_file' }].concat((ext.chunks || []).map((id) => ({ type: 'delete', col: 'data_files', id }))) : []);
+    const cls = await storageFilesIn('classroom', r).catch(() => []); add('classroom', cls.length, [], async () => { for (const it of cls) await it.delete(); });
+    const oth = []; for (const folder of ['special_room', 'extension', 'budget']) (await storageFilesIn(folder, r).catch(() => [])).forEach((it) => oth.push(it)); add('files', oth.length, [], async () => { for (const it of oth) await it.delete(); });
+    return plan;
+  }
+  async function previewDelete(year) { return (await planYear(year)).map((x) => ({ key: x.key, label: x.label, count: x.count })); }
+  async function deleteYear(year, keys) {   // keys: 지울 항목(없으면 전부)
+    const plan = (await planYear(year)).filter((x) => !keys || keys.indexOf(x.key) >= 0); const ops = []; const summary = {};
+    plan.forEach((x) => { ops.push(...x.ops); summary[x.label] = x.count; });
     await commit(ops);
-    for (const d of imgs.concat(atts)) await d.ref.delete();
-    for (const it of files) await it.delete();
+    for (const x of plan) if (x.after) await x.after();
     return summary;
   }
 
   window.APP = { dday, fmtDate, setYear, getVacations, renderDayCards, yearRange, yearOf, inRange, getGeneral, saveGeneral, holidayMap, buildSchedule, getDayState, saveDay, SEM_NAMES, getSemesterRows, saveSemesters,
-    listBaseItems, addBaseItems, updateBaseItem, deleteBaseItem, clearSemester, entryApplies, homeroomFor, syncTeachers, teacherNames, setTeacherNames, ensureTeachers, detectYears, deleteYear };
+    listBaseItems, addBaseItems, updateBaseItem, deleteBaseItem, clearSemester, entryApplies, homeroomFor, syncTeachers, teacherNames, setTeacherNames, ensureTeachers, detectYears, deleteYear, previewDelete, migrateYearTags };
 })();
