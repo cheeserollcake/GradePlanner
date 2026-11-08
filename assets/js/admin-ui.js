@@ -391,7 +391,7 @@
       if (part === 'year') {   // 학기·방학 칸은 '학년도 설정' 탭에만 있습니다
       // 학기·방학: 날짜를 고르면 바로 저장. 앞 기간의 종료일 다음 날이 다음 기간의 시작일로 자동 입력됩니다.
       document.querySelectorAll('[data-ystep]').forEach((b) => b.onclick = () => { const i = $('year'); i.value = (parseInt(i.value, 10) || g.year) + (+b.dataset.ystep); });
-      const semIn = (n, p) => view.querySelector('[data-sem="' + n + '"][data-p="' + p + '"]');
+      const semIn = (n, p) => view.querySelector('[data-sem="' + n + '"][data-p="' + p + '"]') || document.createElement('input');
       const NEXT = { '1학기': '여름방학', '여름방학': '2학기', '2학기': '겨울방학' };
       const collect = (names) => {
         const { start, end } = range(); const upd = {}, clr = [];
