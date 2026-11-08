@@ -160,7 +160,7 @@ const PUMUI = ['해당없음', '품의중', '품의완료', '결재완료'];
 const isFeeName = (n) => /학년회비|친목회비/.test(str(n));
 const splitList = (s) => str(s).split(',').map((x) => x.trim()).filter(Boolean);
 const classNames = () => ((lists && lists.classes) || []).filter((c) => c !== '학년공통');
-const isFeeRow = (F, r) => !!(r && F && F.name && F.spec && isFeeName(r[F.name]));
+const isFeeRow = (F, r) => !!(F && F.name && F.spec && (F.fee || (r && isFeeName(r[F.name]))));   // 학년회비 페이지는 모든 줄이 학년회비 줄
 const feePlus = (F, r) => isFeeRow(F, r) && splitList(r[F.spec]).indexOf('+') >= 0;   // 규격에 + : 돈을 모은 줄
 const feeClasses = (F, r) => isFeeRow(F, r) && splitList(r[F.spec]).some((c) => classNames().indexOf(c) >= 0);   // 규격에 학급을 체크한 줄
 // 학습준비물: supply_class = "1반, 2반", supply_class_num = "5, 2"  (0이 아닌 학급만, 같은 순서)
@@ -196,6 +196,10 @@ function budgetKind() {
     { name: '금액(합)', calc: 1 }, { name: '링크', k: 'budget_link' }, { name: '품의상황', k: 'budget_pumui' }, { name: '완료상태', k: 'budget_progress' }, { name: '비고', k: 'budget_memo' }]);
   return { id: 'budget', name: '학년 예산', col: 'data_budget', cols, F, filters: [['예산종류', 'budget_name'], ['품의상황', 'budget_pumui']] };
 }
+function feeKind() {
+  const k = budgetKind();   // 학년 예산과 같은 열 · 같은 데이터(data_budget) 중 학년회비·친목회비 줄만 따로 모아 보여 줌
+  return Object.assign(k, { id: 'fee', name: '학년회비', F: Object.assign({}, k.F, { fee: true }) });
+}
 function supplyKind(sem) {
   return { id: 'supply', sem, name: '학습준비물 ' + sem + '학기', col: 'data_supply', cols: [
     { k: 'supply_product', label: '품명', w: 180 }, { k: 'supply_spec', label: '규격', w: 150 },
@@ -222,6 +226,7 @@ const kindOf = (m) => {
 };
 const rawKind = (m) => {
   if (m === 'budget') return budgetKind();
+  if (m === 'fee') return feeKind();
   if (m === 'supply1' || m === 'supply2') return supplyKind(m === 'supply1' ? 1 : 2);
   const sh = sheets.find((x) => 'sheet:' + x.id === m); if (!sh) return budgetKind();
   const { cols, F } = colsFor(sh.cols.map((c) => ({ name: c.name, k: 'f_' + c.id, cid: c.id })));
@@ -231,7 +236,7 @@ const ord = (r) => (typeof r.row_order === 'number' ? r.row_order : Number(r.row
 const byOrder = (a, b) => ord(a) - ord(b) || (a._id < b._id ? -1 : a._id > b._id ? 1 : 0);
 const inSupply = (r, sem) => { const m = str(r.supply_year).match(/\d{4}/); return !!m && parseInt(m[0], 10) === curYear && str(r.supply_semester).trim().charAt(0) === String(sem); };
 const srcArr = (kind) => (kind.custom ? data.sheetRows : kind.col === 'data_budget' ? data.budget : data.supply);
-const allRows = (kind) => (kind.custom ? data.sheetRows.filter((r) => r.sheet === kind.custom.id) : kind.col === 'data_budget' ? data.budget : data.supply.filter((r) => inSupply(r, kind.sem)));
+const allRows = (kind) => (kind.custom ? data.sheetRows.filter((r) => r.sheet === kind.custom.id) : kind.id === 'fee' ? data.budget.filter((r) => isFeeName(r.budget_name)) : kind.col === 'data_budget' ? data.budget.filter((r) => !isFeeName(r.budget_name)) : data.supply.filter((r) => inSupply(r, kind.sem)));
 const hasClass = (r, c) => parseSup(r).some((x) => x.c === c) || (!splitList(r && r.supply_class_num).length && splitList(r && r.supply_class).indexOf(c) >= 0);
 const viewRows = (kind) => allRows(kind).filter((r) => kind.filters.every(([, k]) => !filters[k] || (k === 'supply_class' ? hasClass(r, filters[k]) : str(r[k]) === filters[k])));
 const findRow = (kind, id) => allRows(kind).find((r) => r._id === id);
@@ -264,15 +269,15 @@ function blankDoc(kind, preset) {
   d.row_order = Date.now() * 100 + (seq++ % 100);
   return d;
 }
-const presetFor = (kind) => { const p = {}; kind.filters.forEach(([, k]) => { if (filters[k] && k !== 'supply_class') p[k] = filters[k]; }); return p; };   // 걸러 보는 중이면 새 줄에 같은 값을 미리 넣어 줌
+const presetFor = (kind) => { const p = {}; if (kind.id === 'fee') p.budget_name = budgetOpts().find(isFeeName) || '학년회비'; kind.filters.forEach(([, k]) => { if (filters[k] && k !== 'supply_class') p[k] = filters[k]; }); return p; };   // 걸러 보는 중이면 새 줄에 같은 값을 미리 넣어 줌
 const storeVal = (c, v) => (c.t === 'num' ? String(v).replace(/,/g, '').trim() : c.t === 'chk' ? (str(v).trim() && !/^(0|false|n|no|x)$/i.test(str(v).trim()) ? '완료' : '') : String(v));
 
 // ======================= 화면 =======================
 function renderTabs() {
-  const tab = (id, name) => '<button data-m="' + esc(id) + '" class="px-4 py-1.5 rounded-full text-sm font-bold ' + (mode === id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">' + esc(name) + '</button>';
-  $('tabs').innerHTML = tab('budget', '학년 예산') + tab('supply1', '학습준비물 1학기') + tab('supply2', '학습준비물 2학기') + sheets.map((s) => tab('sheet:' + s.id, s.name)).join('') +
+  const tab = (id, name, on) => '<button data-m="' + esc(id) + '" class="px-4 py-1.5 rounded-full text-sm font-bold ' + (on || mode === id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">' + esc(name) + '</button>';
+  $('tabs').innerHTML = tab('budget', '학년 예산') + tab('fee', '학년회비') + tab(/^supply/.test(mode) ? mode : (new Date().getMonth() >= 7 || new Date().getMonth() <= 1 ? 'supply2' : 'supply1'), '학습준비물', /^supply/.test(mode)) + sheets.map((s) => tab('sheet:' + s.id, s.name)).join('') +
     '<button id="tabAdd" title="예산 페이지 추가" class="w-8 h-8 rounded-full bg-white border border-slate-300 text-lg font-bold text-slate-600 hover:bg-indigo-50 leading-none">+</button>';
-  $('tabs').querySelectorAll('[data-m]').forEach((b) => b.onclick = () => setMode(b.dataset.m));
+  $('tabs').querySelectorAll('[data-m]').forEach((b) => b.onclick = () => { if (/^supply/.test(b.dataset.m) && /^supply/.test(mode)) return; setMode(b.dataset.m); });
   $('tabAdd').onclick = openAdd;
 }
 function setMode(m) { mode = m; filters = {}; blankN = 1; renderAll(); }
@@ -749,13 +754,15 @@ function renderSupplyBox() {
   const CARD = 'bg-white border border-slate-200 rounded-xl p-2 sm:p-3 shadow-sm min-w-0';
   if (box.dataset.m !== mode) {
     box.dataset.m = mode;
-    box.innerHTML = '<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">' +
+    box.innerHTML = '<div class="inline-flex rounded-full bg-slate-100 p-1 text-sm font-bold">' + [1, 2].map((n) => '<button type="button" data-sem="' + n + '" class="px-4 py-1 rounded-full ' + (kind.sem === n ? 'bg-white text-indigo-700 shadow' : 'text-slate-500') + '">' + n + '학기</button>').join('') + '</div>' +
+      '<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">' +
       '<label class="block ' + CARD + '"><span class="text-xs font-semibold text-slate-500">학습준비물 총액<span class="font-normal text-slate-400 hidden sm:inline"> (직접 입력)</span></span><input id="supTotal" inputmode="numeric" class="mt-1 w-full border rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 text-right font-bold text-sm sm:text-lg" placeholder="0"></label>' +
       '<div class="' + CARD + '"><div class="text-xs font-semibold text-slate-500">학년공통사용액</div><div id="supCommon" class="mt-2 text-right font-bold text-sm sm:text-lg"></div></div>' +
       '<div class="' + CARD + '"><div class="text-xs font-semibold text-slate-500">반별배부액<span class="font-normal text-slate-400 hidden sm:inline"> (총액 − 학년공통) ÷ 학급수</span></div><div id="supAlloc" class="mt-2 text-right font-bold text-sm sm:text-lg"></div></div>' +
       '<div class="' + CARD + '"><div class="text-xs font-semibold text-slate-500">잔액<span class="font-normal text-slate-400 hidden sm:inline"> (총액 − 표의 금액 합계)</span></div><div id="supRemain" class="mt-2 text-right font-bold text-sm sm:text-lg"></div></div></div>' +
       '<div id="supClasses" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2"></div>' +
       '<p class="text-xs text-slate-400">학급별 사용액은 표의 수량 칸(학급별 수량)으로 계산합니다. 반별배부액보다 1,000원 이상 많으면 빨간 글씨, 정확히 같으면 회색 배경으로 보입니다.</p>';
+    box.querySelectorAll('[data-sem]').forEach((b) => b.onclick = () => setMode('supply' + b.dataset.sem));
     const t = $('supTotal');
     t.onfocus = () => { t.value = t.value.replace(/,/g, ''); setTimeout(() => { try { t.select(); } catch (e) { /* 무시 */ } }, 0); };
     t.onchange = () => { const v = num(t.value.replace(/,/g, '')); supplyTotals[curYear + '_' + kindOf(mode).sem] = v; t.value = v ? fmt(v) : '';
@@ -965,7 +972,7 @@ async function load(fresh) {
   if (gen && num(gen.year)) curYear = num(gen.year); supplyTotals = (tot && typeof tot === 'object') ? tot : {};
   data = { budget: b.map((r) => Object.assign({}, r)), supply: s.map((r) => Object.assign({}, r)), sheetRows: sr.map((r) => Object.assign({}, r)) };
   sheets = Array.isArray(cfg.sheets) ? cfg.sheets : []; lists = ls; colWidths = (await GP.getCfg('budget_cols', {})) || {};
-  if (mode !== 'budget' && mode !== 'supply1' && mode !== 'supply2' && !sheets.some((x) => 'sheet:' + x.id === mode)) mode = 'budget';
+  if (mode !== 'budget' && mode !== 'fee' && mode !== 'supply1' && mode !== 'supply2' && !sheets.some((x) => 'sheet:' + x.id === mode)) mode = 'budget';
 }
 $('btn-refresh').onclick = async () => { if (pendingN) return; try { await load(true); renderAll(); } catch (e) { setState('error', e.message); } };
 (async function init() {

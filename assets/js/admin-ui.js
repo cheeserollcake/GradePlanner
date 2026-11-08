@@ -467,12 +467,13 @@
     try { const j = sessionStorage.getItem('gp_admin_budget_page'); if (j) { sessionStorage.removeItem('gp_admin_budget_page'); bdSel = j; } } catch (e) { /* 무시 */ }
     const rowsB = await GP.getCol('data_budget'); const lines = await GP.budgetLines();
     const sheetCfg = await GP.getCfg('budget_sheets', { sheets: [] });
-    const PAGES = [['budget', '학년 예산'], ['supply1', '학습준비물 1학기'], ['supply2', '학습준비물 2학기']].concat((Array.isArray(sheetCfg.sheets) ? sheetCfg.sheets : []).map((x) => ['sheet:' + x.id, x.name]));
+    const PAGES = [['budget', '학년 예산'], ['fee', '학년회비'], ['supply1', '학습준비물 1학기'], ['supply2', '학습준비물 2학기']].concat((Array.isArray(sheetCfg.sheets) ? sheetCfg.sheets : []).map((x) => ['sheet:' + x.id, x.name]));
     if (bdSel !== 'all' && !PAGES.some((x) => x[0] === bdSel)) bdSel = 'all';
     const pageName = (id) => (PAGES.find((x) => x[0] === id) || [id, id])[1];
     let layout = await GP.getCfg('budget_layout', {}); if (!layout || typeof layout !== 'object') layout = {};
     if (layout.supply && !layout.supply1) { layout.supply1 = layout.supply; delete layout.supply; }
     let items = (await GP.readList('list_budget')).map((i) => ({ name: i.value, amount: num(i.row.list_budget_amount), color: str(i.row.list_budget_color).trim(), pages: str(i.row.list_budget_pages).trim() ? str(i.row.list_budget_pages).split(',').filter(Boolean).map((p) => (p === 'supply' ? 'supply1' : p)) : ['budget'] }));
+    items.forEach((it) => { if (/학년회비|친목회비/.test(it.name) && it.pages.indexOf('budget') >= 0 && it.pages.indexOf('fee') < 0) it.pages = it.pages.map((x) => (x === 'budget' ? 'fee' : x)); });   // 학년회비류는 '학년회비' 페이지로
     const used = (name) => lines.filter((r) => r.name === name && !r.fee).reduce((a, r) => a + r.amount, 0);
     const added = (name) => lines.filter((r) => r.name === name && r.fee).reduce((a, r) => a + r.amount, 0);   // 학년회비 등 학급을 체크한 줄 = 배정액에 추가
     const colorOf = (it) => it.color || PALETTE[items.indexOf(it) % PALETTE.length];   // 색을 정하지 않은 카드는 전체 순서 기준의 기본 색

@@ -336,7 +336,7 @@
       gyms: uniq('list_gym'), rooms: uniq('list_room'), teachers: uniq('list_t'),
       budgets: rows.filter((r) => str(r.list_budget).trim())
         .map((r, i) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount), color: str(r.list_budget_color).trim(), pages: str(r.list_budget_pages).trim() ? str(r.list_budget_pages).split(',').filter(Boolean).map((p) => (p === 'supply' ? 'supply1' : p)) : ['budget'], _o: (r.list_budget_order === undefined || r.list_budget_order === '' || r.list_budget_order === null) ? 1e6 + i : Number(r.list_budget_order) }))
-        .sort((a, b) => a._o - b._o).map(({ _o, ...b }) => b),
+        .sort((a, b) => a._o - b._o).map(({ _o, ...b }) => { if (/학년회비|친목회비/.test(b.name) && b.pages.indexOf('budget') >= 0 && b.pages.indexOf('fee') < 0) b.pages = b.pages.map((x) => (x === 'budget' ? 'fee' : x)); return b; }),
       budgetHeaders: uniq('list_budget_header')
     };
   }
