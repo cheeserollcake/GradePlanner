@@ -200,6 +200,7 @@
       const semHtml = APP.SEM_NAMES.map((n) => '<div class="grid gap-1 sm:grid-cols-[6rem_1fr] sm:items-center"><span class="font-semibold text-sm text-slate-700">' + n + '</span>' +
         '<div class="flex items-center gap-2 max-w-md"><input type="date" data-sem="' + n + '" data-p="start" min="' + min + '" max="' + max + '" value="' + (sems[n] ? ymd(sems[n].start) : '') + '" class="' + INP + ' flex-1 min-w-0"><span class="text-slate-400">~</span>' +
         '<input type="date" data-sem="' + n + '" data-p="end" min="' + min + '" max="' + max + '" value="' + (sems[n] ? ymd(sems[n].end) : '') + '" class="' + INP + ' flex-1 min-w-0"></div></div>').join('');
+      const evCount = items.length;
       const evHtml = items.map((e, i) => '<tr class="border-t"><td class="p-1.5 whitespace-nowrap">' + ymd(e.start) + (e.end && ymd(e.end) !== ymd(e.start) ? ' ~ ' + ymd(e.end) : '') + '</td>' +
         '<td class="p-1.5 whitespace-pre-wrap">' + (e.kind === 'holiday' ? '<span class="text-xs px-1.5 py-0.5 rounded bg-pink-100 text-red-600 mr-1">휴일</span>' : '') + esc(e.name) + '</td>' +
         '<td class="p-1.5 whitespace-nowrap text-right"><button data-eedit="' + i + '" class="text-slate-500 hover:text-indigo-600 mr-2">수정</button><button data-edel="' + i + '" class="text-slate-400 hover:text-red-600">삭제</button></td></tr>').join('');
@@ -232,7 +233,8 @@
         '<button id="evSave" class="' + BTN_P + '">' + (ed ? '수정 저장' : '추가') + '</button>' + (ed ? '<button id="evCancel" class="' + BTN_G + '">취소</button>' : '') + '</div>' +
         '<p class="text-xs text-slate-400">종료일을 비워 두면 하루짜리 일정입니다. 휴일(선거일, 임시공휴일 등)로 체크하면 data_basic 의 holiday 필드에 저장됩니다.</p>' +
         '<div class="flex flex-wrap gap-2 items-center"><button id="tpl" class="' + BTN_G + '">CSV 양식 다운로드</button><label class="' + BTN_G + ' cursor-pointer">CSV 업로드<input id="csv" type="file" accept=".csv,text/csv" class="hidden"></label></div>' +
-        '<div class="max-h-72 overflow-auto border rounded-lg"><table class="w-full text-sm"><tbody>' + (evHtml || '<tr><td class="p-4 text-center text-slate-400">이 학년도에 등록된 일정이 없습니다.</td></tr>') + '</tbody></table></div></div>' +
+        '<div class="flex items-center justify-between"><span class="text-xs text-slate-400">' + evCount + '개 일정</span><button id="evExpand" class="' + BTN_G + '">' + (window.__evOpen ? '접기' : '펼침 보기') + '</button></div>' +
+        '<div id="evBox" class="border rounded-lg" style="' + (window.__evOpen ? '' : 'max-height:205px;overflow-y:auto;') + '"><table class="w-full text-sm"><tbody>' + (evHtml || '<tr><td class="p-4 text-center text-slate-400">이 학년도에 등록된 일정이 없습니다.</td></tr>') + '</tbody></table></div></div>' +
         '<div class="' + CARD + '"><h2 class="font-bold text-lg">학급 및 교사 설정 <span class="text-xs font-normal text-slate-400">입력하면 바로 저장됩니다</span></h2>' +
         '<div class="space-y-2"><h3 class="font-semibold text-sm text-slate-600">학급 설정</h3><div class="flex flex-wrap items-center gap-2"><span class="text-sm">학급 수</span><input id="cc" type="number" min="1" max="30" value="' + g.classCount + '" class="' + INP + ' w-20"></div><div class="flex flex-wrap gap-2">' + classHtml + '</div></div>' +
         '<div class="grid lg:grid-cols-2 gap-5 pt-3 border-t"><div class="space-y-2"><h3 class="font-semibold text-sm text-slate-600">담임교사</h3><div class="grid sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2">' + homeHtml + '</div></div>' +
@@ -242,6 +244,7 @@
     });
 
     const bind = () => {
+      $('evExpand').onclick = () => { window.__evOpen = !window.__evOpen; const b = $('evBox'); b.style.maxHeight = window.__evOpen ? '' : '205px'; b.style.overflowY = window.__evOpen ? '' : 'auto'; $('evExpand').textContent = window.__evOpen ? '접기' : '펼침 보기'; };
       $('grade').onchange = () => { g.grade = parseInt($('grade').value, 10) || 6; saveGeneral().then(() => notifyMeta()); };
       $('saveYear').onclick = async () => {
         try {

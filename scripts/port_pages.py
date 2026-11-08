@@ -97,11 +97,21 @@ for folder, (fname, key) in PAGES.items():
         html = must_replace(html, '<th colSpan={top[0].length} className="bg-slate-50 p-2 font-bold text-lg border">{title}</th>',
           '<th colSpan={top[0].length} className="bg-slate-50 p-2 font-bold text-lg border">{title}<button className="ml-2 text-base align-middle opacity-60 hover:opacity-100" title="공간 이름" onClick={() => setSpaceEdit({ tab: activeTab, value: currentTabData.space || \'\' })}>✏️</button></th>', fname)
         html = must_replace(html, "const [activeTab, setActiveTab] = useState('');", "const [activeTab, setActiveTab] = useState('');\n        const [spaceEdit, setSpaceEdit] = useState(null);", fname)
+        # 교시 수는 관리자 > 교시 설정을 따름
+        html = must_replace(html, "({ top, bottom, options, title } = currentSemData);", "({ top, bottom, options, title } = currentSemData);\n          window.__NP = currentSemData.np || 6;", fname)
+        html = must_replace(html, '<th colSpan="32" className', '<th colSpan={2 + 5 * (window.__NP || 6)} className', fname)
+        html = must_replace(html, '<th key={day} colSpan="6" className', '<th key={day} colSpan={window.__NP || 6} className', fname)
+        html = must_replace(html, "Array.from({length: 6}, (_, i) => i + 1).map(num =>", "Array.from({length: window.__NP || 6}, (_, i) => i + 1).map(num =>", fname)
+        html = html.replace("{Array.from({ length: 30 }, (_, i) => <col key={i} />)}", "{Array.from({ length: 5 * (window.__NP || 6) }, (_, i) => <col key={i} />)}")
+        html = html.replace("minWidth: '960px'", "minWidth: (120 + 5 * (window.__NP || 6) * 32) + 'px'")
         html = must_replace(html, "let mismatchMap = {};", "const saveSpace = () => { const v = spaceEdit; setSpaceEdit(null); google.script.run.withSuccessHandler(() => { fetchAllData(); }).saveSpaceName(v.tab, v.value); };\n        let mismatchMap = {};", fname)
         html = must_replace(html, "            </main>\n          </div>\n        );",
           "            </main>\n            {spaceEdit && (\n              <div className=\"fixed inset-0 z-[200] bg-black/40 flex items-center justify-center p-4\" onClick={() => setSpaceEdit(null)}>\n                <div className=\"bg-white rounded-xl shadow-xl p-5 w-full max-w-sm space-y-3\" onClick={(e) => e.stopPropagation()}>\n                  <h3 className=\"font-bold\">공간 이름</h3>\n                  <input autoFocus className=\"w-full border rounded-lg px-3 py-2\" placeholder=\"공간이름\" value={spaceEdit.value} onChange={(e) => setSpaceEdit({ ...spaceEdit, value: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') saveSpace(); }} />\n                  <div className=\"flex justify-end gap-2\"><button className=\"px-4 py-2 rounded-lg bg-slate-100 text-sm font-semibold\" onClick={() => setSpaceEdit(null)}>취소</button><button className=\"px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold\" onClick={saveSpace}>저장</button></div>\n                </div>\n              </div>\n            )}\n          </div>\n        );", fname)
         html = must_replace(html, '<option value="direct_input" className="text-blue-600 font-bold bg-slate-100">[직접 입력]</option>', "", fname)
         html = must_replace(html, "{!initialLoaded || !currentTabData ? (", "{initialLoaded && tabs.length === 0 ? (\n                <div className=\"flex flex-col items-center justify-center h-64 text-slate-400 space-y-2\"><p>등록된 전담교사가 없습니다.</p><p className=\"text-sm\">학년 관리자 &gt; 학년 기초 설정 &gt; 전담교사에서 과목·담당학급·교사를 등록하세요.</p></div>\n              ) : !initialLoaded || !currentTabData ? (", fname)
+    if key in ("p08", "p09"):   # 교차색상: 홀수 교시마다 (7교시 이상도 적용)
+        if "[1, 3, 5].includes(p)" not in html: raise SystemExit(fname + " 교차색상 코드를 찾지 못했습니다")
+        html = html.replace("[1, 3, 5].includes(p)", "p % 2 === 1")
     if key == "p04":   # 학급 수·교시 수는 관리자 설정을 따름 / 주간시수배정에서 꺼 둔 칸은 입력 불가 / 빈칸 자동 채우기
         # p12/p13(강조 과목)이 비어 있으면 빈 칸이 강조색으로 칠해져 회색 표시를 덮어쓰므로, 비어 있을 땐 강조하지 않음
         html = html.replace("p12 ? p12.toString() : ''", "p12 ? p12.toString() : null").replace("p13 ? p13.toString() : ''", "p13 ? p13.toString() : null")

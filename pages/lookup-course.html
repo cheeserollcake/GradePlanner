@@ -380,7 +380,7 @@
                         const pTr = document.createElement('tr');
                         
                         let thBgClass = "bg-gray-50";
-                        if ([1, 3, 5].includes(p)) {
+                        if (p % 2 === 1) {
                             thBgClass = week % 2 !== 0 ? "bg-[#fff2cc]" : "bg-[#cfe2f3]";
                         }
                         // 교시 헤더
@@ -392,7 +392,7 @@
                             const isTargetMonth = isTargetMonthArr[day];
 
                             let bgClass = "bg-white";
-                            if ([1, 3, 5].includes(p)) {
+                            if (p % 2 === 1) {
                                 bgClass = week % 2 !== 0 ? "bg-[#fff2cc]" : "bg-[#cfe2f3]";
                             }
                             td.className = bgClass;

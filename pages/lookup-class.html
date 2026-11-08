@@ -421,7 +421,7 @@
                     const pTr = document.createElement('tr');
                     
                     let thBgClass = "bg-gray-50";
-                    if ([1, 3, 5].includes(p)) {
+                    if (p % 2 === 1) {
                         thBgClass = week % 2 !== 0 ? "bg-[#fff2cc]" : "bg-[#cfe2f3]";
                     }
                     pTr.innerHTML = `<th class="${thBgClass} font-medium text-xs border-r border-gray-300">${pName(p)}</th>`;
@@ -433,7 +433,7 @@
                         const exactDate = weekDates[day];
 
                         let bgClass = "bg-white";
-                        if ([1, 3, 5].includes(p)) {
+                        if (p % 2 === 1) {
                             bgClass = week % 2 !== 0 ? "bg-[#fff2cc]" : "bg-[#cfe2f3]";
                         }
                         td.className = bgClass;

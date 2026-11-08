@@ -848,7 +848,7 @@
     const set = new Set(); tab.entries.forEach((e) => { if (appliesTo(e, semName, sem)) (e.classes || []).forEach((c) => set.add(c)); });
     return g.classNames.filter((c) => set.has(c));
   };
-  async function periodLabels() { const t = (await readList('list_time')).map((i) => i.value); const out = []; for (let i = 0; i < 6; i++) out.push(t[i] || `${i + 1}교시`); return out; }
+  async function periodLabels() { const t = (await readList('list_time')).map((i) => i.value); const out = []; for (let i = 0; i < (t.length ? t.length : 6); i++) out.push(t[i] || `${i + 1}교시`); return out; }
 
   async function teacherGrid(g, tab, semNo, sems, times, sub, subCfg) {
     const semName = semNo + '학기', sem = sems.find((x) => x.name === semName);
@@ -864,14 +864,14 @@
       for (let mon = firstMonday(sem); mon <= sem.end; mon = addDays(mon, 7), w++) {
         const fri = addDays(mon, 4);
         const row = [w, `${mon.getMonth() + 1}/${mon.getDate()}~${fri.getMonth() + 1}/${fri.getDate()}`];
-        for (let day = 0; day < 5; day++) for (let p = 0; p < 6; p++) row.push(bySlot.get(`${ymd(addDays(mon, day))}|${times[p]}`) || '');
+        for (let day = 0; day < 5; day++) for (let p = 0; p < times.length; p++) row.push(bySlot.get(`${ymd(addDays(mon, day))}|${times[p]}`) || '');
         bottom.push(row);
       }
     }
     bottom.forEach((r) => r.slice(2).forEach((c) => { if (c) counts[c] = (counts[c] || 0) + 1; }));
     const sc = subCfg.find((x) => x.name === tab.subject); const total = sc ? (semNo === 1 ? sc.hoursSem1 : sc.hoursSem2) : '';   // 관리자 > 시간표 설정의 학기 총시수
     const top = [['구분'].concat(options), ['시수'].concat(options.map(() => total)), ['배정'].concat(options.map((o) => counts[o] || 0))];
-    return { top, bottom, options, title: `${g.year}학년도 ${semNo}학기 ${tab.subject} ${tab.teacher}${tab.space ? '/' + tab.space : ''}${sem ? '' : ' (학기 기간 미설정)'}` };
+    return { np: times.length, top, bottom, options, title: `${g.year}학년도 ${semNo}학기 ${tab.subject} ${tab.teacher}${tab.space ? '/' + tab.space : ''}${sem ? '' : ' (학기 기간 미설정)'}` };
   }
   SERVER.getAllTimetableData = async function () {
     try {
@@ -898,7 +898,7 @@
       for (const u of list) {
         const tab = tabs.get(u.sheetName); const sem = sems.find((x) => x.name === u.semester + '학기'); if (!tab || !sem) continue;
         const classes = tabClasses(g, tab, u.semester, sems);
-        const date = addDays(firstMonday(sem), u.r * 7 + Math.floor((u.c - 2) / 6)); const time = times[(u.c - 2) % 6];
+        const date = addDays(firstMonday(sem), u.r * 7 + Math.floor((u.c - 2) / times.length)); const time = times[(u.c - 2) % times.length];
         const existing = sub.filter((r) => { const d = toDate(r.sub_date); return d && ymd(d) === ymd(date) && str(r.sub_time) === time && str(r.sub_name) === tab.subject && classes.indexOf(str(r.sub_class)) >= 0; });
         if (!str(u.value).trim()) { existing.forEach((r) => ops.push({ type: 'delete', col: 'data_sub_timetable', id: r._id })); continue; }
         const cls = classes.find((c) => classLabel(c) === str(u.value).trim()); if (!cls) continue;
