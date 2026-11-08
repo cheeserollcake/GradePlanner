@@ -572,6 +572,35 @@ for folder, (fname, key) in PAGES.items():
         html = must_replace(html, "<table className=\"border-collapse bg-white shadow-sm rounded-lg mx-auto inline-table text-left\" style={{tableLayout: 'fixed'}}>", "<table className=\"border-collapse bg-white shadow-sm rounded-lg mx-auto inline-table text-left\" style={{tableLayout: 'fixed', minWidth: (5 * ((spaces.length + 1) * colMin + 12)) + 'px'}}>", fname)
     if key == "p07":   # 구글 이미지 크기 접미사 제거
         html = must_replace(html, 'img.url + "=s800"', 'img.url', fname)
+    LOCKCSS = '<link rel="stylesheet" href="../assets/css/lock.css">'
+    if key == "p03":   # 비밀번호 입력 화면 통일
+        html, _n = re.subn(r'<div id="login-container">[\s\S]*?</div>\s*</div>(?=\s*<!-- 2\.)',
+          '<div id="login-container" class="gp-lock"><div class="gp-lock-card"><h2>명렬표</h2>'
+          '<input type="password" id="login-password" class="gp-lock-in" placeholder="비밀번호" autocomplete="off" onkeyup="if(window.event.keyCode==13){tryLogin()}">'
+          '<button class="gp-lock-btn" onclick="tryLogin()">확인</button><p id="login-msg" class="gp-lock-err"></p></div></div>', html, count=1)
+        if not _n: raise SystemExit("p03 로그인 화면을 찾지 못했습니다")
+        html = html.replace("</head>", LOCKCSS + "</head>", 1)
+    if key == "p11":
+        html, _n = re.subn(r'<div id="login-screen" class="clean-panel">[\s\S]*?(?=<!-- 2\. 메인 앱 화면)',
+          '<div id="login-screen" class="gp-lock-card"><h2>쇼핑몰 학교 ID</h2>'
+          '<input type="password" id="entryPw" class="gp-lock-in" placeholder="비밀번호" autocomplete="off" onkeyup="if(window.event.keyCode==13){checkLogin()}">'
+          '<button class="gp-lock-btn" onclick="checkLogin()">확인</button>'
+          '<button class="gp-lock-sub" onclick="showAdminLogin()">관리자 로그인</button></div>\n\n    ', html, count=1)
+        if not _n: raise SystemExit("p11 로그인 화면을 찾지 못했습니다")
+        html = html.replace("</head>", LOCKCSS + "</head>", 1)
+    if key == "p10":
+        html = html.replace("</head>", LOCKCSS + "</head>", 1)
+        html, _n = re.subn(r'<h2 class="[^"]*">내선번호</h2>\s*<input type="password" id="user-pwd"[^>]*>\s*<button id="user-login-btn"[^>]*>확인</button>',
+          '<h2 style="margin:0 0 22px;font-size:19px;font-weight:700;color:#0f172a" class="gp-lock-card-h">내선번호</h2>'
+          '<input type="password" id="user-pwd" onkeypress="if(event.key === \'Enter\') checkUserPwd()" class="gp-lock-in" placeholder="비밀번호" autocomplete="off">'
+          '<button id="user-login-btn" onclick="checkUserPwd()" class="gp-lock-btn">확인</button>', html, count=1)
+        if not _n: raise SystemExit("p10 사용자 로그인 화면을 찾지 못했습니다")
+        html, _n = re.subn(r'<h2 class="[^"]*">관리자 접속</h2>\s*<input type="password" id="admin-pwd"[^>]*>\s*<button id="admin-login-btn"[^>]*>관리자 로그인</button>\s*<button onclick="showUserLogin\(\)"[^>]*>뒤로</button>',
+          '<h2 style="margin:0 0 22px;font-size:19px;font-weight:700;color:#0f172a" class="gp-lock-card-h">관리자 접속</h2>'
+          '<input type="password" id="admin-pwd" onkeypress="if(event.key === \'Enter\') checkAdminPwd()" class="gp-lock-in" placeholder="관리자 비밀번호" autocomplete="off">'
+          '<button id="admin-login-btn" onclick="checkAdminPwd()" class="gp-lock-btn">확인</button>'
+          '<button onclick="showUserLogin()" class="gp-lock-sub">뒤로</button>', html, count=1)
+        if not _n: raise SystemExit("p10 관리자 로그인 화면을 찾지 못했습니다")
     if key == "p11":   # 헤더의 관리자 설정 버튼 삭제
         html = re.sub(r'\s*<button class="admin-btn" onclick="showAdminLogin\(\)">[^<]*</button>', '', html, count=1)
         if 'class="admin-btn" onclick' in html: raise SystemExit("p11 관리자 설정 버튼을 찾지 못했습니다")

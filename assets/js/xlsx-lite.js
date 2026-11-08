@@ -57,7 +57,20 @@
     '<xf numFmtId="0" fontId="0" fillId="5" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' +
     '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
 
-  function sheetXml(sp) {
+  // 셀마다 배경색(c.bg = '#RRGGBB')을 줄 수 있습니다: 기본 서식에 배경만 바꾼 서식을 필요한 만큼 덧붙입니다.
+  function stylesXml(reg) {
+    const n = reg.list.length; if (!n) return STYLES;
+    const m = STYLES.match(/<cellXfs count="11">([\s\S]*?)<\/cellXfs>/); const xfs = m[1].match(/<xf [^>]*\/>|<xf [^>]*>[\s\S]*?<\/xf>/g);
+    const fills = reg.list.map((e) => '<fill><patternFill patternType="solid"><fgColor rgb="FF' + e.bg + '"/><bgColor indexed="64"/></patternFill></fill>').join('');
+    const add = reg.list.map((e, i) => xfs[e.sid].replace(/fillId="\d+"/, 'fillId="' + (6 + i) + '"').replace('<xf ', '<xf applyFill="1" ')).join('');
+    return STYLES.replace('<fills count="6">', '<fills count="' + (6 + n) + '">').replace('</fills>', fills + '</fills>').replace('<cellXfs count="11">', '<cellXfs count="' + (11 + n) + '">').replace('</cellXfs>', add + '</cellXfs>');
+  }
+  const hexOf = (b) => { const m = String(b || '').match(/^#?([0-9a-fA-F]{6})$/); return m ? m[1].toUpperCase() : ''; };
+  function styleId(c, reg) {
+    const sid = STYLE_ID[c.s] === undefined ? 0 : STYLE_ID[c.s]; const bg = hexOf(c.bg); if (!bg || !reg) return sid;
+    const key = sid + '|' + bg; let i = reg.map[key]; if (i === undefined) { i = reg.list.length; reg.map[key] = i; reg.list.push({ sid, bg }); } return 11 + i;
+  }
+  function sheetXml(sp, reg) {
     const rows = sp.rows.map((r) => r.map(norm));
     const maxCols = rows.reduce((m, r) => Math.max(m, r.length), 0);
     let xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
@@ -69,7 +82,7 @@
       const imgH = Math.max(0, ...r.map((c) => (c.img ? Math.round(c.img.h * 0.75) + 6 : 0)));
       xml += '<row r="' + (ri + 1) + '" ht="' + Math.max(20, imgH) + '" customHeight="1">';
       r.forEach((c, ci) => {
-        const ref = colName(ci) + (ri + 1), s = STYLE_ID[c.s] === undefined ? 0 : STYLE_ID[c.s];
+        const ref = colName(ci) + (ri + 1), s = styleId(c, reg);
         if (c.f) {
           if (typeof c.v === 'number') xml += '<c r="' + ref + '" s="' + s + '"><f>' + esc(c.f) + '</f><v>' + c.v + '</v></c>';
           else xml += '<c r="' + ref + '" s="' + s + '" t="str"><f>' + esc(c.f) + '</f><v>' + esc(c.v) + '</v></c>';
@@ -106,13 +119,15 @@
   const safeName = (n) => String(n).replace(/[\[\]:*?\/\\]/g, ' ').trim().slice(0, 31) || 'Sheet';
 
   function build(sheets) {   // -> zip 조각(Uint8Array 배열)
+    const reg = { list: [], map: {} };
     const files = [
       { name: '[Content_Types].xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' + sheets.map((_, i) => '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>').join('') + '</Types>' },
       { name: '_rels/.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
       { name: 'xl/workbook.xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + sheets.map((s, i) => '<sheet name="' + esc(safeName(s.name)) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>').join('') + '</sheets></workbook>' },
       { name: 'xl/_rels/workbook.xml.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + sheets.map((_, i) => '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>').join('') + '<Relationship Id="rId' + (sheets.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
-      { name: 'xl/styles.xml', text: STYLES }
-    ].concat(sheets.map((s, i) => ({ name: 'xl/worksheets/sheet' + (i + 1) + '.xml', text: sheetXml(s) })));
+      { name: 'xl/styles.xml', text: '' }
+    ].concat(sheets.map((s, i) => ({ name: 'xl/worksheets/sheet' + (i + 1) + '.xml', text: sheetXml(s, reg) })));
+    files.find((f) => f.name === 'xl/styles.xml').text = stylesXml(reg);
     let imgN = 0, any = false;
     sheets.forEach((s, i) => { const d = drawingParts(s, i + 1, imgN); if (d) { any = true; imgN += d.count; d.files.forEach((f) => files.push(f)); } });
     if (any) {
@@ -147,6 +162,7 @@
     else if (typeof c.v === 'number') o.userEnteredValue = { numberValue: c.v };
     else if (c.v !== '' && c.v !== null && c.v !== undefined) o.userEnteredValue = { stringValue: String(c.v) };
     if (FORMAT[c.s]) o.userEnteredFormat = FORMAT[c.s];
+    const bg = hexOf(c.bg); if (bg) o.userEnteredFormat = Object.assign({}, FORMAT[c.s] || {}, { backgroundColor: { red: parseInt(bg.slice(0, 2), 16) / 255, green: parseInt(bg.slice(2, 4), 16) / 255, blue: parseInt(bg.slice(4, 6), 16) / 255 } });
     return o;
   }
   function toSheetsRequest(title, sheets) {

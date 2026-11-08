@@ -161,11 +161,13 @@ const isFeeName = (n) => /학년회비|친목회비/.test(str(n));
 const splitList = (s) => str(s).split(',').map((x) => x.trim()).filter(Boolean);
 const classNames = () => ((lists && lists.classes) || []).filter((c) => c !== '학년공통');
 const isFeeRow = (F, r) => !!(r && F && F.name && F.spec && isFeeName(r[F.name]));
+const feePlus = (F, r) => isFeeRow(F, r) && splitList(r[F.spec]).indexOf('+') >= 0;   // 규격에 + : 돈을 모은 줄
 const feeClasses = (F, r) => isFeeRow(F, r) && splitList(r[F.spec]).some((c) => classNames().indexOf(c) >= 0);   // 규격에 학급을 체크한 줄
 // 학습준비물: supply_class = "1반, 2반", supply_class_num = "5, 2"  (0이 아닌 학급만, 같은 순서)
 const parseSup = (r) => { const cs = splitList(r && r.supply_class), ns = splitList(r && r.supply_class_num); return cs.map((c, i) => ({ c, n: num(ns[i]) })).filter((x) => x.n > 0); };
 const supQty = (r) => { const cs = splitList(r && r.supply_class); return cs.length ? parseSup(r).reduce((a, x) => a + x.n, 0) : splitList(r && r.supply_class_num).reduce((a, n) => a + num(n), 0); };
-const supText = (r) => parseSup(r).map((x) => x.c + ' ' + fmt(x.n) + '개').join(', ');
+const supText = (r, withTotal) => { const t = parseSup(r).map((x) => x.c + ' ' + fmt(x.n) + '개'); if (withTotal && t.length) t.push('총 ' + fmt(supQty(r)) + '개'); return t.join(', '); };
+const rowBg = (kind, r) => (r && r.row_color ? String(r.row_color) : (r && kind.sem && hasClass(r, '학년공통') ? '#fff3a0' : ''));   // 화면과 같은 줄 색깔
 const budgetOpts = () => [...new Set(((lists && lists.budgets) || []).filter((b) => (b.pages || ['budget']).indexOf(mode) >= 0).map((b) => b.name))];   // 지금 보는 예산 페이지에 배정된 예산종류만
 
 // 머리글 이름으로 열 종류를 정함 (학년 예산과 추가한 예산 페이지가 같은 방식으로 동작)
@@ -334,7 +336,7 @@ function cellHtml(kind, c, ci, r, listIds) {
   if (c.t === 'chk') return '<td class="chkc"><input type="checkbox" class="cell chk"' + D + (raw ? ' checked' : '') + ' aria-label="' + esc(c.label) + '"></td>';
   if (c.t === 'sup' || (c.t === 'spec' && isFeeRow(kind.F, r))) {   // 눌러서 팝업으로 고르는 칸
     const q = c.t === 'sup' && r ? supQty(r) : 0;
-    return '<td class="pickc"><input class="cell pick' + (c.t === 'sup' ? ' num' : '') + '" readonly' + D + ' data-raw="' + esc(raw) + '" value="' + esc(c.t === 'sup' ? (q ? fmt(q) : '') : raw) + '"' + (c.t === 'sup' ? ' title="' + esc(supText(r || {}) || '눌러서 학급별 수량 입력') + '"' : '') + ' placeholder="' + (c.t === 'sup' ? '반별 입력' : '눌러서 학급 선택') + '" autocomplete="off"></td>';
+    return '<td class="pickc"><input class="cell pick' + (c.t === 'sup' ? ' num' : '') + '" readonly' + D + ' data-raw="' + esc(raw) + '" value="' + esc(c.t === 'sup' ? (q ? fmt(q) : '') : raw) + '"' + (c.t === 'sup' ? ' title="' + esc(supText(r || {}) || '눌러서 학급별 수량 입력') + '"' : '') + ' placeholder="' + (c.t === 'sup' ? '반별 입력' : '눌러서 선택 (학급·+)') + '" autocomplete="off"></td>';
   }
   const shown = c.t === 'num' && raw !== '' ? fmt(num(raw)) : raw;
   const files = c.attach && r && Array.isArray(r[filesKey(c)]) ? r[filesKey(c)] : [];
@@ -345,7 +347,7 @@ const IMG_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" str
 const attBtn = (ci, n) => '<button class="attbtn' + (n ? ' has' : '') + '" data-att="' + ci + '" title="이미지·파일 첨부" tabindex="-1">' + IMG_SVG + (n ? '<b>' + n + '</b>' : '') + '</button>';
 const rtoolsHtml = () => '<div class="rtools"><i class="grip" draggable="true" title="끌어서 순서 변경">⠿</i><button data-color title="행 색깔">🎨</button><button data-del title="이 줄 삭제">✕</button></div>';
 function rowHtml(kind, r, idx, listIds) {
-  const col = r && r.row_color ? String(r.row_color) : (r && kind.sem && hasClass(r, '학년공통') ? '#fff3a0' : '');   // 학년공통 준비물은 자동으로 노란색
+  const col = rowBg(kind, r);   // 학년공통 준비물은 자동으로 노란색
   return '<tr data-id="' + (r ? esc(r._id) : '') + '" class="' + (r ? '' : 'blank') + (col ? ' colored' : '') + '"' + (col ? ' style="--rc:' + esc(col) + '"' : '') + '><th class="rn"><span>' + (idx + 2) + '</span>' + (r ? rtoolsHtml() : '') + '</th>' +
     kind.cols.map((c, ci) => cellHtml(kind, c, ci, r, listIds)).join('') + '</tr>';
 }
@@ -705,10 +707,12 @@ function openPick(inp) {
     box.querySelectorAll('[data-sc]').forEach((cb) => { cb.onchange = () => { const q = box.querySelector('[data-q="' + CSS.escape(cb.dataset.sc) + '"]'); q.disabled = !cb.checked; if (cb.checked) { if (!q.value) q.value = '1'; q.focus(); q.select(); } else q.value = ''; }; });
   } else {
     const cur = splitList(row && row[kind.F.spec]);
-    $('pickTitle').textContent = '규격 – 학급 선택 (여러 개 선택 가능)';
+    $('pickTitle').textContent = '규격 – 학급·+ 선택 (직접 입력도 가능)';
     box.innerHTML = '<div class="flex gap-2 text-xs"><button type="button" id="pkAll" class="px-2 py-1 rounded bg-slate-100">전체 선택</button><button type="button" id="pkNone" class="px-2 py-1 rounded bg-slate-100">전체 해제</button></div>' +
       '<div class="grid grid-cols-3 gap-2">' + cls.map((x) => '<label class="flex items-center gap-2 border rounded-lg px-3 py-1.5 text-sm"><input type="checkbox" data-c="' + esc(x) + '"' + (cur.indexOf(x) >= 0 ? ' checked' : '') + ' class="w-4 h-4 accent-indigo-600"><span class="font-semibold">' + esc(x) + '</span></label>').join('') + '</div>' +
-      '<p class="text-xs text-slate-500">체크한 학급 수가 수량에 자동으로 들어가고, 이 줄의 금액은 사용액이 아니라 배정액에 더해집니다.</p>';
+      '<label class="flex items-center gap-2 border rounded-lg px-3 py-1.5 text-sm bg-amber-50"><input type="checkbox" data-plus' + (cur.indexOf('+') >= 0 ? ' checked' : '') + ' class="w-4 h-4 accent-indigo-600"><span class="font-semibold">+</span><span class="text-xs text-slate-500">돈을 모은 줄 (금액이 예산 카드 배정액에 더해짐)</span></label>' +
+      '<label class="block text-sm font-semibold">직접 입력 <span class="font-normal text-slate-400 text-xs">(선택)</span><input id="pkFree" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-normal" placeholder="자유롭게 적을 수 있어요" value="' + esc(cur.filter((t) => t !== '+' && classNames().indexOf(t) < 0).join(', ')) + '"></label>' +
+      '<p class="text-xs text-slate-500">학급을 체크하면 학급 수가 수량에 자동으로 들어갑니다. 학급을 체크하거나 +를 고른 줄의 금액은 사용액이 아니라 배정액에 더해집니다.</p>';
     $('pkAll').onclick = () => box.querySelectorAll('[data-c]').forEach((i) => { i.checked = true; });
     $('pkNone').onclick = () => box.querySelectorAll('[data-c]').forEach((i) => { i.checked = false; });
   }
@@ -723,7 +727,8 @@ $('pickOk').onclick = () => {
     patch = { supply_class: toks.join(', '), supply_class_num: nums.join(', ') };
   } else {
     const picked = [...box.querySelectorAll('[data-c]')].filter((i) => i.checked).map((i) => i.dataset.c);
-    patch = { [kind.F.spec]: picked.join(', ') }; if (picked.length && kind.F.num) patch[kind.F.num] = String(picked.length);   // 체크한 만큼 수량에 반영
+    const toks = picked.slice(); if (box.querySelector('[data-plus]').checked) toks.push('+'); const free = ($('pkFree').value || '').split(',').map((x) => x.trim()).filter(Boolean); free.forEach((f) => { if (toks.indexOf(f) < 0) toks.push(f); });
+    patch = { [kind.F.spec]: toks.join(', ') }; if (picked.length && kind.F.num) patch[kind.F.num] = String(picked.length);   // 체크한 만큼 수량에 반영
   }
   closePick(); applyPatch(tr, patch);
 };
@@ -734,7 +739,8 @@ function supplyStats(kind) {
   const rows = allRows(kind), cls = classNames(), use = {}; let common = 0; cls.forEach((c) => { use[c] = 0; });
   rows.forEach((r) => { const p = num(r.supply_price); parseSup(r).forEach((x) => { if (x.c === '학년공통') common += p * x.n; else if (x.c in use) use[x.c] += p * x.n; }); });
   const total = num(supplyTotals[curYear + '_' + kind.sem]), n = cls.length, alloc = n ? Math.round((total - common) / n) : 0;
-  return { total, common, alloc, use, cls };
+  const spent = rows.reduce((a, r) => a + num(r.supply_price) * supQty(r), 0);   // 아래 표의 금액(합) 전부
+  return { total, common, alloc, use, cls, spent, remain: total - spent };
 }
 function renderSupplyBox() {
   const box = $('supplyBox'), kind = kindOf(mode);
@@ -743,10 +749,11 @@ function renderSupplyBox() {
   const CARD = 'bg-white border border-slate-200 rounded-xl p-2 sm:p-3 shadow-sm min-w-0';
   if (box.dataset.m !== mode) {
     box.dataset.m = mode;
-    box.innerHTML = '<div class="grid grid-cols-3 gap-2 sm:gap-3">' +
+    box.innerHTML = '<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">' +
       '<label class="block ' + CARD + '"><span class="text-xs font-semibold text-slate-500">학습준비물 총액<span class="font-normal text-slate-400 hidden sm:inline"> (직접 입력)</span></span><input id="supTotal" inputmode="numeric" class="mt-1 w-full border rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 text-right font-bold text-sm sm:text-lg" placeholder="0"></label>' +
       '<div class="' + CARD + '"><div class="text-xs font-semibold text-slate-500">학년공통사용액</div><div id="supCommon" class="mt-2 text-right font-bold text-sm sm:text-lg"></div></div>' +
-      '<div class="' + CARD + '"><div class="text-xs font-semibold text-slate-500">반별배부액<span class="font-normal text-slate-400 hidden sm:inline"> (총액 − 학년공통) ÷ 학급수</span></div><div id="supAlloc" class="mt-2 text-right font-bold text-sm sm:text-lg"></div></div></div>' +
+      '<div class="' + CARD + '"><div class="text-xs font-semibold text-slate-500">반별배부액<span class="font-normal text-slate-400 hidden sm:inline"> (총액 − 학년공통) ÷ 학급수</span></div><div id="supAlloc" class="mt-2 text-right font-bold text-sm sm:text-lg"></div></div>' +
+      '<div class="' + CARD + '"><div class="text-xs font-semibold text-slate-500">잔액<span class="font-normal text-slate-400 hidden sm:inline"> (총액 − 표의 금액 합계)</span></div><div id="supRemain" class="mt-2 text-right font-bold text-sm sm:text-lg"></div></div></div>' +
       '<div id="supClasses" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2"></div>' +
       '<p class="text-xs text-slate-400">학급별 사용액은 표의 수량 칸(학급별 수량)으로 계산합니다. 반별배부액보다 1,000원 이상 많으면 빨간 글씨, 정확히 같으면 회색 배경으로 보입니다.</p>';
     const t = $('supTotal');
@@ -755,7 +762,7 @@ function renderSupplyBox() {
       enqueue(() => commit([{ type: 'set', col: 'app_config', id: 'supply_totals', data: { json: JSON.stringify(supplyTotals), updatedAt: new Date().toISOString() } }])); renderSupplyBox(); };
   }
   const st = supplyStats(kind), t = $('supTotal'); if (document.activeElement !== t) t.value = st.total ? fmt(st.total) : '';
-  $('supCommon').textContent = fmt(st.common); $('supAlloc').textContent = fmt(st.alloc);
+  $('supCommon').textContent = fmt(st.common); $('supAlloc').textContent = fmt(st.alloc); const rm = $('supRemain'); rm.textContent = fmt(st.remain); rm.style.color = st.remain < 0 ? '#dc2626' : '';
   $('supClasses').innerHTML = st.cls.map((c) => { const u = st.use[c], over = u - st.alloc >= 1000, same = u === st.alloc && st.alloc > 0;
     return '<div class="border border-slate-200 rounded-lg px-3 py-2 ' + (same ? '' : 'bg-white') + '" style="' + (same ? 'background:#e5e7eb' : '') + '"><div class="text-xs font-semibold text-slate-500">' + esc(c) + '</div><div class="text-right font-bold ' + (over ? 'text-red-600' : '') + '">' + fmt(u) + '</div></div>'; }).join('');
 }
@@ -868,11 +875,12 @@ function addImageCols(sheet, imgs, headerRow, widths) {   // sheet.rows: [머리
 }
 async function buildExport() {
   const g = await APP.getGeneral(); const label = g.year + '학년도';
-  const rows = (window.__rows && window.__rows.length ? window.__rows : allRows(kindOf(mode)).slice().sort(byOrder)).slice();
+  const kindX = kindOf(mode); let rows = viewRows(kindX).slice().sort(byOrder);   // 화면에 마지막으로 그린 목록이 아니라, 지금 저장돼 있는 줄 전부(필터 적용)
+  if (!rows.length) rows = allRows(kindX).slice().sort(byOrder);
   if (mode === 'budget') {
     const n = rows.length; let sum = 0; const kb = kindOf('budget');
     const body = rows.map((r, i) => { const x = i + 2; const amt = num(r.budget_num) * num(r.budget_price); sum += amt;
-      return [T(r.budget_name), T(r.budget_product), T(r.budget_spec), N(r.budget_num), N(r.budget_price), { v: amt, s: 'int', f: 'D' + x + '*E' + x }, linkCell(r.budget_link), T(r.budget_pumui), T(r.budget_progress), T(withFiles(r, kb.cols[9]))]; });
+      return [T(r.budget_name), T(r.budget_product), T(r.budget_spec), N(r.budget_num), N(r.budget_price), { v: amt, s: 'int', f: 'D' + x + '*E' + x }, linkCell(r.budget_link), T(r.budget_pumui), T(r.budget_progress), T(withFiles(r, kb.cols[9]))].map((c) => { const bg = rowBg(kb, r); if (bg) c.bg = bg; return c; }); });
     const tot = totalRow(n, 10); tot[5] = { v: sum, s: 'totalNum' }; if (n) tot[5].f = 'SUM(F2:F' + (n + 1) + ')';
     const sheet1 = { name: '학년 예산', widths: [18, 26, 22, 8, 11, 13, 34, 12, 12, 18], freezeRow: 1, filter: true, filterRows: n + 1, rows: [['예산종류', '품명', '규격', '수량', '단가', '금액(합)', '링크', '품의상황', '완료상태', '비고'].map(H)].concat(body, [tot]) };
     addImageCols(sheet1, await attachImages(rows, [kb.cols[9]]).then((l) => l.concat([null])), sheet1.rows[0], sheet1.widths);
@@ -887,15 +895,16 @@ async function buildExport() {
   if (kind.sem) {   // 학습준비물 1·2학기
     let sum = 0;
     const body = rows.map((r, i) => { const x = i + 2; const q = supQty(r), amt = num(r.supply_price) * q; sum += amt;
-      return [T(r.supply_product), T(r.supply_spec), T(supText(r)), T(r.supply_unit), N(r.supply_price), { v: amt, s: 'int', f: 'E' + x + '*I' + x }, T(r.supply_sub), linkCell(r.supply_link), N(q)]; });
-    const tot = totalRow(n, 9); tot[5] = { v: sum, s: 'totalNum' }; if (n) tot[5].f = 'SUM(F2:F' + (n + 1) + ')';
-    const sheet = { name: kind.name, widths: [28, 22, 30, 8, 11, 13, 12, 34, 9], freezeRow: 1, filter: true, filterRows: n + 1, rows: [['품명', '규격', '수량', '단위', '단가', '금액(합)', '과목', '링크', '총수량'].map(H)].concat(body, [tot]) };
+      const bg = rowBg(kind, r), cells = [T(r.supply_product), T(r.supply_spec), T(supText(r, true)), T(r.supply_unit), N(r.supply_price), { v: amt, s: 'int', f: 'E' + x + '*' + q }, T(r.supply_sub), linkCell(r.supply_link)];
+      if (bg) cells.forEach((c) => { c.bg = bg; }); return cells; });
+    const tot = totalRow(n, 8); tot[5] = { v: sum, s: 'totalNum' }; if (n) tot[5].f = 'SUM(F2:F' + (n + 1) + ')';
+    const sheet = { name: kind.name, widths: [28, 22, 36, 8, 11, 13, 12, 34], freezeRow: 1, filter: true, filterRows: n + 1, rows: [['품명', '규격', '수량', '단위', '단가', '금액(합)', '과목', '링크'].map(H)].concat(body, [tot]) };
     const st = supplyStats(kind);
     const sum2 = { name: '학급별 사용액', widths: [24, 16], rows: [['구분', '금액'].map(H), [T('학습준비물 총액'), N(st.total)], [T('학년공통사용액'), N(st.common)], [T('반별배부액'), N(st.alloc)]].concat(st.cls.map((c) => [T(c + ' 사용액'), N(st.use[c])])) };
     return { fileName: '학습준비물' + kind.sem + '학기_' + label, title: label + ' ' + g.grade + '학년 ' + kind.name, sheets: [sheet, sum2] };
   }
   const calcI = kind.cols.findIndex((c) => c.t === 'calc' && c.sum);
-  const body = rows.map((r) => kind.cols.map((c) => (c.t === 'calc' ? N(c.calc(r)) : c.attach ? T(withFiles(r, c)) : c.t === 'num' || looksNum(r[c.k]) ? N(r[c.k]) : T(r[c.k]))));
+  const body = rows.map((r) => kind.cols.map((c) => (c.t === 'calc' ? N(c.calc(r)) : c.attach ? T(withFiles(r, c)) : c.t === 'num' || looksNum(r[c.k]) ? N(r[c.k]) : T(r[c.k]))).map((c) => { const bg = rowBg(kind, r); if (bg) c.bg = bg; return c; }));
   const tail = []; if (calcI >= 0) { const t = totalRow(n, kind.cols.length); t[calcI] = { v: rows.reduce((a, r) => a + kind.cols[calcI].calc(r), 0), s: 'totalNum' }; tail.push(t); }
   const sheet = { name: safeSheetName(kind.name), widths: kind.cols.map(() => 18), freezeRow: 1, filter: true, filterRows: n + 1, rows: [kind.cols.map((c) => H(c.label))].concat(body, tail) };
   if (kind.cols.some((c) => c.attach)) addImageCols(sheet, (await attachImages(rows, kind.cols.filter((c) => c.attach))).concat(tail.length ? [null] : []), sheet.rows[0], sheet.widths);

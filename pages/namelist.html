@@ -134,20 +134,12 @@
       .xl-step { width:2rem; height:2rem; border:1px solid #cbd5e1; border-radius:.4rem; background:#fff; font-weight:700; }
       .xl-bar button:disabled { opacity:.5; cursor:wait; }
     </style>
-    <link rel="stylesheet" href="../assets/css/tw-util.css">
+  <link rel="stylesheet" href="../assets/css/lock.css">  <link rel="stylesheet" href="../assets/css/tw-util.css">
 </head>
   <body>
 
     <!-- 1. 로그인 화면 -->
-    <div id="login-container">
-      <div class="login-box">
-        <h2>명렬표 페이지입니다.</h2>
-        <p style="color:#64748b; margin-bottom:1.5rem;">비밀번호를 입력해주세요.</p>
-        <input type="password" id="login-password" placeholder="비밀번호" onkeyup="if(window.event.keyCode==13){tryLogin()}">
-        <button onclick="tryLogin()">입장하기</button>
-        <p id="login-msg" style="color: #ef4444; font-size: 14px; margin-top: 1rem;"></p>
-      </div>
-    </div>
+    <div id="login-container" class="gp-lock"><div class="gp-lock-card"><h2>명렬표</h2><input type="password" id="login-password" class="gp-lock-in" placeholder="비밀번호" autocomplete="off" onkeyup="if(window.event.keyCode==13){tryLogin()}"><button class="gp-lock-btn" onclick="tryLogin()">확인</button><p id="login-msg" class="gp-lock-err"></p></div></div>
 
     <!-- 2. 상단 메뉴바 (초기에는 숨김, 로그인 후 JS로 display:flex 처리) -->
     <div id="navbar" style="display:none;">

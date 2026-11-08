@@ -394,18 +394,12 @@
         #login-screen { margin-top: 30vh; border: none; box-shadow: none; }
       }
     </style>
-    <link rel="stylesheet" href="../assets/css/tw-util.css">
+  <link rel="stylesheet" href="../assets/css/lock.css">  <link rel="stylesheet" href="../assets/css/tw-util.css">
 </head>
   <body>
 
     <!-- 1. 로그인(잠금) 화면 -->
-    <div id="login-screen" class="clean-panel">
-      <div class="login-title">🔒 보안 접속</div>
-      <p style="margin-bottom: 20px; font-size: 0.9rem; color: #666;">페이지에 접근하려면 비밀번호를 입력하세요.</p>
-      <input type="password" id="entryPw" class="login-input" onkeyup="if(window.event.keyCode==13){checkLogin()}">
-      <button class="btn-submit" onclick="checkLogin()">접속하기</button>
-      <div style="margin-top: 20px; font-size: 0.8rem; cursor: pointer; color: #aaa;" onclick="showAdminLogin()">관리자 로그인</div>
-    </div>
+    <div id="login-screen" class="gp-lock-card"><h2>쇼핑몰 학교 ID</h2><input type="password" id="entryPw" class="gp-lock-in" placeholder="비밀번호" autocomplete="off" onkeyup="if(window.event.keyCode==13){checkLogin()}"><button class="gp-lock-btn" onclick="checkLogin()">확인</button><button class="gp-lock-sub" onclick="showAdminLogin()">관리자 로그인</button></div>
 
     <!-- 2. 메인 앱 화면 -->
     <div id="main-app" class="clean-panel">

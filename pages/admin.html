@@ -11,15 +11,15 @@
   <script src="../assets/js/app-data.js"></script>
   <style>body{font-family:'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR',sans-serif;background:#f8fafc}</style>
   <link rel="stylesheet" href="../assets/css/tw-util.css">
+  <link rel="stylesheet" href="../assets/css/lock.css">
 </head>
 <body class="text-slate-800">
-  <div id="gate" class="min-h-screen flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow border border-slate-200 p-6 w-full max-w-sm space-y-3">
-      <h1 class="text-xl font-bold">학년 관리자</h1>
-      <p class="text-sm text-slate-500">관리자 비밀번호를 입력하세요.</p>
-      <input id="pw" type="password" autocomplete="off" class="w-full border rounded-lg px-3 py-2" placeholder="비밀번호" autofocus>
-      <p id="pwErr" class="text-sm text-red-600 hidden">비밀번호가 일치하지 않습니다.</p>
-      <button id="login" class="w-full px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold">확인</button>
+  <div id="gate" class="gp-lock">
+    <div class="gp-lock-card">
+      <h2>학년 관리자</h2>
+      <input id="pw" type="password" autocomplete="off" class="gp-lock-in" placeholder="비밀번호" autofocus>
+      <button id="login" class="gp-lock-btn">확인</button>
+      <p id="pwErr" class="gp-lock-err hidden">비밀번호가 일치하지 않습니다.</p>
     </div>
   </div>
   <div id="app" class="hidden p-4 md:p-6">

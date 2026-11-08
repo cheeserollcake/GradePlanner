@@ -387,7 +387,7 @@
     const lists = await getLists(); const classes = lists.classes.filter((c) => c !== '학년공통'); const out = [];
     const add = (name, spec, n, p) => {
       name = str(name).trim(); if (!name) return;
-      out.push({ name, amount: num(n) * num(p), fee: FEE_RE.test(name) && str(spec).split(',').map((x) => x.trim()).some((t) => classes.indexOf(t) >= 0) });
+      out.push({ name, amount: num(n) * num(p), fee: FEE_RE.test(name) && str(spec).split(',').map((x) => x.trim()).some((t) => t === '+' || classes.indexOf(t) >= 0) });
     };
     (await getCol('data_budget')).forEach((r) => add(r.budget_name, r.budget_spec, r.budget_num, r.budget_price));
     const cfg = await getCfg('budget_sheets', { sheets: [] }), sheets = Array.isArray(cfg.sheets) ? cfg.sheets : [];
@@ -1085,8 +1085,7 @@
   SERVER.getAppConfig = async () => { const pw = await getPw(); return { userPw: pw.access, adminPw: pw.admin }; };
   SERVER.saveAppConfig = async (c) => { const pw = await getPw(); if (c.userPw) pw.access = c.userPw; if (c.adminPw) pw.admin = c.adminPw; await setPw(pw); return true; };
   SERVER.getData = async function () {
-    invalidate('data_mall');
-    return (await getCol('data_mall')).map((r) => ({ rowIndex: Number(r._id), mall: str(r.mall), id: str(r.id), pw: str(r.pw), url: str(r.url), note: str(r.note) }))
+    return (await getCol('data_mall', true)).map((r) => ({ rowIndex: Number(r._id), mall: str(r.mall), id: str(r.id), pw: str(r.pw), url: str(r.url), note: str(r.note) }))
       .sort((a, b) => a.rowIndex - b.rowIndex);
   };
   const mallDoc = (f) => {
@@ -1094,7 +1093,7 @@
     return { mall: str(f.mallName), id: str(f.mallId), pw: str(f.mallPw), url, note: str(f.note) };
   };
   SERVER.addData = async function (f) {
-    const rows = await getCol('data_mall');
+    const rows = await getCol('data_mall', true);
     const next = rows.reduce((m, r) => Math.max(m, Number(r._id) || 0), 5) + 1;
     await commit([{ type: 'set', col: 'data_mall', id: String(next), data: mallDoc(f) }]);
     return { success: true, message: '저장되었습니다.' };
