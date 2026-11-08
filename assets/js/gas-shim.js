@@ -395,8 +395,9 @@
     if (sheets.length) {
       const rows = await getCol('data_sheet_rows');
       sheets.forEach((s) => {
-        const by = (n) => (s.cols || []).find((c) => str(c.name).trim() === n), cn = by('예산종류'), cs = by('규격'), cq = by('수량'), cp = by('단가'); if (!cn || !cq || !cp) return;
-        rows.filter((r) => r.sheet === s.id).forEach((r) => add(r['f_' + cn.id], cs ? r['f_' + cs.id] : '', r['f_' + cq.id], r['f_' + cp.id]));
+        const by = (n) => (s.cols || []).find((c) => str(c.name).trim() === n), cn = by('예산종류'), cs = by('규격'), cq = by('수량'), cp = by('단가'), cu = by('학급별수량'); if (!cn || !(cq || cu) || !cp) return;
+        const supQ = (r) => { const cl = str(r.supply_class).split(',').map((x) => x.trim()).filter(Boolean), ns = str(r.supply_class_num).split(',').map((x) => x.trim()).filter(Boolean); return cl.length ? cl.reduce((a, _, i) => a + num(ns[i]), 0) : ns.reduce((a, n) => a + num(n), 0); };   // 학급별수량 칸: 학습준비물과 같은 방식
+        rows.filter((r) => r.sheet === s.id).forEach((r) => add(r['f_' + cn.id], cs ? r['f_' + cs.id] : '', cu && supQ(r) > 0 ? supQ(r) : cq ? r['f_' + cq.id] : 0, r['f_' + cp.id]));
       });
     }
     return out;

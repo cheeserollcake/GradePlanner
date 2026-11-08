@@ -59,8 +59,9 @@
   $('login').onclick = tryLogin; $('pw').onkeydown = (e) => { if (e.key === 'Enter') tryLogin(); };
   $('lock').onclick = () => { location.reload(); };
 
-  const TABS = [['time', '시간표 설정'], ['basic', '학년 기초 설정'], ['space', '공간 개방 설정'], ['budget', '예산 설정'], ['data', '비밀번호/데이터 관리']];
-  let tab = 'basic';
+  { const st = document.createElement('style'); st.textContent = 'input.no-spin::-webkit-outer-spin-button,input.no-spin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}input.no-spin{-moz-appearance:textfield}'; document.head.appendChild(st); }
+  const TABS = [['year', '학년도 설정'], ['time', '시간표 설정'], ['basic', '학년 기초 설정'], ['space', '공간 개방 설정'], ['budget', '예산 설정'], ['data', '비밀번호/데이터 관리']];
+  let tab = 'year';
   const TABS_KEYS = TABS.map((t) => t[0]);
   // 예산 페이지에서 비밀번호를 확인하고 넘어온 경우에는 다시 묻지 않습니다.
   try { const jump = sessionStorage.getItem('gp_admin_open'); if (jump) { sessionStorage.removeItem('gp_admin_open'); if (TABS_KEYS.indexOf(jump) >= 0) tab = jump; setTimeout(() => start(), 0); } } catch (e) { /* 무시 */ }
@@ -68,7 +69,7 @@
     $('gate').classList.add('hidden'); $('app').classList.remove('hidden');
     $('tabs').innerHTML = TABS.map(([k, l]) => '<button data-t="' + k + '" class="px-4 py-2 text-sm font-semibold rounded-t-lg border-b-2 ' + (k === tab ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800') + '">' + l + '</button>').join('');
     $('tabs').querySelectorAll('button').forEach((b) => b.onclick = () => { tab = b.dataset.t; start(); });
-    const go = ({ time: renderTime, basic: renderBasic, space: renderSpace, budget: renderBudget, data: renderData })[tab];
+    const go = ({ year: () => renderBasic('year'), time: renderTime, basic: () => renderBasic('basic'), space: renderSpace, budget: renderBudget, data: renderData })[tab];
     const fail = (e) => { console.error(e); view.innerHTML = '<div class="' + CARD + ' border-red-200"><p class="text-red-700 font-semibold">불러오지 못했습니다.</p><p class="text-sm text-slate-500 break-all">' + esc(String((e && e.message) || e).slice(0, 300)) + '</p><button id="retry" class="' + BTN_P + '">다시 시도</button></div>'; $('retry').onclick = () => { GP.fresh(); start(); }; };
     let done = false; Promise.resolve().then(go).then(() => { done = true; }, (e) => { done = true; fail(e); });
     setTimeout(() => { if (!done && /불러오는 중/.test(view.textContent)) { const m = document.createElement('p'); m.className = 'text-xs text-amber-600 mt-2'; m.innerHTML = '오래 걸리고 있습니다. 인터넷 연결을 확인하거나 <button class="underline" id="slowRetry">다시 시도</button>를 눌러 주세요.'; view.appendChild(m); $('slowRetry').onclick = () => { GP.fresh(); start(); }; } }, 8000);
@@ -78,30 +79,16 @@
   async function renderTime() {
     view.innerHTML = '<p class="text-slate-400">불러오는 중...</p>';
     let subs = (await GP.getSubjectConfig()).map((s) => ({ name: s.name, hours: s.hours, h1: s.hoursSem1, h2: s.hoursSem2, special: s.special, stored: s.stored }));
-    let times = (await GP.readList('list_time')).map((i) => i.value); if (!times.length) times = [1, 2, 3, 4, 5, 6].map((n) => n + '교시');
-    const slotCfg = await GP.getCfg('basic_slots', {}); const off = new Set(Array.isArray(slotCfg.off) ? slotCfg.off : []);   // 꺼 둔 칸: '<요일1~5>_<교시1~>'
-    const saveSlots = () => autosave(() => GP.setCfg('basic_slots', { off: [...off] }));
     const blank = (v) => (v === '' || v === null || v === undefined ? '' : num(v));
     const saveSubs = () => autosave(async () => {
       const list = subs.map((s) => ({ ...s, name: s.name.trim() })).filter((s) => s.name);
       if (new Set(list.map((s) => s.name)).size !== list.length) throw new Error('중복된 과목명이 있습니다.');
       await GP.writeList('list_sub', list.map((s) => ({ value: s.name, extra: { list_sub_hours: blank(s.hours), list_sub_hours_sem1: blank(s.h1), list_sub_hours_sem2: blank(s.h2), list_sub_special: !!s.special } })));
     });
-    const saveTimes = () => autosave(async () => {
-      const list = times.map((t) => t.trim()).filter(Boolean); if (new Set(list).size !== list.length) throw new Error('중복된 교시가 있습니다.');
-      await GP.writeList('list_time', list.map((v) => ({ value: v })));
-    });
     const sum = () => subs.reduce((a, s) => a + num(s.hours), 0);
-    const SLOT_DAYS = ['월', '화', '수', '목', '금'];
-    const slotCard = () => '<div class="' + CARD + '"><h2 class="font-bold text-lg">주간시수배정 <span class="text-xs font-normal text-slate-400">체크한 칸에만 기초시간표 과목을 넣을 수 있습니다</span></h2>' +
-      '<table class="w-full text-center border-collapse text-sm" style="table-layout:fixed"><thead><tr><th class="border bg-slate-100 p-1"></th>' +
-      SLOT_DAYS.map((d, c) => '<th class="border bg-slate-100 p-1"><button data-sday="' + (c + 1) + '" title="요일 전체 선택/해제" class="font-bold w-full">' + d + '</button></th>').join('') + '</tr></thead><tbody>' +
-      times.map((t, r) => '<tr><th class="border bg-slate-50 p-1 text-xs"><button data-sper="' + (r + 1) + '" title="교시 전체 선택/해제" class="font-semibold w-full">' + esc(t) + '</button></th>' +
-        SLOT_DAYS.map((d, c) => '<td class="border p-1"><input type="checkbox" class="w-4 h-4" data-slot="' + (c + 1) + '_' + (r + 1) + '" ' + (off.has((c + 1) + '_' + (r + 1)) ? '' : 'checked') + '></td>').join('') + '</tr>').join('') +
-      '</tbody></table></div>';
     const draw = guardDraw(() => {
       const numIn = (i, k, v, ph) => '<input data-i="' + i + '" data-k="' + k + '" type="number" min="0" value="' + esc(v) + '" placeholder="' + ph + '" class="' + INP + ' w-full text-center">';
-      view.innerHTML = '<div class="grid lg:grid-cols-3 gap-5"><div class="lg:col-span-2 ' + CARD + '"><h2 class="font-bold text-lg">과목 / 시수 / 전담 설정 <span class="text-xs font-normal text-slate-400">입력하면 바로 저장됩니다</span></h2>' +
+      view.innerHTML = '<div class="' + CARD + '"><h2 class="font-bold text-lg">과목 / 시수 / 전담 설정 <span class="text-xs font-normal text-slate-400">입력하면 바로 저장됩니다</span></h2>' +
         '<div class="overflow-x-auto"><table class="w-full text-sm" style="min-width:540px"><thead><tr class="text-slate-500"><th class="text-left p-1">과목</th><th class="p-1 w-24">주당 시수</th><th class="p-1 w-28">1학기 총시수</th><th class="p-1 w-28">2학기 총시수</th><th class="p-1 w-14">전담</th><th class="w-8"></th></tr></thead><tbody>' +
         subs.map((s, i) => '<tr><td class="p-1"><input data-i="' + i + '" data-k="name" value="' + esc(s.name) + '" class="' + INP + ' w-full" style="min-width:104px"></td>' +
           '<td class="p-1">' + numIn(i, 'hours', s.hours, '') + '</td><td class="p-1">' + numIn(i, 'h1', s.h1, '') + '</td><td class="p-1">' + numIn(i, 'h2', s.h2, '') + '</td>' +
@@ -109,21 +96,12 @@
           '<td class="p-1"><button data-del="' + i + '" class="text-slate-400 hover:text-red-600">✕</button></td></tr>').join('') +
         '</tbody></table></div><div class="flex items-center justify-between"><button id="addSub" class="' + BTN_G + '">+ 과목 추가</button>' +
         '<span class="text-sm text-slate-500">주당 시수 합계 <b id="hsum">' + sum() + '</b></span></div></div>' +
-        '<div class="space-y-5"><div class="' + CARD + '"><h2 class="font-bold text-lg">교시 설정</h2><div class="space-y-2">' +
-        times.map((t, i) => '<div class="flex gap-2"><input data-ti="' + i + '" value="' + esc(t) + '" class="' + INP + ' flex-1"><button data-tdel="' + i + '" class="text-slate-400 hover:text-red-600">✕</button></div>').join('') +
-        '</div><button id="addTime" class="' + BTN_G + '">+ 교시 추가</button></div>' + slotCard() + '</div></div>' + bulkHtml();
+        bulkHtml();
       view.querySelectorAll('[data-k]').forEach((el) => el.onchange = () => {
         const s = subs[+el.dataset.i], k = el.dataset.k; s[k] = el.type === 'checkbox' ? el.checked : el.value; if (k === 'hours') $('hsum').textContent = sum(); saveSubs();
       });
       view.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => { subs.splice(+b.dataset.del, 1); draw(); saveSubs(); });
       $('addSub').onclick = () => { subs.push({ name: '', hours: '', h1: '', h2: '', special: false }); draw(); view.querySelectorAll('[data-k="name"]')[subs.length - 1].focus(); };
-      view.querySelectorAll('[data-slot]').forEach((el) => el.onchange = () => { if (el.checked) off.delete(el.dataset.slot); else off.add(el.dataset.slot); saveSlots(); });
-      const toggleGroup = (keys) => { const allOn = keys.every((k) => !off.has(k)); keys.forEach((k) => (allOn ? off.add(k) : off.delete(k))); draw(); saveSlots(); };
-      view.querySelectorAll('[data-sday]').forEach((b) => b.onclick = () => toggleGroup(times.map((_, r) => b.dataset.sday + '_' + (r + 1))));
-      view.querySelectorAll('[data-sper]').forEach((b) => b.onclick = () => toggleGroup(SLOT_DAYS.map((_, c) => (c + 1) + '_' + b.dataset.sper)));
-      view.querySelectorAll('[data-ti]').forEach((el) => el.onchange = () => { times[+el.dataset.ti] = el.value; saveTimes(); draw(); });
-      view.querySelectorAll('[data-tdel]').forEach((b) => b.onclick = () => { times.splice(+b.dataset.tdel, 1); draw(); saveTimes(); });
-      $('addTime').onclick = () => { times.push((times.length + 1) + '교시'); draw(); saveTimes(); };
       bindBulk();
     });
     draw();
@@ -246,11 +224,30 @@
   }
   const isHolidayWord = (v) => /^(휴일|y|yes|o|1|true|예|공휴일)$/i.test(str(v).trim());
 
-  async function renderBasic() {
+  // part: 'year' = 학년도 설정 탭(학년도·학기, 교시, 주간시수, 학교 기초 일정), 'basic' = 학년 기초 설정 탭(학급 및 교사)
+  async function renderBasic(part) {
+    const $ = (id) => document.getElementById(id) || document.createElement('i');   // 이 탭에 없는 요소는 무시
     view.innerHTML = '<p class="text-slate-400">불러오는 중...</p>';
     let g = await APP.getGeneral();
     const subs = (await GP.getSubjectConfig()).filter((s) => s.special).map((s) => s.name);
     let items = [], sems = {}, editItem = null;
+    let times = [], off = new Set(); const SLOT_DAYS = ['월', '화', '수', '목', '금'];
+    let saveSlots = () => {}, saveTimes = () => {};
+    if (part === 'year') {
+      times = (await GP.readList('list_time')).map((i) => i.value); if (!times.length) times = [1, 2, 3, 4, 5, 6].map((n) => n + '교시');
+      const slotCfg = await GP.getCfg('basic_slots', {}); off = new Set(Array.isArray(slotCfg.off) ? slotCfg.off : []);   // 꺼 둔 칸: '<요일1~5>_<교시1~>'
+      saveSlots = () => autosave(() => GP.setCfg('basic_slots', { off: [...off] }));
+      saveTimes = () => autosave(async () => {
+        const list = times.map((t) => t.trim()).filter(Boolean); if (new Set(list).size !== list.length) throw new Error('중복된 교시가 있습니다.');
+        await GP.writeList('list_time', list.map((v) => ({ value: v })));
+      });
+    }
+    const slotCard = () => '<div class="' + CARD + '"><h2 class="font-bold text-lg">주간시수배정 <span class="text-xs font-normal text-slate-400">체크한 칸에만 기초시간표 과목을 넣을 수 있습니다</span></h2>' +
+      '<table class="w-full text-center border-collapse text-sm" style="table-layout:fixed"><thead><tr><th class="border bg-slate-100 p-1"></th>' +
+      SLOT_DAYS.map((d, c) => '<th class="border bg-slate-100 p-1"><button data-sday="' + (c + 1) + '" title="요일 전체 선택/해제" class="font-bold w-full">' + d + '</button></th>').join('') + '</tr></thead><tbody>' +
+      times.map((t, r) => '<tr><th class="border bg-slate-50 p-1 text-xs"><button data-sper="' + (r + 1) + '" title="교시 전체 선택/해제" class="font-semibold w-full">' + esc(t) + '</button></th>' +
+        SLOT_DAYS.map((d, c) => '<td class="border p-1"><input type="checkbox" class="w-4 h-4" data-slot="' + (c + 1) + '_' + (r + 1) + '" ' + (off.has((c + 1) + '_' + (r + 1)) ? '' : 'checked') + '></td>').join('') + '</tr>').join('') +
+      '</tbody></table></div>';
     const range = () => APP.yearRange(g.year);
     const rr = () => { const r = range(); return { min: ymd(r.start), max: ymd(r.end) }; };
     const blankHr = (c) => ({ className: c, teacher: '', terms: ['1학기', '2학기'], period: null });
@@ -308,9 +305,13 @@
     const draw = guardDraw(() => {
       const { min, max } = rr();
       // 제목과 날짜 칸: 넓은 화면에서는 한 줄, 좁은 화면에서는 제목 아래에 두 날짜 칸을 나란히
+      const y0 = g.year;
+      const DEF = { '1학기': [[y0, 3, 1], [y0, 7, 20]], '여름방학': [[y0, 7, 21], [y0, 8, 20]], '2학기': [[y0, 8, 21], [y0, 12, 31]], '겨울방학': [[y0 + 1, 1, 1], [y0 + 1, 3, 0]] };   // 기본 날짜 (월 0일 = 앞 달 마지막 날)
+      const defDate = (n, p) => { const [yy, mm, dd] = DEF[n][p === 'start' ? 0 : 1]; return ymd(new Date(yy, mm - 1, dd)); };
+      const dflt = (n, p) => (sems[n] ? ymd(sems[n][p]) : defDate(n, p));
+      const semInp = (n, p) => '<input type="date" data-sem="' + n + '" data-p="' + p + '" min="' + min + '" max="' + max + '" value="' + dflt(n, p) + '" class="' + INP + ' flex-1 min-w-0">';
       const semHtml = APP.SEM_NAMES.map((n) => '<div class="grid gap-1 sm:grid-cols-[6rem_1fr] sm:items-center"><span class="font-semibold text-sm text-slate-700">' + n + '</span>' +
-        '<div class="flex items-center gap-2 max-w-md"><input type="date" data-sem="' + n + '" data-p="start" min="' + min + '" max="' + max + '" value="' + (sems[n] ? ymd(sems[n].start) : '') + '" class="' + INP + ' flex-1 min-w-0"><span class="text-slate-400">~</span>' +
-        '<input type="date" data-sem="' + n + '" data-p="end" min="' + min + '" max="' + max + '" value="' + (sems[n] ? ymd(sems[n].end) : '') + '" class="' + INP + ' flex-1 min-w-0"></div></div>').join('');
+        '<div class="flex items-center gap-2 max-w-md">' + semInp(n, 'start') + '<span class="text-slate-400">~</span>' + semInp(n, 'end') + '</div></div>').join('');
       const evCount = items.length;
       const evHtml = items.map((e, i) => '<tr class="border-t"><td class="p-1.5 whitespace-nowrap">' + ymd(e.start) + (e.end && ymd(e.end) !== ymd(e.start) ? ' ~ ' + ymd(e.end) : '') + '</td>' +
         '<td class="p-1.5 whitespace-pre-wrap">' + (e.kind === 'holiday' ? '<span class="text-xs px-1.5 py-0.5 rounded bg-pink-100 text-red-600 mr-1">휴일</span>' : '') + esc(e.name) + '</td>' +
@@ -335,14 +336,15 @@
           '<button data-spadd="' + esc(gid) + '" class="text-xs text-indigo-600 hover:underline">+ 전담 추가 (기간별)</button></div>';
       }).join('');
 
-      view.innerHTML = '<div class="space-y-5">' +
+      const yearCard =
         '<div class="' + CARD + '"><h2 class="font-bold text-lg">학년도 설정</h2><div class="flex flex-wrap items-end gap-3">' +
-        '<label class="text-xs font-semibold text-slate-500">학년도<span class="flex items-center gap-1.5 mt-1 text-sm font-normal text-slate-700"><input id="year" type="number" value="' + g.year + '" class="' + INP + ' w-24">학년도</span></label>' +
+        '<label class="text-xs font-semibold text-slate-500">학년도<span class="flex items-center gap-1.5 mt-1 text-sm font-normal text-slate-700"><span class="inline-flex items-stretch"><input id="year" type="number" value="' + g.year + '" class="' + INP + ' w-20 no-spin !rounded-r-none"><span class="flex flex-col border border-l-0 border-slate-300 rounded-r-lg overflow-hidden"><button type="button" data-ystep="1" title="1 증가" class="flex-1 px-2 text-[10px] leading-none bg-slate-50 hover:bg-slate-200">▲</button><button type="button" data-ystep="-1" title="1 감소" class="flex-1 px-2 text-[10px] leading-none bg-slate-50 hover:bg-slate-200 border-t border-slate-300">▼</button></span></span>학년도</span></label>' +
         '<label class="text-xs font-semibold text-slate-500">학년<select id="grade" class="' + INP + ' block mt-1">' + [1, 2, 3, 4, 5, 6].map((n) => '<option value="' + n + '" ' + (n === (g.grade || 6) ? 'selected' : '') + '>' + n + '학년</option>').join('') + '</select></label>' +
         '<button id="saveYear" class="' + BTN_P + '">이 학년도로 설정하기</button></div>' +
         '<p class="text-sm text-slate-500">' + appDate(range().start) + ' ~ ' + appDate(range().end) + '</p>' +
-        '<div class="space-y-2 pt-2 border-t"><p class="text-xs text-slate-400">날짜를 입력하면 바로 저장됩니다. (시작·종료를 모두 지우면 삭제됩니다)</p>' + semHtml + '</div></div>' +
-        '<div class="' + CARD + '"><h2 class="font-bold text-lg">기초 일정</h2><div class="flex flex-wrap gap-2 items-center">' +
+        '<div class="space-y-2 pt-2 border-t"><p class="text-xs text-slate-400">날짜를 입력하면 바로 저장됩니다. (시작·종료를 모두 지우면 삭제됩니다. 이어지지 않는 날짜는 분홍색으로 표시됩니다)</p>' + semHtml + '</div></div>';
+      const evCard =
+        '<div class="' + CARD + '"><h2 class="font-bold text-lg">학교 기초 일정</h2><div class="flex flex-wrap gap-2 items-center">' +
         '<input id="evName" placeholder="학교 행사" value="' + esc(ed ? ed.name : '') + '" class="' + INP + ' flex-1 min-w-[10rem]"><input id="evStart" type="date" min="' + min + '" max="' + max + '" value="' + (ed ? ymd(ed.start) : '') + '" class="' + INP + '">' +
         '<span>~</span><input id="evEnd" type="date" min="' + min + '" max="' + max + '" value="' + (ed && ed.end ? ymd(ed.end) : '') + '" class="' + INP + '" title="종료일(선택)">' +
         '<label class="flex items-center gap-1 text-sm"><input id="evHol" type="checkbox" ' + (ed && ed.kind === 'holiday' ? 'checked' : '') + '> 휴일</label>' +
@@ -350,16 +352,28 @@
         '<p class="text-xs text-slate-400">종료일을 비워 두면 하루짜리 일정입니다. 휴일(선거일, 임시공휴일 등)로 체크하면 data_basic 의 holiday 필드에 저장됩니다.</p>' +
         '<div class="flex flex-wrap gap-2 items-center"><button id="tpl" class="' + BTN_G + '">CSV 양식 다운로드</button><label class="' + BTN_G + ' cursor-pointer">CSV 업로드<input id="csv" type="file" accept=".csv,text/csv" class="hidden"></label></div>' +
         '<div class="flex items-center justify-between"><span class="text-xs text-slate-400">' + evCount + '개 일정</span><button id="evExpand" class="' + BTN_G + '">' + (window.__evOpen ? '접기' : '펼침 보기') + '</button></div>' +
-        '<div id="evBox" class="border rounded-lg" style="' + (window.__evOpen ? '' : 'max-height:205px;overflow-y:auto;') + '"><table class="w-full text-sm"><tbody>' + (evHtml || '<tr><td class="p-4 text-center text-slate-400">이 학년도에 등록된 일정이 없습니다.</td></tr>') + '</tbody></table></div></div>' +
+        '<div id="evBox" class="border rounded-lg" style="' + (window.__evOpen ? '' : 'max-height:205px;overflow-y:auto;') + '"><table class="w-full text-sm"><tbody>' + (evHtml || '<tr><td class="p-4 text-center text-slate-400">이 학년도에 등록된 일정이 없습니다.</td></tr>') + '</tbody></table></div></div>';
+      const classCard =
         '<div class="' + CARD + '"><h2 class="font-bold text-lg">학급 및 교사 설정 <span class="text-xs font-normal text-slate-400">입력하면 바로 저장됩니다</span></h2>' +
         '<div class="space-y-2"><h3 class="font-semibold text-sm text-slate-600">학급 설정</h3><div class="flex flex-wrap items-center gap-2"><span class="text-sm">학급 수</span><input id="cc" type="number" min="1" max="30" value="' + g.classCount + '" class="' + INP + ' w-20"></div><div class="flex flex-wrap gap-2">' + classHtml + '</div></div>' +
         '<div class="grid lg:grid-cols-2 gap-5 pt-3 border-t"><div class="space-y-2"><h3 class="font-semibold text-sm text-slate-600">담임교사</h3><div class="grid sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2">' + homeHtml + '</div></div>' +
         '<div class="space-y-2"><h3 class="font-semibold text-sm text-slate-600">전담교사</h3>' + (spHtml || '<p class="text-sm text-slate-400">등록된 전담교사가 없습니다. (과목은 시간표 설정에서 \'전담\'으로 체크한 과목만 선택됩니다.)</p>') +
-        '<button id="addSp" class="' + BTN_G + '">+ 전담교사 추가</button></div></div></div></div>';
+        '<button id="addSp" class="' + BTN_G + '">+ 전담교사 추가</button></div></div></div>';
+      const periodCard = '<div class="' + CARD + '"><h2 class="font-bold text-lg">교시 설정</h2><div class="space-y-2">' +
+        times.map((t, i) => '<div class="flex gap-2"><input data-ti="' + i + '" value="' + esc(t) + '" class="' + INP + ' flex-1"><button data-tdel="' + i + '" class="text-slate-400 hover:text-red-600">✕</button></div>').join('') +
+        '</div><button id="addTime" class="' + BTN_G + '">+ 교시 추가</button></div>';
+      view.innerHTML = '<div class="space-y-5">' + (part === 'year' ? yearCard + '<div class="grid md:grid-cols-3 gap-5 items-start"><div>' + periodCard + '</div><div class="min-w-0 md:col-span-2">' + slotCard() + '</div></div>' + evCard : classCard) + '</div>';
       bind();
     });
 
     const bind = () => {
+      view.querySelectorAll('[data-slot]').forEach((el) => el.onchange = () => { if (el.checked) off.delete(el.dataset.slot); else off.add(el.dataset.slot); saveSlots(); });
+      const toggleGroup = (keys) => { const allOn = keys.every((k) => !off.has(k)); keys.forEach((k) => (allOn ? off.add(k) : off.delete(k))); draw(); saveSlots(); };
+      view.querySelectorAll('[data-sday]').forEach((b) => b.onclick = () => toggleGroup(times.map((_, r) => b.dataset.sday + '_' + (r + 1))));
+      view.querySelectorAll('[data-sper]').forEach((b) => b.onclick = () => toggleGroup(SLOT_DAYS.map((_, c) => (c + 1) + '_' + b.dataset.sper)));
+      view.querySelectorAll('[data-ti]').forEach((el) => el.onchange = () => { times[+el.dataset.ti] = el.value; saveTimes(); draw(); });
+      view.querySelectorAll('[data-tdel]').forEach((b) => b.onclick = () => { times.splice(+b.dataset.tdel, 1); draw(); saveTimes(); });
+      $('addTime').onclick = () => { times.push((times.length + 1) + '교시'); draw(); saveTimes(); };
       $('evExpand').onclick = () => { window.__evOpen = !window.__evOpen; const b = $('evBox'); b.style.maxHeight = window.__evOpen ? '' : '205px'; b.style.overflowY = window.__evOpen ? '' : 'auto'; $('evExpand').textContent = window.__evOpen ? '접기' : '펼침 보기'; };
       $('grade').onchange = () => { g.grade = parseInt($('grade').value, 10) || 6; saveGeneral().then(() => notifyMeta()); };
       $('saveYear').onclick = async () => {
@@ -374,19 +388,47 @@
         } catch (e) { console.error(e); toast('실패: ' + e.message, true); }
       };
 
-      // 학기·방학: 날짜를 입력하면 바로 저장
-      APP.SEM_NAMES.forEach((n) => {
-        const inputs = [...view.querySelectorAll('[data-sem="' + n + '"]')];
-        inputs.forEach((inp) => inp.onchange = () => {
-          const a = toDate(inputs[0].value), b = toDate(inputs[1].value);
-          if (!a && !b) { autosave(async () => { await APP.clearSemester(g.year, n); sems = await APP.getSemesterRows(g.year); }, n + ' 기간이 삭제되었습니다.'); return; }
-          if (!a || !b) return;
-          const { start, end } = range();
-          if (a > b) return toast(n + ': 종료 날짜가 시작 날짜보다 빠릅니다.', true);
-          if (a < start || b > end) return toast(n + ': 학년도 기간을 벗어났습니다.', true);
-          autosave(async () => { await APP.saveSemesters(g.year, { [n]: { start: a, end: b } }); sems = await APP.getSemesterRows(g.year); }, n + ' 기간이 저장되었습니다.');
-        });
-      });
+      // 학기·방학: 날짜를 고르면 바로 저장. 앞 기간의 종료일 다음 날이 다음 기간의 시작일로 자동 입력됩니다.
+      document.querySelectorAll('[data-ystep]').forEach((b) => b.onclick = () => { const i = $('year'); i.value = (parseInt(i.value, 10) || g.year) + (+b.dataset.ystep); });
+      const semIn = (n, p) => view.querySelector('[data-sem="' + n + '"][data-p="' + p + '"]');
+      const NEXT = { '1학기': '여름방학', '여름방학': '2학기', '2학기': '겨울방학' };
+      const collect = (names) => {
+        const { start, end } = range(); const upd = {}, clr = [];
+        for (const n of names) {
+          const a = toDate(semIn(n, 'start').value), b = toDate(semIn(n, 'end').value);
+          if (!a && !b) { if (sems[n]) clr.push(n); continue; }
+          if (!a || !b) continue;
+          if (a > b) { toast(n + ': 종료 날짜가 시작 날짜보다 빠릅니다.', true); continue; }
+          if (a < start || b > end) { toast(n + ': 학년도 기간을 벗어났습니다.', true); continue; }
+          upd[n] = { start: a, end: b };
+        }
+        return { upd, clr };
+      };
+      const onSem = (n, p) => {
+        const names = [n];
+        if (p === 'end' && NEXT[n]) {
+          const e = toDate(semIn(n, 'end').value);
+          if (e) { const nx = new Date(e.getFullYear(), e.getMonth(), e.getDate() + 1); semIn(NEXT[n], 'start').value = ymd(nx); names.push(NEXT[n]); }
+        }
+        const { upd, clr } = collect(names);
+        autosave(async () => {
+          for (const x of clr) await APP.clearSemester(g.year, x);
+          if (Object.keys(upd).length) await APP.saveSemesters(g.year, upd);
+          sems = await APP.getSemesterRows(g.year);
+        }, clr.length && !Object.keys(upd).length ? n + ' 기간이 삭제되었습니다.' : n + ' 기간이 저장되었습니다.');
+      };
+      // 기간이 겹치거나 앞 종료일과 뒤 시작일이 하루보다 많이 떨어져 있으면 두 칸을 분홍색으로
+      const paintSem = () => {
+        const names = APP.SEM_NAMES; view.querySelectorAll('input[data-sem]').forEach((i) => i.classList.remove('!bg-pink-100', '!border-pink-400'));
+        for (let i = 0; i + 1 < names.length; i++) {
+          const e = toDate(semIn(names[i], 'end').value), st = toDate(semIn(names[i + 1], 'start').value); if (!e || !st) continue;
+          const gap = Math.round((st - e) / 86400000); if (gap !== 1) [semIn(names[i], 'end'), semIn(names[i + 1], 'start')].forEach((x) => x.classList.add('!bg-pink-100', '!border-pink-400'));
+        }
+        names.forEach((n) => { const a = toDate(semIn(n, 'start').value), b = toDate(semIn(n, 'end').value); if (a && b && a > b) [semIn(n, 'start'), semIn(n, 'end')].forEach((x) => x.classList.add('!bg-pink-100', '!border-pink-400')); });
+      };
+      view.querySelectorAll('input[data-sem]').forEach((inp) => { inp.oninput = paintSem; inp.onchange = () => { onSem(inp.dataset.sem, inp.dataset.p); paintSem(); }; });
+      paintSem();
+      if (!APP.SEM_NAMES.some((n) => sems[n]) && window.__semDefSaved !== g.year) { window.__semDefSaved = g.year; const { upd } = collect(APP.SEM_NAMES); if (Object.keys(upd).length) autosave(async () => { await APP.saveSemesters(g.year, upd); sems = await APP.getSemesterRows(g.year); }, '기본 학기·방학 기간이 저장되었습니다.'); }
 
       // 기초 일정 (학교 행사 / 휴일)
       const readEv = () => {
@@ -632,7 +674,6 @@
         wrap.querySelector('#bdN').focus();
       });
     }
-    let dragFrom = -1;
     const draw = guardDraw(() => {
       const list = shown();
       const tabBtn = (id, name) => '<button data-bp="' + esc(id) + '" class="px-3 py-1.5 rounded-full text-sm font-bold ' + (bdSel === id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">' + esc(name) + '</button>';
@@ -642,8 +683,8 @@
         '<div id="bdCards" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">' + list.map((it, i) => {
           const u = used(it.name), asg = it.amount + added(it.name), bal = asg - u;
           const where = it.pages.length ? it.pages.map(pageName).join(' · ') : '표시 안 함';
-          return '<div class="bdc relative border border-slate-300 rounded-xl p-3 shadow-sm cursor-grab" draggable="true" data-i="' + i + '" style="background:' + colorOf(it) + '">' +
-            '<div class="flex items-center justify-between gap-1 border-b border-black/10 pb-1 mb-1"><span class="font-bold text-sm break-all">' + esc(it.name) + '</span>' +
+          return '<div class="bdc relative border border-slate-300 rounded-xl p-3 shadow-sm" data-i="' + i + '" style="background:' + colorOf(it) + '">' +
+            '<div class="flex items-center justify-between gap-1 border-b border-black/10 pb-1 mb-1"><span class="bdgrip dnd-handle select-none text-slate-500 px-1" title="끌어서 순서 변경">⠿</span><span class="font-bold text-sm break-all flex-1">' + esc(it.name) + '</span>' +
             '<span class="flex shrink-0 gap-1"><label class="cursor-pointer relative" title="배경색">🎨<input type="color" data-color="' + i + '" value="' + colorOf(it) + '" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"></label><button data-edit="' + i + '" title="수정">✏️</button></span></div>' +
             '<div class="flex justify-between text-xs"><span>배정액</span><b>' + fmt(asg) + '</b></div><div class="flex justify-between text-xs"><span>사용액</span><b>' + fmt(u) + '</b></div>' +
             '<div class="flex justify-between text-sm mt-1 pt-1 border-t border-black/10"><span>잔액</span><b class="' + (bal < 0 ? 'text-red-600' : 'text-blue-700') + '">' + fmt(bal) + '</b></div>' +
@@ -666,19 +707,12 @@
       });
       box.querySelectorAll('input[data-color]').forEach((inp) => { inp.onchange = () => { list[+inp.dataset.color].color = inp.value; save(); draw(); }; });
       $('bdAdd').onclick = async () => { const r = await editDialog(null); if (!r || r.del) return; const it = { name: r.name, amount: r.amount, color: '', pages: r.pages }; items.push(it); await save(); draw(); };
-      // 끌어서 순서 바꾸기
-      const clear = () => box.querySelectorAll('.bdc').forEach((c) => { c.style.boxShadow = ''; c.style.opacity = ''; });
-      box.querySelectorAll('.bdc').forEach((c) => {
-        c.ondragstart = (e) => { dragFrom = +c.dataset.i; c.style.opacity = '.4'; try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(dragFrom)); } catch (x) { /* 무시 */ } };
-        c.ondragend = () => { dragFrom = -1; clear(); };
-        c.ondragover = (e) => { if (dragFrom < 0) return; e.preventDefault(); const r = c.getBoundingClientRect(); const after = e.clientX > r.left + r.width / 2; clear(); c.style.boxShadow = after ? 'inset -4px 0 0 #4f46e5' : 'inset 4px 0 0 #4f46e5'; c._after = after; };
-        c.ondrop = (e) => {
-          e.preventDefault(); if (dragFrom < 0) return; const to = +c.dataset.i; let dest = to + (c._after ? 1 : 0); const order = list.slice(); const [m] = order.splice(dragFrom, 1); if (dragFrom < dest) dest--; order.splice(dest, 0, m);
-          dragFrom = -1;
-          if (bdSel === 'all') { items = order; save(); } else { layout[bdSel] = order.map((x) => x.name); saveLayout(); }
-          draw();
-        };
-      });
+      // 끌어서 순서 바꾸기 (마우스·터치 모두: 카드 왼쪽 위 ⠿ 를 잡고 끕니다)
+      if (!box._dnd) { box._dnd = true; DnD.bind(box, { handle: '.bdgrip', item: '.bdc', drop: '.bdc', axis: 'x', onDrop: (el, tgt, after) => {
+        const from = +el.dataset.i, to = +tgt.dataset.i; let dest = to + (after ? 1 : 0); const cur = shown(); const order = cur.slice(); const [m] = order.splice(from, 1); if (from < dest) dest--; order.splice(dest, 0, m);
+        if (bdSel === 'all') { items = order; save(); } else { layout[bdSel] = order.map((x) => x.name); saveLayout(); }
+        draw();
+      } }); }
     });
     draw();
   }

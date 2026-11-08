@@ -12,13 +12,12 @@
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     .cell { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
-    /* 학년 개요 표: 데스크톱에서 '계' 열은 학급 열의 1.5배 너비 */
-    @media (min-width: 768px) {
-      #info { table-layout: fixed; width: 100%; }
-      #info col.ovh { width: 7%; }
-      #info col.ovc { width: var(--pc); }
-      #info col.ovs { width: var(--ps); }
-    }
+    /* 학년 개요 표: 반 열은 균등 배분. 구분 열 최대 5글자, 계 열 최대 3글자, 반 열 최대 8글자 너비(표가 좁아지면 같은 비율로 줄어듦) */
+    #info { table-layout: fixed; width: 100%; min-width: 720px; }
+    @media (max-width: 767px) { #info th, #info td { padding: .5rem .25rem; } }
+    #info col.ovh { width: var(--ph); }
+    #info col.ovc { width: var(--pc); }
+    #info col.ovs { width: var(--ps); }
     #info input.memo { min-width: 0; }
     button.edit { min-width: 36px; min-height: 36px; font-size: 16px; touch-action: manipulation; }
     .row-sat { background:#e0f2fe; color:#2563eb; }
@@ -105,10 +104,11 @@ async function renderInfo() {
   const isM = (s) => /^(남|남자|남성|m|male)$/i.test(GP.str(s.student_gender).trim()), isF = (s) => /^(여|여자|여성|f|female)$/i.test(GP.str(s.student_gender).trim());
   const all = cnt(() => true), m = cnt(isM), f = cnt(isF);
   const th = 'p-2 border-b border-r bg-slate-100 font-bold', td = 'p-2 border-b border-r';
-  const numRow = (label, a) => '<tr><td class="' + th + ' w-24">' + label + '</td>' + a.map((v) => '<td class="' + td + '">' + v + '</td>').join('') + '<td class="' + td + ' font-bold">' + sum(a) + '</td></tr>';
+  const numRow = (label, a) => '<tr><td class="' + th + ' ">' + label + '</td>' + a.map((v) => '<td class="' + td + '">' + v + '</td>').join('') + '<td class="' + td + ' font-bold">' + sum(a) + '</td></tr>';
   const memoRow = () => '<tr><td class="' + th + '">비고</td>' + names.map((_, i) => '<td class="' + td + '"><input data-c="' + (i + 1) + '" value="' + esc((ovMap['r5_' + general.year] || ovMap.r5 || {})['c' + (i + 1)] || '') + '" class="memo w-full text-center bg-transparent border-b border-dashed border-slate-300 focus:outline-none focus:border-indigo-500"></td>').join('') + '<td class="' + td + '"></td></tr>';
   const homeRow = () => '<tr><td class="' + th + '">담임</td>' + names.map((c) => '<td class="' + td + '">' + esc(APP.homeroomFor(general, c, todayDate(), semRows)) + '</td>').join('') + '<td class="' + td + '"></td></tr>';
-  { const t = document.getElementById('info'), u = 86 / n; t.style.setProperty('--pc', u.toFixed(3) + '%'); t.style.setProperty('--ps', '7%'); }
+  { const t = document.getElementById('info'), wh = 6, ws = 4, wc = 9, tot = wh + ws + wc * n;   // em 단위 최대 너비(글자 수 + 안쪽 여백)
+    t.style.maxWidth = tot + 'em'; t.style.setProperty('--ph', (wh / tot * 100).toFixed(3) + '%'); t.style.setProperty('--pc', (wc / tot * 100).toFixed(3) + '%'); t.style.setProperty('--ps', (ws / tot * 100).toFixed(3) + '%'); }
   document.getElementById('info').innerHTML = '<colgroup><col class="ovh">' + names.map(() => '<col class="ovc">').join('') + '<col class="ovs"></colgroup><thead><tr><th class="' + th + '">구분</th>' + names.map((c) => '<th class="' + th + '">' + esc(c) + '</th>').join('') + '<th class="' + th + '">계</th></tr></thead><tbody>' +
     numRow('학생수', all) + numRow('남', m) + numRow('여', f) + memoRow() + homeRow() + '</tbody>';
   document.querySelectorAll('.memo').forEach((inp) => inp.onchange = async () => {

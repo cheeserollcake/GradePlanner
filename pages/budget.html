@@ -10,6 +10,7 @@
   <script src="../assets/js/firebase-config.js"></script>
   <script src="../assets/js/gas-shim.js"></script>
   <script src="../assets/js/app-data.js"></script>
+  <script src="../assets/js/dnd.js"></script>
   <script src="../assets/js/xlsx-lite.js"></script>
   <script src="../assets/js/gsheet-export.js"></script>
   <style>
@@ -110,14 +111,14 @@
 
   <!-- 예산 페이지 추가 -->
   <div id="addModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-5 space-y-3">
-      <h3 class="font-bold text-lg">예산 페이지 추가</h3>
-      <div><label class="text-sm font-semibold block mb-1">예산명 <span class="font-normal text-slate-400">(위쪽 버튼 이름이 됩니다)</span></label>
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-5 space-y-3 max-h-[92vh] overflow-y-auto">
+      <h3 id="aTitle" class="font-bold text-lg">예산 페이지 추가</h3>
+      <div id="aNameBox"><label class="text-sm font-semibold block mb-1">예산명 <span class="font-normal text-slate-400">(위쪽 버튼 이름이 됩니다)</span></label>
         <input id="aName" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="예: 체험학습비"></div>
-      <div><label class="text-sm font-semibold block mb-1">기본 열 <span class="font-normal text-slate-400">(모든 예산 페이지에 기본으로 생깁니다)</span></label>
-        <div id="aBase" class="flex flex-wrap gap-1.5"></div></div>
-      <div><label class="text-sm font-semibold block mb-1">추가할 열 <span class="font-normal text-slate-400">(저장해 둔 열 이름에서 고르거나 새로 만듭니다)</span></label>
-        <div id="aExtra" class="flex flex-wrap gap-x-4 gap-y-1"></div>
+      <div><label class="text-sm font-semibold block mb-1">열 순서 <span class="font-normal text-slate-400">(끌어서 순서를 바꾸고, ✕ 로 뺄 수 있어요)</span></label>
+        <div id="aOrder" class="flex flex-wrap gap-1.5 p-2 border rounded-lg bg-slate-50 min-h-[46px]"></div></div>
+      <div><label class="text-sm font-semibold block mb-1">추가할 열 <span class="font-normal text-slate-400">(누르면 열 순서 맨 끝에 들어가고, 끌어서 원하는 자리에 넣을 수도 있어요)</span></label>
+        <div id="aExtra" class="flex flex-wrap gap-1.5 min-h-[34px]"></div>
         <div class="flex gap-2 mt-2"><input id="aNew" class="flex-1 border rounded-lg px-3 py-1.5 text-sm" placeholder="새 열 이름 (예: 구입처)"><button id="aNewAdd" type="button" class="px-3 py-1.5 rounded-lg bg-slate-100 text-sm font-semibold hover:bg-slate-200">+ 열 추가</button></div></div>
       <p id="aErr" class="text-sm font-semibold text-red-600 hidden"></p>
       <div class="flex justify-end gap-2 pt-1">
@@ -167,21 +168,26 @@ const feeClasses = (F, r) => isFeeRow(F, r) && splitList(r[F.spec]).some((c) => 
 const parseSup = (r) => { const cs = splitList(r && r.supply_class), ns = splitList(r && r.supply_class_num); return cs.map((c, i) => ({ c, n: num(ns[i]) })).filter((x) => x.n > 0); };
 const supQty = (r) => { const cs = splitList(r && r.supply_class); return cs.length ? parseSup(r).reduce((a, x) => a + x.n, 0) : splitList(r && r.supply_class_num).reduce((a, n) => a + num(n), 0); };
 const supText = (r, withTotal) => { const t = parseSup(r).map((x) => x.c + ' ' + fmt(x.n) + '개'); if (withTotal && t.length) t.push('총 ' + fmt(supQty(r)) + '개'); return t.join(', '); };
-const rowBg = (kind, r) => (r && r.row_color ? String(r.row_color) : (r && kind.sem && hasClass(r, '학년공통') ? '#fff3a0' : ''));   // 화면과 같은 줄 색깔
+const CARD_PALETTE = ['#CFE2F3', '#FCE5CD', '#D9EAD3', '#FFFEB5', '#E4D7F5'];   // 예산 카드 기본 색 (관리자 > 예산 설정과 같은 순서)
+const cardColor = (name) => { name = str(name).trim(); if (!name) return ''; const bs = (lists && lists.budgets) || []; const i = bs.findIndex((b) => b.name === name || b.name.split('/')[0] === name); return i < 0 ? '' : (bs[i].color || CARD_PALETTE[i % CARD_PALETTE.length]); };   // 예산종류에 해당하는 카드 색
+// 줄 색: 직접 정한 색 > 학년공통 준비물(노랑) > 예산종류의 카드 색
+const rowBg = (kind, r) => (r && r.row_color ? String(r.row_color) : (r && kind.sem && hasClass(r, '학년공통') ? '#fff3a0' : (r && kind.F && kind.F.name ? cardColor(r[kind.F.name]) : '')));   // 화면과 같은 줄 색깔
 const budgetOpts = () => [...new Set(((lists && lists.budgets) || []).filter((b) => (b.pages || ['budget']).indexOf(mode) >= 0).map((b) => b.name))];   // 지금 보는 예산 페이지에 배정된 예산종류만
 
 // 머리글 이름으로 열 종류를 정함 (학년 예산과 추가한 예산 페이지가 같은 방식으로 동작)
 function colsFor(list) {
   const nm = (h) => String(h.name || '').trim(); const by = (n) => list.find((h) => nm(h) === n);
-  const F = { name: (by('예산종류') || {}).k, spec: (by('규격') || {}).k, num: (by('수량') || {}).k, price: (by('단가') || {}).k };
-  const canCalc = !!(F.num && F.price);
+  const F = { name: (by('예산종류') || {}).k, spec: (by('규격') || {}).k, num: (by('수량') || {}).k, price: (by('단가') || {}).k, sup: !!by('학급별수량') };
+  const canCalc = !!((F.num || F.sup) && F.price);
+  const qtyOf = (r) => (F.sup && supQty(r) > 0 ? supQty(r) : (F.num ? num(r[F.num]) : 0));   // 학급별수량 칸은 학습준비물처럼 학급별 수량의 합
   const cols = list.map((h) => {
     const n = nm(h), base = { label: h.name, k: h.k, w: 150, cid: h.cid };
-    if (h.calc || ((n === '금액(합)' || n === '금액') && canCalc)) return { label: h.name, w: 110, t: 'calc', sum: 1, id: 'calc', cid: h.cid, calc: (r) => num(r[F.num]) * num(r[F.price]) };
+    if (h.calc || ((n === '금액(합)' || n === '금액') && canCalc)) return { label: h.name, w: 110, t: 'calc', sum: 1, id: 'calc', cid: h.cid, calc: (r) => qtyOf(r) * num(r[F.price]) };
     if (n === '예산종류') return Object.assign(base, { w: 140, t: 'sel', opts: budgetOpts });
     if (n === '품명') return Object.assign(base, { w: 180 });
     if (n === '규격') return Object.assign(base, { w: 160, t: 'spec' });
     if (n === '수량') return Object.assign(base, { w: 70, t: 'num', ro: (r) => feeClasses(F, r) });
+    if (n === '학급별수량') return Object.assign(base, { k: 'supply_class', w: 110, t: 'sup' });
     if (n === '단가') return Object.assign(base, { w: 100, t: 'num' });
     if (n === '링크') return Object.assign(base, { w: 120, t: 'link' });
     if (n === '품의상황') return Object.assign(base, { w: 100, t: 'sel', opts: () => PUMUI });
@@ -205,7 +211,7 @@ function supplyKind(sem) {
     { k: 'supply_product', label: '품명', w: 180 }, { k: 'supply_spec', label: '규격', w: 150 },
     { k: 'supply_class', label: '수량', w: 110, t: 'sup' }, { k: 'supply_unit', label: '단위', w: 70 }, { k: 'supply_price', label: '단가', w: 100, t: 'num' },
     { label: '금액(합)', w: 110, t: 'calc', sum: 1, id: 'calc', calc: (r) => num(r.supply_price) * supQty(r) },
-    { k: 'supply_sub', label: '과목', w: 110, t: 'sel', opts: () => (lists && lists.subs) || [] }, { k: 'supply_link', label: '링크', w: 120, t: 'link' }],
+    { k: 'supply_sub', label: '과목', w: 110, t: 'sel', opts: () => ['전교과'].concat(((lists && lists.subs) || []).filter((x) => x !== '전교과')) }, { k: 'supply_link', label: '링크', w: 120, t: 'link' }],
     filters: [['신청학급', 'supply_class']] };
 }
 const SHEET_COL = 'data_sheet_rows';
@@ -222,7 +228,10 @@ let colWidths = {};   // { 표종류id: { 열키: 상대 너비 } }  (모두가 
 const RN = 68;
 const kindOf = (m) => {
   const k = rawKind(m); const saved = colWidths[k.id] || {};
-  return Object.assign({}, k, { cols: k.cols.map((c) => { const w = saved[c.k || c.id || 'calc']; return w > 0 ? Object.assign({}, c, { w }) : c; }) });
+  let cols = k.cols.map((c) => { const w = saved[c.k || c.id || 'calc']; return w > 0 ? Object.assign({}, c, { w }) : c; });
+  const od = !k.custom && colWidths.__order && colWidths.__order[k.id];   // 학년 예산·학년회비·학습준비물의 열 순서(머리글을 끌어서 바꾼 것)
+  if (Array.isArray(od)) { const key = (c) => c.k || c.id || 'calc'; cols = cols.map((c, i) => ({ c, i, o: od.indexOf(key(c)) })).sort((a, b) => (a.o < 0 ? 1e3 + a.i : a.o) - (b.o < 0 ? 1e3 + b.i : b.o)).map((x) => x.c); }
+  return Object.assign({}, k, { cols });
 };
 const rawKind = (m) => {
   if (m === 'budget') return budgetKind();
@@ -278,16 +287,15 @@ function renderTabs() {
   $('tabs').innerHTML = tab('budget', '학년 예산') + tab('fee', '학년회비') + tab(/^supply/.test(mode) ? mode : (new Date().getMonth() >= 7 || new Date().getMonth() <= 1 ? 'supply2' : 'supply1'), '학습준비물', /^supply/.test(mode)) + sheets.map((s) => tab('sheet:' + s.id, s.name)).join('') +
     '<button id="tabAdd" title="예산 페이지 추가" class="w-8 h-8 rounded-full bg-white border border-slate-300 text-lg font-bold text-slate-600 hover:bg-indigo-50 leading-none">+</button>';
   $('tabs').querySelectorAll('[data-m]').forEach((b) => b.onclick = () => { if (/^supply/.test(b.dataset.m) && /^supply/.test(mode)) return; setMode(b.dataset.m); });
-  $('tabAdd').onclick = openAdd;
+  $('tabAdd').onclick = () => openAdd('new');
 }
 function setMode(m) { mode = m; filters = {}; blankN = 1; renderAll(); }
 function renderAll() { renderTabs(); renderCards(); renderSupplyBox(); renderFilters(); renderTools(); renderGrid(); }
 
 async function renderCards() {
   const box = $('cards'); const pg = mode;   // 카드는 관리자 > 예산 설정에서 이 예산 페이지에 표시하기로 한 것만 나옵니다.
-  const cards = (await GP.buildBudgetCards(pg)).filter((c) => !String(c.name).includes('친목회비')); if (pg !== mode) return;
-  const PALETTE = ['#CFE2F3', '#FCE5CD', '#D9EAD3', '#FFFEB5', '#E4D7F5'];   // 특별실 색 규칙과 같은 기본 색
-  box.innerHTML = cards.map((c, i) => '<div class="border border-slate-200 rounded-xl p-3 shadow-sm" style="background:' + esc(c.color || PALETTE[i % PALETTE.length]) + '"><div class="font-bold text-sm border-b border-black/10 pb-1 mb-1">' + esc(c.name) + '</div>' +
+  const cards = (await GP.buildBudgetCards(pg)); if (pg !== mode) return;
+  box.innerHTML = cards.map((c, i) => '<div class="border border-slate-200 rounded-xl p-3 shadow-sm" style="background:' + esc(c.color || cardColor(c.name) || CARD_PALETTE[i % CARD_PALETTE.length]) + '"><div class="font-bold text-sm border-b border-black/10 pb-1 mb-1">' + esc(c.name) + '</div>' +
     '<div class="flex justify-between text-xs"><span>배정액</span><b>' + fmt(c.assigned) + '</b></div><div class="flex justify-between text-xs"><span>사용액</span><b>' + fmt(c.used) + '</b></div>' +
     '<div class="flex justify-between text-sm mt-1 pt-1 border-t border-black/10"><span>잔액</span><b class="' + (c.balance < 0 ? 'text-red-600' : 'text-blue-700') + '">' + fmt(c.balance) + '</b></div></div>').join('') +
     '<div class="flex items-end"><button id="cardAdmin" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600 border border-indigo-100" title="관리자 페이지로 이동 (예산 카드 관리)" aria-label="관리자"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 2.5h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7v-.2a2 2 0 0 0-2-2Z" /><circle cx="12" cy="12" r="3" /></svg></button></div>';
@@ -303,13 +311,10 @@ function renderFilters() {
 }
 function renderTools() {
   const kind = kindOf(mode), t = $('sheetTools'); t.style.display = kind.custom ? '' : 'none'; t.classList.toggle('hidden', !kind.custom); if (!kind.custom) return;
-  t.innerHTML = '<button id="tAddCol" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white border border-slate-300 hover:bg-slate-50">+ 열 추가</button>' +
+  t.innerHTML = '<button id="tAddCol" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white border border-slate-300 hover:bg-slate-50">+ 열 추가 · 순서</button>' +
     '<button id="tRename" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white border border-slate-300 hover:bg-slate-50">✏️ 예산명 변경</button>' +
     '<button id="tDel" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white border border-red-200 text-red-600 hover:bg-red-50">🗑 이 페이지 삭제</button>';
-  $('tAddCol').onclick = async () => {
-    const s = kind.custom; const id = nextColId(s); s.cols.push({ id, name: '열' + (s.cols.length + 1) });
-    await enqueue(saveSheets); renderGrid();
-  };
+  $('tAddCol').onclick = () => openAdd('cols');
   $('tRename').onclick = async () => {
     const v = (prompt('예산명을 입력하세요.', kind.custom.name) || '').trim(); if (!v || v === kind.custom.name) return;
     const err = nameError(v, kind.custom.id); if (err) return alert(err);
@@ -360,10 +365,10 @@ function renderGrid() {
   const kind = kindOf(mode), rows = viewRows(kind).slice().sort(byOrder); window.__rows = rows;
   const listIds = {}; const dl = '';
   const calcIdx = kind.cols.findIndex((c) => c.t === 'calc' && c.sum);
-  const head = '<tr class="letters"><th class="rn"></th>' + kind.cols.map((c, ci) => '<th>' + COLN(ci) + '<span class="rsz" data-rsz="' + ci + '" title="끌어서 열 너비 조절"></span></th>').join('') + '</tr>' +
+  const head = '<tr class="letters"><th class="rn"></th>' + kind.cols.map((c, ci) => '<th class="dnd-handle" data-hd="' + ci + '" title="끌어서 열 위치 이동">' + COLN(ci) + '<span class="rsz" data-rsz="' + ci + '" title="끌어서 열 너비 조절"></span></th>').join('') + '</tr>' +
     '<tr class="heads"><th class="rn">1</th>' + kind.cols.map((c, ci) => kind.custom
-      ? '<th><input class="hcell" data-h="' + ci + '" value="' + esc(c.label) + '">' + (kind.cols.length > 1 ? '<button class="colx" data-colx="' + ci + '" title="열 삭제">✕</button>' : '') + '</th>'
-      : '<th>' + esc(c.label) + '</th>').join('') + '</tr>';
+      ? '<th data-hd="' + ci + '"><input class="hcell" data-h="' + ci + '" value="' + esc(c.label) + '">' + (kind.cols.length > 1 ? '<button class="colx" data-colx="' + ci + '" title="열 삭제">✕</button>' : '') + '</th>'
+      : '<th class="dnd-handle" data-hd="' + ci + '" title="끌어서 열 위치 이동">' + esc(c.label) + '</th>').join('') + '</tr>';
   const sum = calcIdx >= 0 ? rows.reduce((a, r) => a + kind.cols[calcIdx].calc(r), 0) : 0;
   const addRow = '<tr class="addrow"><td colspan="' + (kind.cols.length + 1) + '"><div class="addin"><button data-addrows class="w-9 h-9 rounded-full bg-white border border-slate-300 text-xl font-bold text-slate-600 hover:bg-indigo-50 leading-none" title="빈 줄 5개 더 추가">+</button></div></td></tr>';
   const foot = calcIdx >= 0 ? '<tfoot><tr><th class="rn"></th>' + kind.cols.map((c, ci) => ci === 0 ? '<td colspan="' + calcIdx + '" style="text-align:right">합계</td>' : ci < calcIdx ? '' : ci === calcIdx ? '<td id="sumCell" style="text-align:right">' + fmt(sum) + '</td>' : '<td></td>').join('') + '</tr></tfoot>' : '';
@@ -588,6 +593,15 @@ document.addEventListener('mousedown', (e) => { if (!e.target.closest('#colorPop
 gw.addEventListener('click', (e) => { const b = e.target.closest('[data-color]'); if (b) openColor(b); });
 gw.addEventListener('scroll', () => { $('colorPop').style.display = 'none'; });
 
+// ---- 머리글(A,B,C… 줄 또는 열 이름 줄)을 끌어서 열 위치 바꾸기 (마우스·터치) ----
+DnD.bind(gw, { handle: 'th[data-hd].dnd-handle', item: 'th[data-hd]', drop: 'th[data-hd]', axis: 'x', ignore: '.rsz,input,select,textarea,button,a,label', onDrop: async (el, tgt, after) => {
+  const kind = kindOf(mode), n = kind.cols.length; const from = +el.dataset.hd; let dest = +tgt.dataset.hd + (after ? 1 : 0);
+  const idx = [...Array(n).keys()]; const [m] = idx.splice(from, 1); if (from < dest) dest--; idx.splice(dest, 0, m); if (idx.every((v, i) => v === i)) return;
+  if (kind.custom) { const cs = kind.custom.cols; kind.custom.cols = idx.map((i) => cs[i]); await enqueue(saveSheets); }
+  else { const keys = idx.map((i) => kind.cols[i].k || kind.cols[i].id || 'calc'); colWidths = Object.assign({}, colWidths, { __order: Object.assign({}, colWidths.__order, { [kind.id]: keys }) });
+    enqueue(() => commit([{ type: 'set', col: 'app_config', id: 'budget_cols', data: { json: JSON.stringify(colWidths), updatedAt: new Date().toISOString() } }])); }
+  renderGrid();
+} });
 let rsz = null;
 gw.addEventListener('mousedown', (e) => {
   const h = e.target.closest && e.target.closest('[data-rsz]'); if (!h) return; e.preventDefault();
@@ -796,38 +810,63 @@ function openAdminGate() {
 // ======================= 예산 페이지 추가 =======================
 //  기본 열: 예산종류, 품명, 규격, 수량, 단가, 금액(합), 링크, 비고 / 그 밖의 열은 저장해 둔 열 이름(list_budget_header)에서 고르거나 새로 만듭니다.
 const DEFAULT_HEADS = ['예산종류', '품명', '규격', '수량', '단가', '금액(합)', '링크', '비고'];
-let chosenHeads = new Set(), typedHeads = [];
-function drawExtra() {
-  const ex = [...new Set(((lists && lists.budgetHeaders) || []).filter((h) => DEFAULT_HEADS.indexOf(h) < 0).concat(typedHeads))];
-  $('aExtra').innerHTML = ex.length ? ex.map((h) => '<label class="flex items-center gap-1.5 text-sm"><input type="checkbox" class="aX" value="' + esc(h) + '"' + (chosenHeads.has(h) ? ' checked' : '') + '>' + esc(h) + '</label>').join('') : '<span class="text-xs text-slate-400">저장된 추가 열이 없습니다. 아래에서 새로 만들 수 있습니다.</span>';
-  $('aExtra').querySelectorAll('.aX').forEach((x) => x.onchange = () => { if (x.checked) chosenHeads.add(x.value); else chosenHeads.delete(x.value); });
-  return ex;
+const HIDDEN_HEADS = ['수량(합)', '희망학급'];   // 더 이상 고를 수 없는 열 이름 (학급별 수량은 '학급별수량' 열을 씁니다)
+const SUP_HEAD = '학급별수량';
+let aList = [], typedHeads = [], aMode = 'new';   // aList: 열 순서
+function aPool() {
+  const saved = ((lists && lists.budgetHeaders) || []).filter((h) => HIDDEN_HEADS.indexOf(h) < 0);
+  return [...new Set(DEFAULT_HEADS.concat([SUP_HEAD], saved, typedHeads))].filter((h) => aList.indexOf(h) < 0);
 }
-function openAdd() {
-  $('aName').value = ''; $('aNew').value = ''; $('aErr').classList.add('hidden'); chosenHeads = new Set(); typedHeads = [];
-  $('aBase').innerHTML = DEFAULT_HEADS.map((h) => '<span class="px-2 py-1 rounded-md bg-slate-100 text-xs font-semibold text-slate-600">' + esc(h) + '</span>').join('');
-  drawExtra(); $('addModal').classList.remove('hidden'); $('addModal').classList.add('flex'); $('aName').focus();
+function drawOrder() {
+  const chip = 'dchip dnd-handle inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm font-semibold select-none ';
+  $('aOrder').innerHTML = aList.length ? aList.map((h) => '<span class="' + chip + 'bg-white border border-indigo-200 text-slate-700" data-n="' + esc(h) + '" data-src="order"><i class="not-italic text-slate-400">⠿</i>' + esc(h) + '<button type="button" data-x="' + esc(h) + '" class="text-slate-400 hover:text-red-600 ml-1" title="빼기">✕</button></span>').join('') : '<span class="text-xs text-slate-400">열이 없습니다. 아래에서 추가하세요.</span>';
+  const pool = aPool();
+  $('aExtra').innerHTML = pool.length ? pool.map((h) => '<span class="' + chip + 'bg-slate-100 text-slate-600 cursor-pointer hover:bg-indigo-50" data-n="' + esc(h) + '" data-src="pool">+ ' + esc(h) + '</span>').join('') : '<span class="text-xs text-slate-400">더 추가할 열이 없습니다. 아래에서 새로 만들 수 있습니다.</span>';
+  $('aOrder').querySelectorAll('[data-x]').forEach((b) => b.onclick = () => { aList = aList.filter((x) => x !== b.dataset.x); drawOrder(); });
+  $('aExtra').querySelectorAll('[data-src="pool"]').forEach((c) => c.onclick = () => { aList.push(c.dataset.n); drawOrder(); });
+}
+DnD.bind($('addModal'), { handle: '.dchip', item: '.dchip', drop: '#aOrder .dchip', zone: '#aOrder, #aExtra', axis: 'x', onDrop: (el, tgt, after, zone) => {
+  const n = el.dataset.n; if (el.dataset.src === 'order') aList = aList.filter((x) => x !== n);
+  if (!tgt && zone && zone.id === 'aExtra') return drawOrder();   // 추가할 열 쪽에 놓으면 열 순서에서 뺌
+  aList = aList.filter((x) => x !== n); const t = tgt ? aList.indexOf(tgt.dataset.n) : -1; aList.splice(t >= 0 ? t + (after ? 1 : 0) : aList.length, 0, n); drawOrder();
+} });
+function openAdd(m) {
+  aMode = m === 'cols' ? 'cols' : 'new'; $('aErr').classList.add('hidden'); typedHeads = []; $('aNew').value = '';
+  const kind = kindOf(mode);
+  if (aMode === 'cols') { aList = kind.custom.cols.map((c) => c.name); $('aTitle').textContent = '열 추가 · 순서 변경 (' + kind.custom.name + ')'; $('aNameBox').style.display = 'none'; $('aOk').textContent = '적용'; }
+  else { aList = DEFAULT_HEADS.slice(); $('aName').value = ''; $('aTitle').textContent = '예산 페이지 추가'; $('aNameBox').style.display = ''; $('aOk').textContent = '추가'; }
+  drawOrder(); $('addModal').classList.remove('hidden'); $('addModal').classList.add('flex'); (aMode === 'new' ? $('aName') : $('aNew')).focus();
 }
 function closeAdd() { $('addModal').classList.add('hidden'); $('addModal').classList.remove('flex'); }
 $('aCancel').onclick = closeAdd;
 $('aNewAdd').onclick = () => {
   const v = $('aNew').value.trim(); if (!v) return; $('aNew').value = '';
-  if (DEFAULT_HEADS.indexOf(v) >= 0) return;
-  if (typedHeads.indexOf(v) < 0 && !((lists && lists.budgetHeaders) || []).includes(v)) typedHeads.push(v);
-  chosenHeads.add(v); drawExtra();
+  if (HIDDEN_HEADS.indexOf(v) >= 0) { $('aErr').textContent = '[' + v + '] 열은 쓸 수 없습니다. 학급별 수량은 [' + SUP_HEAD + '] 열을 쓰세요.'; $('aErr').classList.remove('hidden'); return; }
+  $('aErr').classList.add('hidden');
+  if (aList.indexOf(v) >= 0) return;
+  if (aPool().indexOf(v) < 0 && typedHeads.indexOf(v) < 0) typedHeads.push(v);
+  aList.push(v); drawOrder();
 };
 $('aNew').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('aNewAdd').click(); } });
 $('aOk').onclick = async () => {
-  const name = $('aName').value.trim();
-  const err = !name ? '예산명을 입력하세요.' : nameError(name);
-  if (err) { $('aErr').textContent = err; $('aErr').classList.remove('hidden'); return; }
-  const extras = drawExtra().filter((h) => chosenHeads.has(h)); const heads = DEFAULT_HEADS.concat(extras);
-  let n = 1; while (sheets.some((s) => s.id === 's' + n)) n++;
-  const sh = { id: 's' + Date.now().toString(36) + n, name, cols: heads.map((h, i) => ({ id: 'c' + (i + 1), name: h })) };
-  sheets.push(sh); closeAdd(); await enqueue(saveSheets);
-  if (typedHeads.length) {   // 새로 만든 열 이름은 저장해 두어 다음 예산 페이지에서도 고를 수 있게 함
-    try { const cur = (await GP.readList('list_budget_header')).map((i) => ({ value: i.value, extra: {} })); await GP.writeList('list_budget_header', cur.concat(typedHeads.filter((h) => !cur.some((c) => c.value === h)).map((h) => ({ value: h, extra: {} })))); lists = await GP.getLists(); } catch (e) { console.warn('열 이름을 저장하지 못했습니다', e); }
+  const fail = (m) => { $('aErr').textContent = m; $('aErr').classList.remove('hidden'); };
+  if (!aList.length) return fail('열을 하나 이상 넣어 주세요.');
+  const saveTyped = async () => {
+    const mine = typedHeads.filter((h) => aList.indexOf(h) >= 0 && DEFAULT_HEADS.indexOf(h) < 0 && h !== SUP_HEAD);
+    if (!mine.length) return;   // 새로 만든 열 이름은 저장해 두어 다음 예산 페이지에서도 고를 수 있게 함
+    try { const cur = (await GP.readList('list_budget_header')).map((i) => ({ value: i.value, extra: {} })); await GP.writeList('list_budget_header', cur.concat(mine.filter((h) => !cur.some((c) => c.value === h)).map((h) => ({ value: h, extra: {} })))); lists = await GP.getLists(); } catch (e) { console.warn('열 이름을 저장하지 못했습니다', e); }
+  };
+  if (aMode === 'cols') {
+    const s = kindOf(mode).custom; const old = s.cols; const gone = old.filter((c) => aList.indexOf(c.name) < 0);
+    if (gone.length && !confirm('[' + gone.map((c) => c.name).join(', ') + '] 열을 뺍니다. 이 열에 입력한 내용은 화면에서 사라집니다. 계속할까요?')) return;
+    const used = new Set(old.map((c) => c.id)); const newId = () => { let k = 1; while (used.has('c' + k)) k++; used.add('c' + k); return 'c' + k; };
+    const next = aList.map((n) => old.find((c) => c.name === n) || { id: newId(), name: n });
+    s.cols = next; closeAdd(); await enqueue(saveSheets); await saveTyped(); renderGrid(); return;
   }
+  const name = $('aName').value.trim(); const err = !name ? '예산명을 입력하세요.' : nameError(name); if (err) return fail(err);
+  let n = 1; while (sheets.some((s) => s.id === 's' + n)) n++;
+  const sh = { id: 's' + Date.now().toString(36) + n, name, cols: aList.map((h, i) => ({ id: 'c' + (i + 1), name: h })) };
+  sheets.push(sh); closeAdd(); await enqueue(saveSheets); await saveTyped();
   setMode('sheet:' + sh.id);
 };
 $('addModal').addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAdd(); });
@@ -879,17 +918,21 @@ function addImageCols(sheet, imgs, headerRow, widths) {   // sheet.rows: [머리
   headerRow.push(...Array.from({ length: cnt }, (_, i) => H('첨부이미지' + (cnt > 1 ? i + 1 : ''))));
   sheet.rows.slice(1).forEach((row, ri) => { const l = imgs[ri]; if (!l) { for (let i = 0; i < cnt; i++) row.push({ v: '', s: 'totalLabel' }); return; } for (let i = 0; i < cnt; i++) row.push(l[i] ? { v: '', s: 'center', img: l[i] } : T('')); });
 }
+async function genSheet(kind, rows) {
+  const n = rows.length;
+  const calcI = kind.cols.findIndex((c) => c.t === 'calc' && c.sum);
+  const body = rows.map((r) => kind.cols.map((c) => (c.t === 'calc' ? N(c.calc(r)) : c.attach ? T(withFiles(r, c)) : c.t === 'sup' ? T(supText(r, true)) : c.t === 'num' || looksNum(r[c.k]) ? N(r[c.k]) : T(r[c.k]))).map((c) => { const bg = rowBg(kind, r); if (bg) c.bg = bg; return c; }));
+  const tail = []; if (calcI >= 0) { const t = totalRow(n, kind.cols.length); t[calcI] = { v: rows.reduce((a, r) => a + kind.cols[calcI].calc(r), 0), s: 'totalNum' }; tail.push(t); }
+  const sheet = { name: safeSheetName(kind.name), widths: kind.cols.map(() => 18), freezeRow: 1, filter: true, filterRows: n + 1, rows: [kind.cols.map((c) => H(c.label))].concat(body, tail) };
+  if (kind.cols.some((c) => c.attach)) addImageCols(sheet, (await attachImages(rows, kind.cols.filter((c) => c.attach))).concat(tail.length ? [null] : []), sheet.rows[0], sheet.widths);
+  return sheet;
+}
 async function buildExport() {
   const g = await APP.getGeneral(); const label = g.year + '학년도';
   const kindX = kindOf(mode); let rows = viewRows(kindX).slice().sort(byOrder);   // 화면에 마지막으로 그린 목록이 아니라, 지금 저장돼 있는 줄 전부(필터 적용)
   if (!rows.length) rows = allRows(kindX).slice().sort(byOrder);
   if (mode === 'budget') {
-    const n = rows.length; let sum = 0; const kb = kindOf('budget');
-    const body = rows.map((r, i) => { const x = i + 2; const amt = num(r.budget_num) * num(r.budget_price); sum += amt;
-      return [T(r.budget_name), T(r.budget_product), T(r.budget_spec), N(r.budget_num), N(r.budget_price), { v: amt, s: 'int', f: 'D' + x + '*E' + x }, linkCell(r.budget_link), T(r.budget_pumui), T(r.budget_progress), T(withFiles(r, kb.cols[9]))].map((c) => { const bg = rowBg(kb, r); if (bg) c.bg = bg; return c; }); });
-    const tot = totalRow(n, 10); tot[5] = { v: sum, s: 'totalNum' }; if (n) tot[5].f = 'SUM(F2:F' + (n + 1) + ')';
-    const sheet1 = { name: '학년 예산', widths: [18, 26, 22, 8, 11, 13, 34, 12, 12, 18], freezeRow: 1, filter: true, filterRows: n + 1, rows: [['예산종류', '품명', '규격', '수량', '단가', '금액(합)', '링크', '품의상황', '완료상태', '비고'].map(H)].concat(body, [tot]) };
-    addImageCols(sheet1, await attachImages(rows, [kb.cols[9]]).then((l) => l.concat([null])), sheet1.rows[0], sheet1.widths);
+    const kb = kindOf('budget'); const sheet1 = await genSheet(kb, rows);   // 화면의 열 순서 그대로
     const cards = (await GP.buildBudgetCards()).filter((c) => !String(c.name).includes('친목회비'));
     const crow = cards.map((c, i) => [T(c.name), N(c.assigned), N(c.used), { v: num(c.assigned) - num(c.used), s: 'int', f: 'B' + (i + 2) + '-C' + (i + 2) }]);
     const ct = [{ v: '합계', s: 'totalLabel' }, { v: cards.reduce((a, c) => a + num(c.assigned), 0), s: 'totalNum' }, { v: cards.reduce((a, c) => a + num(c.used), 0), s: 'totalNum' }, { v: cards.reduce((a, c) => a + num(c.assigned) - num(c.used), 0), s: 'totalNum' }];
@@ -909,11 +952,7 @@ async function buildExport() {
     const sum2 = { name: '학급별 사용액', widths: [24, 16], rows: [['구분', '금액'].map(H), [T('학습준비물 총액'), N(st.total)], [T('학년공통사용액'), N(st.common)], [T('반별배부액'), N(st.alloc)]].concat(st.cls.map((c) => [T(c + ' 사용액'), N(st.use[c])])) };
     return { fileName: '학습준비물' + kind.sem + '학기_' + label, title: label + ' ' + g.grade + '학년 ' + kind.name, sheets: [sheet, sum2] };
   }
-  const calcI = kind.cols.findIndex((c) => c.t === 'calc' && c.sum);
-  const body = rows.map((r) => kind.cols.map((c) => (c.t === 'calc' ? N(c.calc(r)) : c.attach ? T(withFiles(r, c)) : c.t === 'num' || looksNum(r[c.k]) ? N(r[c.k]) : T(r[c.k]))).map((c) => { const bg = rowBg(kind, r); if (bg) c.bg = bg; return c; }));
-  const tail = []; if (calcI >= 0) { const t = totalRow(n, kind.cols.length); t[calcI] = { v: rows.reduce((a, r) => a + kind.cols[calcI].calc(r), 0), s: 'totalNum' }; tail.push(t); }
-  const sheet = { name: safeSheetName(kind.name), widths: kind.cols.map(() => 18), freezeRow: 1, filter: true, filterRows: n + 1, rows: [kind.cols.map((c) => H(c.label))].concat(body, tail) };
-  if (kind.cols.some((c) => c.attach)) addImageCols(sheet, (await attachImages(rows, kind.cols.filter((c) => c.attach))).concat(tail.length ? [null] : []), sheet.rows[0], sheet.widths);
+  const sheet = await genSheet(kind, rows);
   return { fileName: safeSheetName(kind.name).replace(/\s+/g, '_') + '_' + label, title: label + ' ' + g.grade + '학년 ' + kind.name, sheets: [sheet] };
 }
 
