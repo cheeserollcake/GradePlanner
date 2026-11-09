@@ -212,7 +212,10 @@
   async function loadOpen(year) {
     const base = await getCfg('space_open', {}); const yd = await getCfg('space_open_' + year, null);
     const gen = await getCfg('general', {}); const src = yd || (!gen.legacyMigrated ? base : {});
-    return { sem1: src.sem1 || {}, sem2: src.sem2 || {}, exceptions: src.exceptions || [], closeExceptions: src.closeExceptions || [], colors: base.colors || {} };
+    // 개방 칸 키는 '<요일>|<교시이름>|<공간>' (교시 이름 기준). 예전 형식 '<요일>_<번호>_<공간>' 은 번호를 'N교시' 이름으로 보고 바꿔 읽습니다.
+    const norm = (o) => { const out = {}; Object.keys(o || {}).forEach((k) => { const m = /^(\d)_(\d+)_(.+)$/.exec(k); out[m ? `${m[1]}|${m[2]}교시|${m[3]}` : k] = o[k]; }); return out; };
+    const nex = (a) => (a || []).map((e) => (/^\d+$/.test(str(e.period).trim()) ? Object.assign({}, e, { period: str(e.period).trim() + '교시' }) : e));
+    return { sem1: norm(src.sem1), sem2: norm(src.sem2), exceptions: nex(src.exceptions), closeExceptions: nex(src.closeExceptions), colors: base.colors || {} };
   }
   async function saveOpen(year, o) {
     const now = new Date().toISOString(), cfgOp = (id, obj) => ({ type: 'set', col: 'app_config', id, data: { json: JSON.stringify(obj), updatedAt: now } });
@@ -341,7 +344,7 @@
     const uniq = (f) => [...new Set(rows.map((r) => str(r[f]).trim()).filter(Boolean))];
     return {
       classes: (await loadGeneral()).classNames.slice(),   // 학급 수·이름은 관리자 > 학년 기초 설정을 따릅니다
-      subs: uniq('list_sub'), times: uniq('list_time').sort(natural),
+      subs: uniq('list_sub'), times: (await readList('list_time')).map((i) => i.value),
       gyms: uniq('list_gym'), rooms: uniq('list_room'), teachers: uniq('list_t'),
       budgets: rows.filter((r) => str(r.list_budget).trim())
         .map((r, i) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount), color: str(r.list_budget_color).trim(), pages: str(r.list_budget_pages).trim() ? str(r.list_budget_pages).split(',').filter(Boolean).map((p) => (p === 'supply' ? 'supply1' : p)) : ['budget'], _o: (r.list_budget_order === undefined || r.list_budget_order === '' || r.list_budget_order === null) ? 1e6 + i : Number(r.list_budget_order) }))
@@ -523,9 +526,12 @@
     const gym = (await readList('list_gym')).map((i) => i.value), room = (await readList('list_room')).map((i) => i.value);
     let times = (await readList('list_time')).map((i) => i.value); if (!times.length) times = [1, 2, 3, 4, 5, 6].map((n) => n + '교시');
     const colors = {}; [gym, room].forEach((list) => list.forEach((n, i) => { colors[n] = cfg.colors[n] || PALETTE[i % PALETTE.length]; }));
-    const fixEx = (arr) => (arr || []).map((e) => ({ date: e.date, period: parseInt(e.period, 10), space: e.space }));
+    // 특별실 시간표 페이지는 교시를 '표의 몇 번째 줄'로 받으므로, 교시 이름 기준 설정을 지금 교시 목록의 위치로 바꿔 넘깁니다.
+    const idxOf = (nm) => times.indexOf(nm);
+    const fixEx = (arr) => (arr || []).map((e) => ({ date: e.date, period: idxOf(str(e.period).trim()) + 1, space: e.space })).filter((e) => e.period > 0);
+    const openIdx = (o) => { const out = {}; Object.keys(o || {}).forEach((k) => { const m = /^(\d)\|([^|]*)\|(.+)$/.exec(k); if (!m || !o[k]) return; const i = idxOf(m[2]); if (i >= 0) out[`${m[1]}_${i + 1}_${m[3]}`] = true; }); return out; };
     const sems = await semestersOfYear(g.year);
-    return { sem1: cfg.sem1 || {}, sem2: cfg.sem2 || {}, exceptions: fixEx(cfg.exceptions), closeExceptions: fixEx(cfg.closeExceptions),
+    return { sem1: openIdx(cfg.sem1), sem2: openIdx(cfg.sem2), exceptions: fixEx(cfg.exceptions), closeExceptions: fixEx(cfg.closeExceptions),
       gymSpaces: gym, roomSpaces: room, times, colors, classNames: g.classNames, year: g.year,
       semesters: sems.map((x) => ({ name: x.name, start: ymd(x.start), end: ymd(x.end) })) };
   }
@@ -901,7 +907,7 @@
     bottom.forEach((r) => r.slice(2).forEach((c) => { if (c) counts[c] = (counts[c] || 0) + 1; }));
     const sc = subCfg.find((x) => x.name === tab.subject); const total = sc ? (semNo === 1 ? sc.hoursSem1 : sc.hoursSem2) : '';   // 관리자 > 시간표 설정의 학기 총시수
     const top = [['구분'].concat(options), ['시수'].concat(options.map(() => total)), ['배정'].concat(options.map((o) => counts[o] || 0))];
-    return { np: times.length, top, bottom, options, title: `${g.year}학년도 ${semNo}학기 ${tab.subject} ${tab.teacher}${tab.space ? '/' + tab.space : ''}${sem ? '' : ' (학기 기간 미설정)'}` };
+    return { np: times.length, names: times, top, bottom, options, title: `${g.year}학년도 ${semNo}학기 ${tab.subject} ${tab.teacher}${tab.space ? '/' + tab.space : ''}${sem ? '' : ' (학기 기간 미설정)'}` };
   }
   SERVER.getAllTimetableData = async function () {
     try {

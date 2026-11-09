@@ -535,7 +535,7 @@
       const hdr = DAYS5.map(([, d]) => '<th colspan="' + n + '" class="border p-1 bg-slate-100" style="' + sepL + '">' + d + '</th>').join('');
       const sub2 = DAYS5.map(() => spaces.map((s, i) => '<th class="border p-0.5 leading-tight" style="font-size:10px;overflow-wrap:anywhere;word-break:break-all;background:' + colorOf(i, s) + ';' + (i === 0 ? sepL : '') + '"><div>' + esc(s) + '</div><input type="color" data-color="' + esc(s) + '" value="' + colorOf(i, s) + '" style="width:14px;height:12px;padding:0;border:0;background:transparent;cursor:pointer"></th>').join('')).join('');
       const body = times.map((t, p) => '<tr><td class="border bg-slate-50 font-semibold text-xs text-center" style="white-space:nowrap">' + esc(t) + '</td>' + DAYS5.map(([dk]) => spaces.map((s, i) => {
-        const k = dk + '_' + (p + 1) + '_' + s, on = !!cfg[semKey][k];
+        const k = dk + '|' + t + '|' + s, on = !!cfg[semKey][k];
         return '<td class="border text-center p-0" style="' + (on ? 'background:' + colorOf(i, s) + ';' : '') + (i === 0 ? sepL : '') + '"><input type="checkbox" style="width:14px;height:14px" data-sem="' + semKey + '" data-k="' + esc(k) + '" data-sp="' + esc(s) + '" ' + (on ? 'checked' : '') + '></td>';
       }).join('')).join('') + '</tr>').join('');
       return '<div class="' + CARD + ' !p-3"><div class="flex items-center justify-between"><h3 class="font-bold">' + semName + '</h3><button data-fold="' + semKey + '" class="' + BTN_G + ' !py-1">' + (open[semKey] ? '접기' : '펼치기') + '</button></div>' +
@@ -575,7 +575,7 @@
       const removed = removedNames.filter((o) => !items.some((x) => x.value === o)); removedNames.length = 0;
       for (const o of Object.keys(renamed)) await GP.renameSpaceData(o, renamed[o]);
       await mutateOpen((c) => {
-        const fix = (obj) => Object.keys(obj).forEach((k) => { const m = k.match(/^(.*_\d+_)(.+)$/); if (!m) return; if (renamed[m[2]]) { obj[m[1] + renamed[m[2]]] = obj[k]; delete obj[k]; } else if (removed.indexOf(m[2]) >= 0) delete obj[k]; });
+        const fix = (obj) => Object.keys(obj).forEach((k) => { const m = k.match(/^(\d\|[^|]*\|)(.+)$/); if (!m) return; if (renamed[m[2]]) { obj[m[1] + renamed[m[2]]] = obj[k]; delete obj[k]; } else if (removed.indexOf(m[2]) >= 0) delete obj[k]; });
         fix(c.sem1); fix(c.sem2);
         ['exceptions', 'closeExceptions'].forEach((n) => { c[n] = (c[n] || []).map((e) => (renamed[e.space] ? Object.assign({}, e, { space: renamed[e.space] }) : e)).filter((e) => removed.indexOf(e.space) < 0); });
         Object.keys(renamed).forEach((o) => { if (c.colors[o]) { c.colors[renamed[o]] = c.colors[o]; delete c.colors[o]; } });
