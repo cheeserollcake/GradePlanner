@@ -580,7 +580,7 @@
         await setMemoForDate(params.rowIndex, params.value);
       } else if (params.type === 'basic_timetable_edit') {
         const id = 'class_' + params.classNum;
-        await commit([{ type: 'set', merge: true, col: 'data_basic_timetable', id, data: { class: Number(params.classNum), cells: { [`${params.r}_${params.c}`]: params.value } } }]);
+        await commit([{ type: 'set', merge: true, col: 'data_basic_timetable', id, data: { class: Number(params.classNum), cells: { [nameKey(await basicPeriods(), params.r, params.c)]: params.value } } }]);
       }
       return JSON.stringify({ success: true });
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
@@ -680,7 +680,6 @@
   //  - 기초시간표에 과목을 넣을 수 있는 칸은 관리자 > 시간표 설정 > 주간시수배정에서 체크한 칸입니다.
   //    (app_config/basic_slots 에는 "꺼 둔 칸"만 저장합니다. 저장된 것이 없으면 모든 칸이 켜져 있습니다.)
   async function basicPeriods() { const t = (await readList('list_time')).map((i) => i.value).filter(Boolean); return t.length ? t : [1, 2, 3, 4, 5, 6].map((n) => n + '교시'); }
-  async function basicSlotsOff() { const c = await getCfg('basic_slots', {}); return new Set(Array.isArray(c.off) ? c.off : []); }   // 키: '<요일1~5>_<교시1~>'
   async function basicCommon() {
     const cfg = await getSubjectConfig();
     const subs = cfg.filter((x) => num(x.hours) > 0);
@@ -689,23 +688,26 @@
     return { subjects: list.map((x) => x.name), goals: list.map((x) => num(x.hours)), specials: list.filter((x) => x.special).map((x) => x.name), p12: '', p13: '',
       periods, classCount: g.classNames.length, off: [...off] };
   }
-  // 교시를 중간에 끼워 넣거나 지울 때, 이미 입력된 기초시간표(칸 키 '<교시>_<요일>')를 교시 이름 기준으로 따라가도록 옮깁니다.
-  //  op: 'insert'(at번째 교시 자리에 새 교시 삽입) / 'delete'(at번째 교시 삭제), at 은 1부터.
-  const shiftIdx = (i, op, at) => (op === 'insert' ? (i >= at ? i + 1 : i) : (i === at ? 0 : (i > at ? i - 1 : i)));
-  async function shiftBasicPeriods(op, at) {
-    at = +at; const ops = [];
-    (await rawCol('data_basic_timetable', true)).forEach((r) => {
-      const cells = (r && r.cells) || {}, out = {}; let ch = false;
-      Object.keys(cells).forEach((k) => { const m = /^(\d+)_(\d+)$/.exec(k); if (!m) { out[k] = cells[k]; return; } const ni = shiftIdx(+m[1], op, at); if (ni !== +m[1]) ch = true; if (ni > 0) out[ni + '_' + m[2]] = cells[k]; });
-      if (ch) ops.push({ type: 'set', col: 'data_basic_timetable', id: r._id, data: Object.assign({}, r, { cells: out }) });
-    });
-    ops.forEach((o) => { delete o.data._id; });
-    if (ops.length) await commit(ops);
-    const c = await getCfg('basic_slots', {}); const off = Array.isArray(c.off) ? c.off : [];
-    await setCfg('basic_slots', { off: off.map((k) => { const m = /^(\d+)_(\d+)$/.exec(k); if (!m) return k; const ni = shiftIdx(+m[2], op, at); return ni > 0 ? m[1] + '_' + ni : null; }).filter(Boolean) });
-    invalidate('data_basic_timetable');
+  // 기초시간표는 "몇 번째 교시"가 아니라 "교시 이름"을 기준으로 저장합니다. (칸 키: '<교시이름>|<요일1~5>', 꺼 둔 칸: '<요일>|<교시이름>')
+  //  - 예전 데이터('<번호>_<요일>')는 번호를 'N교시' 이름으로 보고 읽습니다. 교시 이름이 바뀌거나 목록 순서가 바뀌어도 이름이 같은 칸은 그대로 따라갑니다.
+  //  - 화면(기초시간표 페이지)에는 지금 교시 목록 순서의 번호 키('<번호>_<요일>')로 변환해서 넘기고, 저장할 때 다시 이름 키로 바꿉니다.
+  const legacyName = (name) => { const m = /^(\d+)교시$/.exec(name); return m ? m[1] : null; };
+  function cellsByIndex(cells, periods) {
+    const out = {};
+    periods.forEach((name, i) => { for (let c = 1; c <= 5; c++) { let v = cells[`${name}|${c}`]; if (v === undefined) { const n = legacyName(name); if (n) v = cells[`${n}_${c}`]; } if (v !== undefined) out[`${i + 1}_${c}`] = v; } });
+    return out;
   }
-  async function basicDocs() { const m = new Map(); (await getCol('data_basic_timetable')).forEach((r) => m.set(r._id, (r && r.cells) || {})); return m; }
+  const nameKey = (periods, r, c) => `${periods[r - 1]}|${c}`;
+  async function basicSlotsOff() {
+    const cfg = await getCfg('basic_slots', {}); const periods = await basicPeriods(); const set = new Set();
+    (Array.isArray(cfg.off) ? cfg.off : []).forEach((k) => {
+      let m = /^(\d)\|(.+)$/.exec(k); let d, i;
+      if (m) { d = m[1]; i = periods.indexOf(m[2]); } else if ((m = /^(\d)_(\d+)$/.exec(k))) { d = m[1]; i = periods.indexOf(m[2] + '교시'); }   // 예전 형식
+      if (i >= 0) set.add(d + '_' + (i + 1));
+    });
+    return set;
+  }
+  async function basicDocs() { const periods = await basicPeriods(); const m = new Map(); (await getCol('data_basic_timetable')).forEach((r) => m.set(r._id, cellsByIndex((r && r.cells) || {}, periods))); return m; }
   function basicRows(cells, nPeriods, labels) {
     const rows = [];
     for (let r = 0; r <= nPeriods; r++) {
@@ -773,7 +775,7 @@
       if (!(n >= 1 && n <= common.classCount)) throw new Error('학급을 찾을 수 없습니다.');
       const others = []; for (let i = 1; i <= common.classCount; i++) if (i !== n) others.push(docs.get('class_' + i) || {});
       const plan = planAutoFill(common, docs.get('class_' + n) || {}, others);
-      const cells = {}; Object.keys(plan.placed).forEach((k) => { cells[k] = plan.placed[k]; });
+      const cells = {}, per = await basicPeriods(); Object.keys(plan.placed).forEach((k) => { const [r, c] = k.split('_'); cells[nameKey(per, +r, +c)] = plan.placed[k]; });
       if (Object.keys(cells).length) await commit([{ type: 'set', merge: true, col: 'data_basic_timetable', id: 'class_' + n, data: { class: n, cells } }]);
       invalidate('data_basic_timetable');
       return JSON.stringify({ success: true, filled: Object.keys(cells).length, short: plan.short });
@@ -827,9 +829,11 @@
     const [hol, gym0, room, sub, add] = await Promise.all([getHolidayMap(), getCol('data_gym_timetable'), getCol('data_room_timetable'), getCol('data_sub_timetable'), getCol('data_add_timetable')]);
     const gym = gym0.concat(room.map((r) => ({ gym_date: r.room_date, gym_class: r.room_class, gym_time: r.room_time, gym_place: r.room_place })));   // 컴실 등도 체육 공간과 같은 방식으로 표시
     const holidays = [...hol.entries()].sort().map(([k, v]) => [isoLocal(toDate(k)), v]);
-    const rows = (list, fd, fc, ft, fn) => list.map((r) => ({ d: toDate(r[fd]), r })).filter((x) => x.d && str(x.r[fc]).trim())
-      .map((x) => slotRow(x.d, str(x.r[fc]), str(x.r[ft]), str(x.r[fn])));
     const gcfg = await generalCfg(); const periods = await basicPeriods();
+    // 월간 표는 교시를 번호(표의 몇 번째 줄)로 받으므로, 저장된 교시 '이름'을 지금 교시 목록에서의 위치로 바꿔 넘깁니다.
+    const perIdx = (v) => str(v).split(/[,，、]+/).map((t) => t.trim()).filter(Boolean).map((t) => { const i = periods.indexOf(t); return i >= 0 ? i + 1 : null; }).filter(Boolean).join(',');
+    const rows = (list, fd, fc, ft, fn) => list.map((r) => ({ d: toDate(r[fd]), r })).filter((x) => x.d && str(x.r[fc]).trim())
+      .map((x) => slotRow(x.d, str(x.r[fc]), perIdx(x.r[ft]), str(x.r[fn])));
     return {
       year: gcfg.year, holidays, periods, classCount: gcfg.classNames.length, classNames: gcfg.classNames,   // 표의 반 수·교시 수는 관리자 설정을 따름
       auditorium: rows(gym, 'gym_date', 'gym_class', 'gym_time', 'gym_place'),
@@ -1192,6 +1196,6 @@
   window.google = { script: { run: runner(null, null), host: { close() {}, setHeight() {} } } };
 
   // 직접 Firestore를 쓰는 새 페이지(예산/바로가기/교실배치도)를 위한 공용 도구
-  window.GP = { classroomGet, classroomPut, shiftBasicPeriods, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
+  window.GP = { classroomGet, classroomPut, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
     getPw, setPw, readList, writeList, spaceOrphans, countSpaceData, purgeSpaceData, renameSpaceData, listSpaceData, deleteSpaceRows, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
 })();

@@ -233,11 +233,12 @@
     const subs = (await GP.getSubjectConfig()).filter((s) => s.special).map((s) => s.name);
     let items = [], sems = {}, editItem = null;
     let times = [], off = new Set(); const SLOT_DAYS = ['월', '화', '수', '목', '금'];
-    let saveSlots = () => {}, saveTimes = () => {};
+    let saveSlots = () => {}, saveTimes = () => {}, extraOff = [];
     if (part === 'year') {
       times = (await GP.readList('list_time')).map((i) => i.value); if (!times.length) times = [1, 2, 3, 4, 5, 6].map((n) => n + '교시');
-      const slotCfg = await GP.getCfg('basic_slots', {}); off = new Set(Array.isArray(slotCfg.off) ? slotCfg.off : []);   // 꺼 둔 칸: '<요일1~5>_<교시1~>'
-      saveSlots = () => autosave(() => GP.setCfg('basic_slots', { off: [...off] }));
+      const slotCfg = await GP.getCfg('basic_slots', {}); const rawOff = Array.isArray(slotCfg.off) ? slotCfg.off : []; extraOff = []; off = new Set();
+      rawOff.forEach((k) => { let m = /^(\d)\|(.+)$/.exec(k), d, nm; if (m) { d = m[1]; nm = m[2]; } else if ((m = /^(\d)_(\d+)$/.exec(k))) { d = m[1]; nm = m[2] + '교시'; } else return; const i = times.indexOf(nm); if (i >= 0) off.add(d + '_' + (i + 1)); else extraOff.push(d + '|' + nm); });   // 꺼 둔 칸: '<요일1~5>_<교시1~>'
+      saveSlots = () => autosave(() => GP.setCfg('basic_slots', { off: [...off].map((k) => { const [d, r] = k.split('_'); return times[r - 1] ? d + '|' + times[r - 1].trim() : null; }).filter(Boolean).concat(extraOff) }));   // 교시 이름 기준으로 저장
       saveTimes = () => autosave(async () => {
         const list = times.map((t) => t.trim()).filter(Boolean); if (new Set(list).size !== list.length) throw new Error('중복된 교시가 있습니다.');
         await GP.writeList('list_time', list.map((v) => ({ value: v })));
@@ -372,19 +373,8 @@
       const toggleGroup = (keys) => { const allOn = keys.every((k) => !off.has(k)); keys.forEach((k) => (allOn ? off.add(k) : off.delete(k))); draw(); saveSlots(); };
       view.querySelectorAll('[data-sday]').forEach((b) => b.onclick = () => toggleGroup(times.map((_, r) => b.dataset.sday + '_' + (r + 1))));
       view.querySelectorAll('[data-sper]').forEach((b) => b.onclick = () => toggleGroup(SLOT_DAYS.map((_, c) => (c + 1) + '_' + b.dataset.sper)));
-      view.querySelectorAll('[data-ti]').forEach((el) => el.onchange = () => { times[+el.dataset.ti] = el.value; saveTimes(); draw(); });
-      view.querySelectorAll('[data-tdel]').forEach((b) => b.onclick = async () => {
-        const i = +b.dataset.tdel; if (!confirm('이 교시를 삭제할까요? 이 교시에 입력된 기초시간표 칸도 함께 지워지고, 아래 교시는 한 칸씩 올라옵니다.')) return;
-        times.splice(i, 1); off = new Set([...off].map((k) => { const [d, r] = k.split('_').map(Number); return r === i + 1 ? null : d + '_' + (r > i + 1 ? r - 1 : r); }).filter(Boolean));
-        draw(); await saveTimes(); await GP.shiftBasicPeriods('delete', i + 1);
-      });
-      view.querySelectorAll('[data-tins]').forEach((b) => b.onclick = async () => {
-        const i = +b.dataset.tins + 1;   // 새 교시의 위치(0부터) → 1부터 번호는 i+1
-        const name = prompt('끼워넣을 교시 이름 (예: 점심)', '점심'); if (!name || !name.trim()) return;
-        if (times.map((t) => t.trim()).includes(name.trim())) { alert('이미 있는 교시 이름입니다.'); return; }
-        times.splice(i, 0, name.trim()); off = new Set([...off].map((k) => { const [d, r] = k.split('_').map(Number); return d + '_' + (r >= i + 1 ? r + 1 : r); }));
-        draw(); await saveTimes(); await GP.shiftBasicPeriods('insert', i + 1);
-      });
+      view.querySelectorAll('[data-ti]').forEach((el) => el.onchange = () => { times[+el.dataset.ti] = el.value; saveTimes(); saveSlots(); draw(); });
+      view.querySelectorAll('[data-tdel]').forEach((b) => b.onclick = () => { const i = +b.dataset.tdel; times.splice(i, 1); off = new Set([...off].map((k) => { const [d, r] = k.split('_').map(Number); return r === i + 1 ? null : d + '_' + (r > i + 1 ? r - 1 : r); }).filter(Boolean)); draw(); saveTimes(); saveSlots(); });
       $('addTime').onclick = () => { times.push((times.length + 1) + '교시'); draw(); saveTimes(); };
       $('evExpand').onclick = () => { window.__evOpen = !window.__evOpen; const b = $('evBox'); b.style.maxHeight = window.__evOpen ? '' : '205px'; b.style.overflowY = window.__evOpen ? '' : 'auto'; $('evExpand').textContent = window.__evOpen ? '접기' : '펼침 보기'; };
       $('grade').onchange = () => { g.grade = parseInt($('grade').value, 10) || 6; saveGeneral().then(() => notifyMeta()); };

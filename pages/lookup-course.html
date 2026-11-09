@@ -2,11 +2,11 @@
 <html lang="ko">
 <head>
   <script>window.__GP_PAGE__ = 'p09';</script>
-  <script src="../assets/js/fb-boot.js?v=20261109e"></script>
+  <script src="../assets/js/fb-boot.js?v=20261109f"></script>
   
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261109e">
-  <script src="../assets/js/firebase-config.js?v=20261109e"></script>
-  <script src="../assets/js/gas-shim.js?v=20261109e"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261109f">
+  <script src="../assets/js/firebase-config.js?v=20261109f"></script>
+  <script src="../assets/js/gas-shim.js?v=20261109f"></script>
 
     <meta charset="UTF-8">
     <title>강좌별 시간표 조회</title>
@@ -81,7 +81,7 @@
         }
         .custom-select:focus { outline: none; border-color: #3b82f6; }
     </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109e">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109f">
 </head>
 <body class="text-gray-800 pb-10">
 
@@ -409,7 +409,7 @@
                                     const dayEvents = eventsByDate[exactDate] || [];
 
                                     const matchedEvents = dayEvents.filter(ev => {
-                                        if (!ev.period.includes(String(p))) return false;
+                                        if (!String(ev.period).split(',').map(x => x.trim()).includes((window.__PN && window.__PN[p - 1]) || (p + '교시'))) return false;   // 교시 이름 기준
                                         if (!selectedCourse) return false;
 
                                         if (selectedCourse === '__ALL__') return true;
