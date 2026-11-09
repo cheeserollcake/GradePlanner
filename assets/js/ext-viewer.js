@@ -23,17 +23,20 @@
     for (let i = 0; i < n; i++) {
       if (dv.getUint32(off, true) !== 0x02014b50) break;
       const method = dv.getUint16(off + 10, true), csize = dv.getUint32(off + 20, true), nl = dv.getUint16(off + 28, true), el = dv.getUint16(off + 30, true), cl = dv.getUint16(off + 32, true), lho = dv.getUint32(off + 42, true);
-      files[dec.decode(u8.subarray(off + 46, off + 46 + nl))] = { method, csize, lho };
+      files[dec.decode(u8.subarray(off + 46, off + 46 + nl)).replace(/\\/g, '/').replace(/^\//, '')] = { method, csize, lho };
       off += 46 + nl + el + cl;
     }
-    return async (name) => {
-      const f = files[name]; if (!f) return null;
+    const lower = {}; Object.keys(files).forEach((k) => { lower[k.toLowerCase()] = k; });
+    const reader = async (name) => {
+      const f = files[name] || files[lower[String(name).toLowerCase()]]; if (!f) return null;
       const l = f.lho, start = l + 30 + dv.getUint16(l + 26, true) + dv.getUint16(l + 28, true); const data = u8.subarray(start, start + f.csize);
       return dec.decode(f.method === 0 ? data : await inflateRaw(data));
     };
+    reader.names = Object.keys(files);
+    return reader;
   }
   const xml = (s) => new DOMParser().parseFromString(s, 'application/xml');
-  const kids = (el, tag) => [...el.getElementsByTagName(tag)];
+  const kids = (el, tag) => [...el.getElementsByTagNameNS('*', tag)];   // 이름공간 접두어(x:sheet 등)가 달라도 읽음
   const colIdx = (ref) => { let n = 0; for (const ch of ref.replace(/[0-9]/g, '')) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; };
   const rowIdx = (ref) => parseInt(ref.replace(/[A-Za-z]/g, ''), 10) - 1;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -43,8 +46,10 @@
 
   async function parseXlsx(u8) {
     const read = openZip(u8);
-    const wb = xml(await read('xl/workbook.xml')); const rels = xml(await read('xl/_rels/workbook.xml.rels'));
+    const wbText = await read('xl/workbook.xml'); if (!wbText) throw new Error('엑셀 파일 구조를 읽지 못했습니다. (파일 안 목록: ' + read.names.slice(0, 8).join(', ') + ')');
+    const wb = xml(wbText); const relText = await read('xl/_rels/workbook.xml.rels'); const rels = xml(relText || '<r/>');
     const relMap = {}; kids(rels, 'Relationship').forEach((r) => { relMap[r.getAttribute('Id')] = r.getAttribute('Target'); });
+    const relOf = (sh) => sh.getAttribute('r:id') || ([...sh.attributes].find((a) => a.localName === 'id') || {}).value;
     const sstXml = await read('xl/sharedStrings.xml'); const sst = [];
     if (sstXml) kids(xml(sstXml), 'si').forEach((si) => { let t = ''; [...si.childNodes].forEach((c) => { if (c.nodeName === 't') t += c.textContent; else if (c.nodeName === 'r') kids(c, 't').forEach((x) => { t += x.textContent; }); }); sst.push(t); });
     // 서식(배경색·굵게·정렬·날짜)
@@ -53,17 +58,20 @@
     if (stXml) {
       const sx = xml(stXml);
       kids(sx, 'numFmt').forEach((n) => { st.fmts[n.getAttribute('numFmtId')] = n.getAttribute('formatCode') || ''; });
-      const fillsEl = sx.getElementsByTagName('fills')[0]; if (fillsEl) [...fillsEl.children].forEach((f) => { const p = f.getElementsByTagName('patternFill')[0], fg = f.getElementsByTagName('fgColor')[0]; st.fills.push(p && p.getAttribute('patternType') === 'solid' && fg && fg.getAttribute('rgb') ? '#' + fg.getAttribute('rgb').slice(-6) : ''); });
-      const fontsEl = sx.getElementsByTagName('fonts')[0]; if (fontsEl) [...fontsEl.children].forEach((f) => { const c = f.getElementsByTagName('color')[0]; st.fonts.push({ b: !!f.getElementsByTagName('b')[0], color: c && c.getAttribute('rgb') ? '#' + c.getAttribute('rgb').slice(-6) : '' }); });
-      const xfsEl = sx.getElementsByTagName('cellXfs')[0]; if (xfsEl) [...xfsEl.children].forEach((x) => { const al = x.getElementsByTagName('alignment')[0]; st.xfs.push({ fmt: x.getAttribute('numFmtId') || '0', fill: +x.getAttribute('fillId') || 0, font: +x.getAttribute('fontId') || 0, h: al ? al.getAttribute('horizontal') : '' }); });
+      const fillsEl = sx.getElementsByTagNameNS('*', 'fills')[0]; if (fillsEl) [...fillsEl.children].forEach((f) => { const p = f.getElementsByTagNameNS('*', 'patternFill')[0], fg = f.getElementsByTagNameNS('*', 'fgColor')[0]; st.fills.push(p && p.getAttribute('patternType') === 'solid' && fg && fg.getAttribute('rgb') ? '#' + fg.getAttribute('rgb').slice(-6) : ''); });
+      const fontsEl = sx.getElementsByTagNameNS('*', 'fonts')[0]; if (fontsEl) [...fontsEl.children].forEach((f) => { const c = f.getElementsByTagNameNS('*', 'color')[0]; st.fonts.push({ b: !!f.getElementsByTagNameNS('*', 'b')[0], color: c && c.getAttribute('rgb') ? '#' + c.getAttribute('rgb').slice(-6) : '' }); });
+      const xfsEl = sx.getElementsByTagNameNS('*', 'cellXfs')[0]; if (xfsEl) [...xfsEl.children].forEach((x) => { const al = x.getElementsByTagNameNS('*', 'alignment')[0]; st.xfs.push({ fmt: x.getAttribute('numFmtId') || '0', fill: +x.getAttribute('fillId') || 0, font: +x.getAttribute('fontId') || 0, h: al ? al.getAttribute('horizontal') : '' }); });
     }
     const isDate = (id) => BUILTIN_DATE.indexOf(+id) >= 0 || (st.fmts[id] && /[ymd]/i.test(st.fmts[id].replace(/\[[^\]]*\]|"[^"]*"/g, '')));
     const sheets = [];
-    for (const sh of kids(wb, 'sheet')) {
-      const target = relMap[sh.getAttribute('r:id')] || ''; const path = target.charAt(0) === '/' ? target.slice(1) : 'xl/' + target;
-      const sx = xml(await read(path)); const cells = {}; let maxC = 0, maxR = 0;
+    let shEls = kids(wb, 'sheet');
+    if (!shEls.length) { const ws = read.names.filter((k) => /^xl\/worksheets\/[^/]+\.xml$/i.test(k)).sort(); shEls = ws.map((k, i) => ({ fallback: k, getAttribute: (a) => (a === 'name' ? '시트' + (i + 1) : null) })); }   // 시트 목록을 못 찾으면 시트 파일을 직접 읽음
+    for (const sh of shEls) {
+      let path; if (sh.fallback) path = sh.fallback; else { const target = relMap[relOf(sh)] || ''; path = target.charAt(0) === '/' ? target.slice(1) : target.replace(/^\.\.\//, '').replace(/^(?!xl\/)/, 'xl/'); }
+      const sText = await read(path); if (!sText) continue;
+      const sx = xml(sText); const cells = {}; let maxC = 0, maxR = 0;
       kids(sx, 'c').forEach((c) => {
-        const ref = c.getAttribute('r'); const r = rowIdx(ref), ci = colIdx(ref), t = c.getAttribute('t'); const vEl = c.getElementsByTagName('v')[0]; let v = vEl ? vEl.textContent : '';
+        const ref = c.getAttribute('r'); const r = rowIdx(ref), ci = colIdx(ref), t = c.getAttribute('t'); const vEl = c.getElementsByTagNameNS('*', 'v')[0]; let v = vEl ? vEl.textContent : '';
         const xf = st.xfs[+c.getAttribute('s') || 0] || {};
         if (t === 's') v = sst[+v] || ''; else if (t === 'inlineStr') v = kids(c, 't').map((x) => x.textContent).join('');
         else if (t === 'b') v = v === '1' ? 'TRUE' : 'FALSE';
@@ -77,6 +85,7 @@
       const widths = []; kids(sx, 'col').forEach((c) => { for (let i = +c.getAttribute('min'); i <= +c.getAttribute('max') && i < 200; i++) widths[i - 1] = Math.round((+c.getAttribute('width') || 8.43) * 7 + 5); });
       sheets.push({ name: sh.getAttribute('name') || '시트', cells, merges, covered, widths, rows: maxR + 1, cols: maxC + 1 });
     }
+    if (!sheets.length) throw new Error('시트를 찾지 못했습니다. (파일 안 목록: ' + read.names.slice(0, 10).join(', ') + ')');
     return sheets;
   }
   function sheetHtml(s) {

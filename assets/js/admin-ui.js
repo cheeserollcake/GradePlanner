@@ -373,7 +373,18 @@
       view.querySelectorAll('[data-sday]').forEach((b) => b.onclick = () => toggleGroup(times.map((_, r) => b.dataset.sday + '_' + (r + 1))));
       view.querySelectorAll('[data-sper]').forEach((b) => b.onclick = () => toggleGroup(SLOT_DAYS.map((_, c) => (c + 1) + '_' + b.dataset.sper)));
       view.querySelectorAll('[data-ti]').forEach((el) => el.onchange = () => { times[+el.dataset.ti] = el.value; saveTimes(); draw(); });
-      view.querySelectorAll('[data-tdel]').forEach((b) => b.onclick = () => { times.splice(+b.dataset.tdel, 1); draw(); saveTimes(); });
+      view.querySelectorAll('[data-tdel]').forEach((b) => b.onclick = async () => {
+        const i = +b.dataset.tdel; if (!confirm('이 교시를 삭제할까요? 이 교시에 입력된 기초시간표 칸도 함께 지워지고, 아래 교시는 한 칸씩 올라옵니다.')) return;
+        times.splice(i, 1); off = new Set([...off].map((k) => { const [d, r] = k.split('_').map(Number); return r === i + 1 ? null : d + '_' + (r > i + 1 ? r - 1 : r); }).filter(Boolean));
+        draw(); await saveTimes(); await GP.shiftBasicPeriods('delete', i + 1);
+      });
+      view.querySelectorAll('[data-tins]').forEach((b) => b.onclick = async () => {
+        const i = +b.dataset.tins + 1;   // 새 교시의 위치(0부터) → 1부터 번호는 i+1
+        const name = prompt('끼워넣을 교시 이름 (예: 점심)', '점심'); if (!name || !name.trim()) return;
+        if (times.map((t) => t.trim()).includes(name.trim())) { alert('이미 있는 교시 이름입니다.'); return; }
+        times.splice(i, 0, name.trim()); off = new Set([...off].map((k) => { const [d, r] = k.split('_').map(Number); return d + '_' + (r >= i + 1 ? r + 1 : r); }));
+        draw(); await saveTimes(); await GP.shiftBasicPeriods('insert', i + 1);
+      });
       $('addTime').onclick = () => { times.push((times.length + 1) + '교시'); draw(); saveTimes(); };
       $('evExpand').onclick = () => { window.__evOpen = !window.__evOpen; const b = $('evBox'); b.style.maxHeight = window.__evOpen ? '' : '205px'; b.style.overflowY = window.__evOpen ? '' : 'auto'; $('evExpand').textContent = window.__evOpen ? '접기' : '펼침 보기'; };
       $('grade').onchange = () => { g.grade = parseInt($('grade').value, 10) || 6; saveGeneral().then(() => notifyMeta()); };

@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261109b">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261109c">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>학년 개요</title>
-  <script src="../assets/js/fb-boot.js?v=20261109b"></script>
-  <script src="../assets/js/firebase-config.js?v=20261109b"></script>
-  <script src="../assets/js/gas-shim.js?v=20261109b"></script>
-  <script src="../assets/js/app-data.js?v=20261109b"></script>
+  <script src="../assets/js/fb-boot.js?v=20261109c"></script>
+  <script src="../assets/js/firebase-config.js?v=20261109c"></script>
+  <script src="../assets/js/gas-shim.js?v=20261109c"></script>
+  <script src="../assets/js/app-data.js?v=20261109c"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     .cell { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
     /* 학년 개요 표: 반 열은 균등 배분. 구분 열 최대 5글자, 계 열 최대 3글자, 반 열 최대 8글자 너비(표가 좁아지면 같은 비율로 줄어듦) */
-    #info { table-layout: fixed; width: 100%; }
+    #info { table-layout: fixed; width: 100%; margin: 0 auto; }
+    #info th, #info td { text-align: center; vertical-align: middle; }
+    #info input.memo { text-align: center; }
     #info.narrow { font-size: 11px; }   /* 좁은 화면: 글자·여백을 줄여 가로 스크롤 없이 한 화면에 */
     #info.narrow th, #info.narrow td { padding: .4rem .1rem; overflow: hidden; }
     #info.narrow input.memo { font-size: 11px; padding: 0; }
@@ -28,7 +30,7 @@
     .row-today td:first-child { box-shadow: inset 3px 0 0 #2563eb, inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
     .row-today td:last-child { box-shadow: inset -3px 0 0 #2563eb, inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
   </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109b">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109c">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
 <div class="max-w-7xl mx-auto space-y-6">

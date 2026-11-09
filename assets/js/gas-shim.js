@@ -689,15 +689,31 @@
     return { subjects: list.map((x) => x.name), goals: list.map((x) => num(x.hours)), specials: list.filter((x) => x.special).map((x) => x.name), p12: '', p13: '',
       periods, classCount: g.classNames.length, off: [...off] };
   }
+  // 교시를 중간에 끼워 넣거나 지울 때, 이미 입력된 기초시간표(칸 키 '<교시>_<요일>')를 교시 이름 기준으로 따라가도록 옮깁니다.
+  //  op: 'insert'(at번째 교시 자리에 새 교시 삽입) / 'delete'(at번째 교시 삭제), at 은 1부터.
+  const shiftIdx = (i, op, at) => (op === 'insert' ? (i >= at ? i + 1 : i) : (i === at ? 0 : (i > at ? i - 1 : i)));
+  async function shiftBasicPeriods(op, at) {
+    at = +at; const ops = [];
+    (await rawCol('data_basic_timetable', true)).forEach((r) => {
+      const cells = (r && r.cells) || {}, out = {}; let ch = false;
+      Object.keys(cells).forEach((k) => { const m = /^(\d+)_(\d+)$/.exec(k); if (!m) { out[k] = cells[k]; return; } const ni = shiftIdx(+m[1], op, at); if (ni !== +m[1]) ch = true; if (ni > 0) out[ni + '_' + m[2]] = cells[k]; });
+      if (ch) ops.push({ type: 'set', col: 'data_basic_timetable', id: r._id, data: Object.assign({}, r, { cells: out }) });
+    });
+    ops.forEach((o) => { delete o.data._id; });
+    if (ops.length) await commit(ops);
+    const c = await getCfg('basic_slots', {}); const off = Array.isArray(c.off) ? c.off : [];
+    await setCfg('basic_slots', { off: off.map((k) => { const m = /^(\d+)_(\d+)$/.exec(k); if (!m) return k; const ni = shiftIdx(+m[2], op, at); return ni > 0 ? m[1] + '_' + ni : null; }).filter(Boolean) });
+    invalidate('data_basic_timetable');
+  }
   async function basicDocs() { const m = new Map(); (await getCol('data_basic_timetable')).forEach((r) => m.set(r._id, (r && r.cells) || {})); return m; }
-  function basicRows(cells, nPeriods) {
+  function basicRows(cells, nPeriods, labels) {
     const rows = [];
     for (let r = 0; r <= nPeriods; r++) {
       const row = [];
       for (let c = 0; c < 6; c++) {
         const k = `${r}_${c}`;
         if (r === 0) row.push(c === 0 ? '교시' : DAYS[c]);
-        else if (c === 0) row.push(`${r}교시`);
+        else if (c === 0) row.push(labels && labels[r - 1] ? labels[r - 1] : `${r}교시`);
         else row.push(cells[k] !== undefined ? cells[k] : '');
       }
       rows.push(row);
@@ -709,11 +725,11 @@
       invalidate('data_basic_timetable');
       const common = await basicCommon(); const docs = await basicDocs(); const np = common.periods.length;
       if (request && request.classNum === 'all') {
-        const allSchedules = []; for (let i = 1; i <= common.classCount; i++) allSchedules.push(basicRows(docs.get('class_' + i) || {}, np));
+        const allSchedules = []; for (let i = 1; i <= common.classCount; i++) allSchedules.push(basicRows(docs.get('class_' + i) || {}, np, common.periods));
         return JSON.stringify({ success: true, type: 'basic_timetable_all', data: Object.assign({ allSchedules }, common) });
       }
       const n = Math.min(Math.max(parseInt(request && request.classNum, 10) || 1, 1), common.classCount);
-      return JSON.stringify({ success: true, type: 'basic_timetable', data: Object.assign({ schedule: basicRows(docs.get('class_' + n) || {}, np), classNum: n }, common) });
+      return JSON.stringify({ success: true, type: 'basic_timetable', data: Object.assign({ schedule: basicRows(docs.get('class_' + n) || {}, np, common.periods), classNum: n }, common) });
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
   }
   SERVER.deleteBasicTimetable = async function (params) {
@@ -1159,6 +1175,6 @@
   window.google = { script: { run: runner(null, null), host: { close() {}, setHeight() {} } } };
 
   // 직접 Firestore를 쓰는 새 페이지(예산/바로가기/교실배치도)를 위한 공용 도구
-  window.GP = { db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
+  window.GP = { shiftBasicPeriods, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
     getPw, setPw, readList, writeList, spaceOrphans, countSpaceData, purgeSpaceData, renameSpaceData, listSpaceData, deleteSpaceRows, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
 })();
