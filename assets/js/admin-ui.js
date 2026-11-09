@@ -114,7 +114,7 @@
   const bulkHtml = () => '<div class="' + CARD + ' mt-5"><h2 class="font-bold text-lg">시간표 일괄 업로드 <span class="text-xs font-normal text-slate-400">양식을 내려받아 고친 뒤 올리면 한꺼번에 등록됩니다</span></h2>' +
     '<div class="grid lg:grid-cols-2 gap-5">' +
     '<div class="space-y-2 border rounded-xl p-4"><h3 class="font-semibold">전담 시간표</h3>' +
-    '<p class="text-sm text-slate-500">전담 시간표 페이지와 같은 모양의 엑셀(.xlsx)입니다. 전담교사·학기마다 시트가 하나씩 있고, 지금 등록된 내용이 채워져 있습니다. 칸에 학급 번호(예: 3)를 적으면 등록되고, 비운 칸은 삭제됩니다. 시트 이름과 표 모양은 바꾸지 마세요.</p>' +
+    '<p class="text-sm text-slate-500">전담 시간표 페이지와 같은 모양의 엑셀(.xlsx)입니다. 전담교사·학기마다 시트가 하나씩 있고, 양식은 비어 있습니다. 칸에 학급 번호(예: 3 · 3반 · 과(6-3))를 적으면 등록되고, 비워 둔 칸은 지금 등록된 내용을 그대로 둡니다. 시트 이름과 표 모양은 바꾸지 마세요.</p>' +
     '<div class="flex flex-wrap gap-2"><button id="spTpl" class="' + BTN_G + '">양식 다운로드 (.xlsx)</button><label class="' + BTN_G + ' cursor-pointer">엑셀 업로드<input id="spUp" type="file" accept=".xlsx" class="hidden"></label></div></div>' +
     '<div class="space-y-2 border rounded-xl p-4"><h3 class="font-semibold">강좌별 시간표 조회</h3>' +
     '<p class="text-sm text-slate-500">한 줄에 강좌 하나: 날짜 · 학급 · 교시 · 강좌명. 학급과 교시는 쉼표로 여러 개 적을 수 있습니다(예: 1,2,3 / 4,5). 이미 있는 일정과 같으면 건너뜁니다. 엑셀(.xlsx)과 CSV 모두 올릴 수 있습니다.</p>' +
@@ -134,13 +134,17 @@
       labels.forEach((label) => [1, 2].forEach((n) => {
         const d = data[label]['sem' + n]; if (!d) return; const np = d.np || 6; const merges = [];
         const head1 = [{ v: d.title, s: 'title' }]; const head2 = [{ v: '', s: 'header' }, { v: '', s: 'header' }]; const head3 = [{ v: '주', s: 'header' }, { v: '기간', s: 'header' }];
-        days.forEach((dn, i) => { for (let p = 0; p < np; p++) { head2.push({ v: p === 0 ? dn + '요일' : '', s: 'header' }); head3.push({ v: p + 1, s: 'header' }); } merges.push(XlsxLite.colName(2 + i * np) + '2:' + XlsxLite.colName(2 + i * np + np - 1) + '2'); });
-        const body = d.bottom.map((row) => row.map((v, ci) => ({ v: v === '' ? '' : v, s: ci < 2 ? 'center' : 'center' })));
+        days.forEach((dn, i) => { for (let p = 0; p < np; p++) { head2.push({ v: p === 0 ? dn + '요일' : '', s: 'header' }); head3.push({ v: (d.names && d.names[p]) || p + 1, s: 'header' }); } merges.push(XlsxLite.colName(2 + i * np) + '2:' + XlsxLite.colName(2 + i * np + np - 1) + '2'); });
+        const body = d.bottom.map((row) => row.map((v, ci) => ({ v: ci < 2 ? v : '', s: 'center' })));   // 양식에는 주·기간만 채우고 입력 칸은 비워 둡니다
         sheets.push({ name: sheetNameOf(label, n), widths: [6, 14].concat(Array(5 * np).fill(5)), freezeRow: 3, merges, rows: [head1, head2, head3].concat(body) });
       }));
-      sheets.push({ name: '사용법', widths: [90], rows: [[{ v: '사용법', s: 'title' }], ['전담교사·학기마다 시트가 하나씩 있습니다. 시트 이름과 위 3줄(제목·요일·교시 번호), 주·기간 열은 바꾸지 마세요.'], ['칸에 학급 번호(예: 3 또는 3반)를 적으면 그 교시에 등록되고, 칸을 비우면 삭제됩니다.'], ['시수가 비어 있어도 상관없습니다. 학급이 담당 학급이 아니거나 잘못된 값이면 올릴 때 알려 드립니다.'], ['저장한 뒤 학년 관리자 > 시간표 설정 > 전담 시간표 > 엑셀 업로드로 올리세요.']].map((r) => r.map((c) => (typeof c === 'string' ? { v: c, s: 'text' } : c))) });
+      sheets.push({ name: '사용법', widths: [90], rows: [[{ v: '사용법', s: 'title' }], ['전담교사·학기마다 시트가 하나씩 있습니다. 시트 이름과 위 3줄(제목·요일·교시 번호), 주·기간 열은 바꾸지 마세요.'], ['칸에 학급 번호(예: 3, 3반, 과(6-3))를 적으면 그 교시에 등록됩니다. 비워 둔 칸은 지금 등록된 내용을 그대로 둡니다(지우려면 전담 시간표 페이지에서 지우세요).'], ['시수가 비어 있어도 상관없습니다. 학급이 담당 학급이 아니거나 잘못된 값이면 올릴 때 알려 드립니다.'], ['저장한 뒤 학년 관리자 > 시간표 설정 > 전담 시간표 > 엑셀 업로드로 올리세요.']].map((r) => r.map((c) => (typeof c === 'string' ? { v: c, s: 'text' } : c))) });
       saveXlsx(sheets, '전담시간표_양식.xlsx'); toast('양식을 내려받았습니다.');
     });
+    // 칸에 '과(6-1)' · '(6-1)' · '6-1' · '1반' 처럼 적어도 학급 번호('1')로 바꿔 읽습니다.
+    const classFromCell = (raw) => { let v = String(raw === undefined || raw === null ? '' : raw).trim(), m;
+      if ((m = /\(\s*\d+\s*[-－–]\s*(\d+)\s*\)\s*$/.exec(v)) || (m = /^\d+\s*[-－–]\s*(\d+)$/.exec(v))) return m[1];
+      return v.replace(/반$/, '').trim(); };
     $('spUp').onchange = (ev) => guard(async () => {
       const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
       const parsed = await ExtViewer.parseXlsx(new Uint8Array(await f.arrayBuffer())); const data = await specialData();
@@ -155,8 +159,8 @@
         t.d.bottom.forEach((row, w) => {
           const r = hr + 1 + w; if (r >= sh.rows) return;
           for (let c = 2; c < 2 + 5 * np; c++) {
-            let v = cellOf(sh, r, c).replace(/반$/, '').trim(); const cur = String(row[c] === undefined || row[c] === null ? '' : row[c]);
-            if (v === cur) continue;
+            let v = classFromCell(cellOf(sh, r, c)); const cur = String(row[c] === undefined || row[c] === null ? '' : row[c]);
+            if (!v || v === cur) continue;   // 빈 칸은 기존 내용을 그대로 둠
             if (v && t.d.options.indexOf(v) < 0) { bad.push(sh.name + ' ' + (r + 1) + '행 ' + XlsxLite.colName(c) + '열: "' + v + '" 은(는) 이 전담의 담당 학급이 아닙니다.'); continue; }
             list.push({ sheetName: t.label, semester: t.n, r: w, c, value: v }); changed++;
           }
@@ -244,7 +248,7 @@
         await GP.writeList('list_time', list.map((v) => ({ value: v })));
       });
     }
-    const slotCard = () => '<div class="' + CARD + '"><h2 class="font-bold text-lg">주간시수배정 <span class="text-xs font-normal text-slate-400">체크한 칸에만 기초시간표 과목을 넣을 수 있습니다</span></h2>' +
+    const slotCard = () => '<div class="' + CARD + '" style="height:100%;box-sizing:border-box"><h2 class="font-bold text-lg">주간시수배정 <span class="text-xs font-normal text-slate-400">체크한 칸에만 기초시간표 과목을 넣을 수 있습니다</span></h2>' +
       '<table class="w-full text-center border-collapse text-sm" style="table-layout:fixed"><thead><tr><th class="border bg-slate-100 p-1"></th>' +
       SLOT_DAYS.map((d, c) => '<th class="border bg-slate-100 p-1"><button data-sday="' + (c + 1) + '" title="요일 전체 선택/해제" class="font-bold w-full">' + d + '</button></th>').join('') + '</tr></thead><tbody>' +
       times.map((t, r) => '<tr><th class="border bg-slate-50 p-1 text-xs"><button data-sper="' + (r + 1) + '" title="교시 전체 선택/해제" class="font-semibold w-full">' + esc(t) + '</button></th>' +
@@ -354,17 +358,17 @@
         '<p class="text-xs text-slate-400">종료일을 비워 두면 하루짜리 일정입니다. 휴일(선거일, 임시공휴일 등)로 체크하면 data_basic 의 holiday 필드에 저장됩니다.</p>' +
         '<div class="flex flex-wrap gap-2 items-center"><button id="tpl" class="' + BTN_G + '">CSV 양식 다운로드</button><label class="' + BTN_G + ' cursor-pointer">CSV 업로드<input id="csv" type="file" accept=".csv,text/csv" class="hidden"></label></div>' +
         '<div class="flex items-center justify-between"><span class="text-xs text-slate-400">' + evCount + '개 일정</span><button id="evExpand" class="' + BTN_G + '">' + (window.__evOpen ? '접기' : '펼침 보기') + '</button></div>' +
-        '<div id="evBox" class="border rounded-lg" style="' + (window.__evOpen ? '' : 'max-height:205px;overflow-y:auto;') + '"><table class="w-full text-sm"><tbody>' + (evHtml || '<tr><td class="p-4 text-center text-slate-400">이 학년도에 등록된 일정이 없습니다.</td></tr>') + '</tbody></table></div></div>';
+        '<div id="evBox" class="border rounded-lg" style="' + (window.__evOpen ? '' : 'max-height:615px;overflow-y:auto;') + '"><table class="w-full text-sm"><tbody>' + (evHtml || '<tr><td class="p-4 text-center text-slate-400">이 학년도에 등록된 일정이 없습니다.</td></tr>') + '</tbody></table></div></div>';
       const classCard =
         '<div class="' + CARD + '"><h2 class="font-bold text-lg">학급 및 교사 설정 <span class="text-xs font-normal text-slate-400">입력하면 바로 저장됩니다</span></h2>' +
         '<div class="space-y-2"><h3 class="font-semibold text-sm text-slate-600">학급 설정</h3><div class="flex flex-wrap items-center gap-2"><span class="text-sm">학급 수</span><input id="cc" type="number" min="1" max="30" value="' + g.classCount + '" class="' + INP + ' w-20"></div><div class="flex flex-wrap gap-2">' + classHtml + '</div></div>' +
         '<div class="grid lg:grid-cols-2 gap-5 pt-3 border-t"><div class="space-y-2"><h3 class="font-semibold text-sm text-slate-600">담임교사</h3><div class="grid sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2">' + homeHtml + '</div></div>' +
         '<div class="space-y-2"><h3 class="font-semibold text-sm text-slate-600">전담교사</h3>' + (spHtml || '<p class="text-sm text-slate-400">등록된 전담교사가 없습니다. (과목은 시간표 설정에서 \'전담\'으로 체크한 과목만 선택됩니다.)</p>') +
         '<button id="addSp" class="' + BTN_G + '">+ 전담교사 추가</button></div></div></div>';
-      const periodCard = '<div class="' + CARD + '"><h2 class="font-bold text-lg">교시 설정</h2><div class="space-y-2">' +
-        times.map((t, i) => '<div class="flex gap-2"><input data-ti="' + i + '" value="' + esc(t) + '" class="' + INP + ' flex-1"><button data-tdel="' + i + '" class="text-slate-400 hover:text-red-600">✕</button></div>').join('') +
+      const periodCard = '<div class="' + CARD + '" style="height:100%;box-sizing:border-box"><h2 class="font-bold text-lg">교시 설정</h2><div class="space-y-2">' +
+        times.map((t, i) => '<div class="flex gap-2"><input data-ti="' + i + '" value="' + esc(t) + '" class="' + INP + ' flex-1"><button data-tins="' + i + '" title="이 교시 아래에 새 교시 끼워넣기" class="text-slate-400 hover:text-blue-600 text-xs whitespace-nowrap">↳끼워넣기</button><button data-tdel="' + i + '" class="text-slate-400 hover:text-red-600">✕</button></div>').join('') +
         '</div><button id="addTime" class="' + BTN_G + '">+ 교시 추가</button></div>';
-      view.innerHTML = '<div class="space-y-5">' + (part === 'year' ? yearCard + '<div class="grid md:grid-cols-3 gap-5 items-start"><div>' + periodCard + '</div><div class="min-w-0 md:col-span-2">' + slotCard() + '</div></div>' + evCard : classCard) + '</div>';
+      view.innerHTML = '<div class="space-y-5">' + (part === 'year' ? yearCard + '<div class="grid md:grid-cols-3 gap-5"><div>' + periodCard + '</div><div class="min-w-0 md:col-span-2">' + slotCard() + '</div></div>' + evCard : classCard) + '</div>';
       bind();
     });
 
@@ -373,10 +377,31 @@
       const toggleGroup = (keys) => { const allOn = keys.every((k) => !off.has(k)); keys.forEach((k) => (allOn ? off.add(k) : off.delete(k))); draw(); saveSlots(); };
       view.querySelectorAll('[data-sday]').forEach((b) => b.onclick = () => toggleGroup(times.map((_, r) => b.dataset.sday + '_' + (r + 1))));
       view.querySelectorAll('[data-sper]').forEach((b) => b.onclick = () => toggleGroup(SLOT_DAYS.map((_, c) => (c + 1) + '_' + b.dataset.sper)));
-      view.querySelectorAll('[data-ti]').forEach((el) => el.onchange = () => { times[+el.dataset.ti] = el.value; saveTimes(); saveSlots(); draw(); });
-      view.querySelectorAll('[data-tdel]').forEach((b) => b.onclick = () => { const i = +b.dataset.tdel; times.splice(i, 1); off = new Set([...off].map((k) => { const [d, r] = k.split('_').map(Number); return r === i + 1 ? null : d + '_' + (r > i + 1 ? r - 1 : r); }).filter(Boolean)); draw(); saveTimes(); saveSlots(); });
-      $('addTime').onclick = () => { times.push((times.length + 1) + '교시'); draw(); saveTimes(); };
-      $('evExpand').onclick = () => { window.__evOpen = !window.__evOpen; const b = $('evBox'); b.style.maxHeight = window.__evOpen ? '' : '205px'; b.style.overflowY = window.__evOpen ? '' : 'auto'; $('evExpand').textContent = window.__evOpen ? '접기' : '펼침 보기'; };
+      // 교시 이름 기준 저장: 지운 교시의 데이터는 숨겨 두었다가, 같은 이름의 교시가 같은 앞 교시 뒤에 다시 생기면 복원합니다.
+      const trim = (t) => String(t || '').trim();
+      const restoreAt = async (i) => {   // times[i] 자리에 (이름, 앞 교시)가 맞는 숨김 데이터가 있으면 되돌림
+        const nm = trim(times[i]); if (!nm) return; const prev = i > 0 ? trim(times[i - 1]) : '';
+        await GP.restorePeriod(nm, prev);
+        const tomb = GP.periodTomb(nm, prev), back = extraOff.filter((k) => k.split('|')[1] === tomb);
+        if (back.length) { extraOff = extraOff.filter((k) => back.indexOf(k) < 0); back.forEach((k) => off.add(k.split('|')[0] + '_' + (i + 1))); saveSlots(); draw(); }
+      };
+      view.querySelectorAll('[data-ti]').forEach((el) => el.onchange = async () => { const i = +el.dataset.ti; times[i] = el.value; await saveTimes(); saveSlots(); draw(); await restoreAt(i); });
+      view.querySelectorAll('[data-tdel]').forEach((b) => b.onclick = async () => {
+        const i = +b.dataset.tdel, nm = trim(times[i]), prev = i > 0 ? trim(times[i - 1]) : '';
+        if (nm && !confirm('"' + nm + '" 교시를 삭제할까요?\n이 교시에 입력된 시간표·일정은 지워지지 않고 숨겨지며, 같은 자리(' + (prev || '맨 앞') + ' 바로 뒤)에 같은 이름의 교시를 다시 만들면 복원됩니다.')) return;
+        const dayOff = [...off].filter((k) => +k.split('_')[1] === i + 1).map((k) => k.split('_')[0]);   // 꺼 둔 칸도 함께 보관
+        times.splice(i, 1); off = new Set([...off].map((k) => { const [d, r] = k.split('_').map(Number); return r === i + 1 ? null : d + '_' + (r > i + 1 ? r - 1 : r); }).filter(Boolean));
+        if (nm) dayOff.forEach((d) => extraOff.push(d + '|' + GP.periodTomb(nm, prev)));
+        draw(); await saveTimes(); await saveSlots(); if (nm) await autosave(() => GP.parkPeriod(nm, prev), '숨겼습니다.');
+      });
+      view.querySelectorAll('[data-tins]').forEach((b) => b.onclick = async () => {
+        const i = +b.dataset.tins + 1; const name = prompt('끼워넣을 교시 이름 (예: 점심)', ''); if (!name || !name.trim()) return;
+        if (times.map(trim).includes(name.trim())) { alert('이미 있는 교시 이름입니다.'); return; }
+        times.splice(i, 0, name.trim()); off = new Set([...off].map((k) => { const [d, r] = k.split('_').map(Number); return d + '_' + (r >= i + 1 ? r + 1 : r); }));
+        draw(); await saveTimes(); await saveSlots(); await restoreAt(i);
+      });
+      $('addTime').onclick = async () => { times.push((times.length + 1) + '교시'); draw(); await saveTimes(); await restoreAt(times.length - 1); };
+      $('evExpand').onclick = () => { window.__evOpen = !window.__evOpen; const b = $('evBox'); b.style.maxHeight = window.__evOpen ? '' : '615px'; b.style.overflowY = window.__evOpen ? '' : 'auto'; $('evExpand').textContent = window.__evOpen ? '접기' : '펼침 보기'; };
       $('grade').onchange = () => { g.grade = parseInt($('grade').value, 10) || 6; saveGeneral().then(() => notifyMeta()); };
       $('saveYear').onclick = async () => {
         try {

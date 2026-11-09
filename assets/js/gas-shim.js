@@ -211,7 +211,11 @@
   }
   async function loadOpen(year) {
     const base = await getCfg('space_open', {}); const yd = await getCfg('space_open_' + year, null);
-    const gen = await getCfg('general', {}); const src = yd || (!gen.legacyMigrated ? base : {});
+    const gen = await getCfg('general', {});
+    // 학년도 구분 없이 저장돼 있던 예전 설정(space_open)은, 학년도별 설정이 한 번도 만들어진 적 없으면 지금 학년도의 것으로 봅니다.
+    const anyYearly = (await getCol('app_config')).some((x) => /^space_open_\d{4}$/.test(x._id));
+    const hasBase = !!(base.sem1 && Object.keys(base.sem1).length) || !!(base.sem2 && Object.keys(base.sem2).length) || !!(base.exceptions && base.exceptions.length) || !!(base.closeExceptions && base.closeExceptions.length);
+    const src = yd || (!gen.legacyMigrated || (!anyYearly && hasBase) ? base : {});
     // 개방 칸 키는 '<요일>|<교시이름>|<공간>' (교시 이름 기준). 예전 형식 '<요일>_<번호>_<공간>' 은 번호를 'N교시' 이름으로 보고 바꿔 읽습니다.
     const norm = (o) => { const out = {}; Object.keys(o || {}).forEach((k) => { const m = /^(\d)_(\d+)_(.+)$/.exec(k); out[m ? `${m[1]}|${m[2]}교시|${m[3]}` : k] = o[k]; }); return out; };
     const nex = (a) => (a || []).map((e) => (/^\d+$/.test(str(e.period).trim()) ? Object.assign({}, e, { period: str(e.period).trim() + '교시' }) : e));
@@ -340,13 +344,13 @@
   }
 
   async function getLists() {
-    const rows = await getBasicRows();
+    const rows = await getBasicRows(); const curY = (await loadGeneral()).year;
     const uniq = (f) => [...new Set(rows.map((r) => str(r[f]).trim()).filter(Boolean))];
     return {
       classes: (await loadGeneral()).classNames.slice(),   // 학급 수·이름은 관리자 > 학년 기초 설정을 따릅니다
       subs: uniq('list_sub'), times: (await readList('list_time')).map((i) => i.value),
       gyms: uniq('list_gym'), rooms: uniq('list_room'), teachers: uniq('list_t'),
-      budgets: rows.filter((r) => str(r.list_budget).trim())
+      budgets: rows.filter((r) => str(r.list_budget).trim() && budgetYearOK(r, curY))
         .map((r, i) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount), color: str(r.list_budget_color).trim(), pages: str(r.list_budget_pages).trim() ? str(r.list_budget_pages).split(',').filter(Boolean).map((p) => (p === 'supply' ? 'supply1' : p)) : ['budget'], _o: (r.list_budget_order === undefined || r.list_budget_order === '' || r.list_budget_order === null) ? 1e6 + i : Number(r.list_budget_order) }))
         .sort((a, b) => a._o - b._o).map(({ _o, ...b }) => { if (/학년회비|친목회비/.test(b.name) && b.pages.indexOf('budget') >= 0 && b.pages.indexOf('fee') < 0) b.pages = b.pages.map((x) => (x === 'budget' ? 'fee' : x)); return b; }),
       budgetHeaders: uniq('list_budget_header')
@@ -459,8 +463,11 @@
     list_gym: ['강당', '다목(2층)', '다목(3층)', '운동장', '나래', 'VR'],
     list_room: ['컴1', '컴2', '음악']
   };
+  // 예산 카드(list_budget)는 학년도별로 따로 보관합니다. 학년도 표시(list_budget_year)가 없는 카드는 '지금 학년도' 것으로 봅니다.
+  const budgetYearOK = (r, y) => { const v = r.list_budget_year; return v === undefined || v === null || v === '' || Number(v) === y; };
   async function readList(field) {
-    const rows = (await getCol('data_basic')).filter((r) => str(r[field]).trim());
+    let rows = (await getCol('data_basic')).filter((r) => str(r[field]).trim());
+    if (field === 'list_budget') { const y = (await loadGeneral()).year; rows = rows.filter((r) => budgetYearOK(r, y)); }
     const canon = CANON[field] || [];
     const seen = new Set();
     const items = rows.map((r) => ({
@@ -481,7 +488,8 @@
   async function writeList(field, items) {
     const rows = await getCol('data_basic');
     const DEL = DELETE;
-    const cur = rows.filter((r) => str(r[field]).trim());
+    let cur = rows.filter((r) => str(r[field]).trim());
+    if (field === 'list_budget') { const y = (await loadGeneral()).year; cur = cur.filter((r) => budgetYearOK(r, y)); items = items.map((i) => Object.assign({}, i, { extra: Object.assign({}, i.extra || {}, { list_budget_year: y }) })); }
     const holder = new Map();
     cur.forEach((r) => { const v = str(r[field]).trim(); if (!holder.has(v)) holder.set(v, r); });
     const wanted = items.map((i) => i.value);
@@ -914,7 +922,8 @@
       fresh();
       const g = await generalCfg(); const tabs = await specialTabs(g); const sems = await semestersOfYear(g.year);
       const times = await periodLabels(); const sub = await getCol('data_sub_timetable'); const subCfg = await getSubjectConfig(); const data = {};
-      for (const tab of tabs.values()) data[tab.label] = { space: tab.space, sem1: await teacherGrid(g, tab, 1, sems, times, sub, subCfg), sem2: await teacherGrid(g, tab, 2, sems, times, sub, subCfg) };
+      const subjOrder = subCfg.map((x) => x.name);   // 탭 순서: 시간표 설정의 과목 순서 → 같은 과목 안에서는 담당 학급 번호가 작은 순 (정렬은 화면에서 학기별로 합니다)
+      for (const tab of tabs.values()) data[tab.label] = { space: tab.space, subjIdx: subjOrder.indexOf(tab.subject) < 0 ? 999 : subjOrder.indexOf(tab.subject), sem1: await teacherGrid(g, tab, 1, sems, times, sub, subCfg), sem2: await teacherGrid(g, tab, 2, sems, times, sub, subCfg) };
       const today = new Date(); const s2 = sems.find((x) => x.name === '2학기');
       return JSON.stringify({ success: true, data, currentSemester: s2 && today >= s2.start ? 2 : 1 });
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
@@ -1139,6 +1148,42 @@
     } catch (e) { return { success: false, message: '파일 업로드 실패: ' + e.toString() }; }
   };
 
+  // ===== 교시 삭제·복원 =====
+  //  교시를 지우면 그 교시 이름으로 입력된 데이터(기초시간표·일정·개방 설정)를 '이름〔앞 교시 뒤〕' 로 이름만 바꿔 숨겨 두고,
+  //  같은 이름의 교시가 같은 앞 교시 바로 뒤에 다시 생기면 원래 이름으로 되돌립니다. 다른 자리에 같은 이름이 생겨도 숨겨진 데이터는 나오지 않습니다.
+  const periodTomb = (name, prev) => `${name}〔${prev ? prev : '맨앞'} 뒤〕`;
+  async function renamePeriodData(from, to) {
+    if (!from || !to || from === to) return 0;
+    const ops = []; const ln = legacyName(from);
+    const swap = (v) => { let ch = false; const out = str(v).split(/[,，、]+/).map((t) => t.trim()).map((t) => (t === from ? (ch = true, to) : t)); return ch ? out.join(', ') : null; };
+    for (const [col, f] of [['data_sub_timetable', 'sub_time'], ['data_add_timetable', 'add_time'], ['data_gym_timetable', 'gym_time'], ['data_room_timetable', 'room_time']]) {
+      (await rawCol(col, true)).forEach((r) => { const n = swap(r[f]); if (n !== null) ops.push({ type: 'update', col, id: r._id, data: { [f]: n } }); });
+    }
+    (await rawCol('data_basic_timetable', true)).forEach((r) => {
+      const cells = Object.assign({}, r.cells || {}); let ch = false;
+      for (let c = 1; c <= 5; c++) {
+        const nk = `${from}|${c}`, lk = ln ? `${ln}_${c}` : null;
+        const has = cells[nk] !== undefined ? nk : (lk && cells[lk] !== undefined ? lk : null); if (!has) continue;
+        const v = cells[has]; delete cells[nk]; if (lk) delete cells[lk]; if (cells[`${to}|${c}`] === undefined) cells[`${to}|${c}`] = v; ch = true;
+      }
+      if (ch) { const d = Object.assign({}, r); delete d._id; d.cells = cells; ops.push({ type: 'set', col: 'data_basic_timetable', id: r._id, data: d }); }
+    });
+    const snap = await db.collection('app_config').get();
+    snap.docs.forEach((doc) => {
+      if (!/^space_open_\d+$/.test(doc.id)) return;
+      let o; try { o = JSON.parse(doc.data().json || '{}'); } catch (e) { return; } let ch = false;
+      ['sem1', 'sem2'].forEach((k) => { const src = o[k] || {}, out = {}; Object.keys(src).forEach((key) => {
+        let m = /^(\d)\|([^|]*)\|(.+)$/.exec(key), nk = key;
+        if (m && m[2] === from) nk = `${m[1]}|${to}|${m[3]}`; else if (!m && ln && (m = /^(\d)_(\d+)_(.+)$/.exec(key)) && m[2] === ln) nk = `${m[1]}|${to}|${m[3]}`;
+        if (nk !== key) ch = true; out[nk] = src[key]; }); o[k] = out; });
+      ['exceptions', 'closeExceptions'].forEach((k) => { o[k] = (o[k] || []).map((e) => { const pv = str(e.period).trim(); if (pv === from || (ln && pv === ln)) { ch = true; return Object.assign({}, e, { period: to }); } return e; }); });
+      if (ch) ops.push({ type: 'set', col: 'app_config', id: doc.id, data: { json: JSON.stringify(o), updatedAt: new Date().toISOString() } });
+    });
+    await commit(ops);
+    ['data_sub_timetable', 'data_add_timetable', 'data_gym_timetable', 'data_room_timetable', 'data_basic_timetable'].forEach(invalidate);
+    return ops.length;
+  }
+
   // ===== 교실 배치도 이미지: Storage 대신 Firestore(data_files)에 조각으로 저장 (내선번호 파일과 같은 방식) =====
   async function classroomGet() {
     const meta = await getCfg('classroom_file', null); if (!meta || !meta.chunks) return '';
@@ -1202,6 +1247,6 @@
   window.google = { script: { run: runner(null, null), host: { close() {}, setHeight() {} } } };
 
   // 직접 Firestore를 쓰는 새 페이지(예산/바로가기/교실배치도)를 위한 공용 도구
-  window.GP = { classroomGet, classroomPut, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
+  window.GP = { periodTomb, parkPeriod: (n, prev) => renamePeriodData(n, periodTomb(n, prev)), restorePeriod: (n, prev) => renamePeriodData(periodTomb(n, prev), n), classroomGet, classroomPut, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
     getPw, setPw, readList, writeList, spaceOrphans, countSpaceData, purgeSpaceData, renameSpaceData, listSpaceData, deleteSpaceRows, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
 })();

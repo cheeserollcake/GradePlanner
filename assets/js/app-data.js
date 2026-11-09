@@ -38,12 +38,14 @@
       if (col === BT && /^class_\d+$/.test(r._id)) ops.push(...archiveOps(r, y)); else ops.push({ type: 'update', col, id: r._id, data: { _year: y } });
     });
     if (newYear) (await G.getColAll(BT)).forEach((r) => { const m = r._id.match(/^(class_\d+)__y(\d+)$/); if (m && Number(m[2]) === newYear) { const d = Object.assign({}, r); delete d._id; delete d._year; ops.push({ type: 'set', col: BT, id: m[1], data: d }, { type: 'delete', col: BT, id: r._id }); } });
+    (await getCol('data_basic')).forEach((r) => { if (str(r.list_budget).trim() && (r.list_budget_year === undefined || r.list_budget_year === null || r.list_budget_year === '')) ops.push({ type: 'update', col: 'data_basic', id: r._id, data: { list_budget_year: y } }); });   // 예산 카드도 이전 학년도 것으로 표시
     await commit(ops);
     const groups = await getCfg('course_groups', []);
     if (groups.some((g) => g.year === undefined || g.year === null)) await setCfg('course_groups', groups.map((g) => (g.year === undefined || g.year === null ? Object.assign({}, g, { year: y }) : g)));
   }
   async function setYear(year) {
-    const cur = await G.loadGeneral(); await G.saveGeneral(cur);   // 이전 형식의 데이터가 있으면 현재 학년도 것으로 먼저 옮김
+    const cur = await G.loadGeneral(); await G.saveGeneral(cur);
+    if (year !== cur.year && !(await G.getCfg('space_open_' + cur.year, null))) await G.saveOpen(cur.year, await G.loadOpen(cur.year));   // 공간 개방 설정도 떠나는 학년도 것으로 먼저 고정   // 이전 형식의 데이터가 있으면 현재 학년도 것으로 먼저 옮김
     if (year !== cur.year) await tagYear(cur.year, year);   // 지금까지의 명렬표·기초시간표·예산 등에 '이전 학년도' 표시를 붙여 새 학년도에서는 빈 화면으로 보이게 함(삭제 아님)
     cur.year = year; await G.setCfg('general', { year, grade: cur.grade, classCount: cur.classCount, classNames: cur.classNames, legacyMigrated: true });
   }
@@ -319,7 +321,9 @@
     const yeared = async (col) => (await G.getColAll(col)).filter((x) => (x._year === undefined || x._year === null ? cur : Number(x._year)) === year);
     const stu = await yeared('data_student'); add('student', stu.length, stu.map((x) => ({ type: 'delete', col: 'data_student', id: x._id })));
     const btt = await yeared('data_basic_timetable'); add('basictt', btt.length, btt.map((x) => ({ type: 'delete', col: 'data_basic_timetable', id: x._id })));
-    const bud = await yeared('data_budget'), shr = await yeared('data_sheet_rows'); add('budget', bud.length + shr.length, bud.map((x) => ({ type: 'delete', col: 'data_budget', id: x._id })).concat(shr.map((x) => ({ type: 'delete', col: 'data_sheet_rows', id: x._id }))));
+    const bud = await yeared('data_budget'), shr = await yeared('data_sheet_rows');
+    const cards = (await getCol('data_basic')).filter((x) => str(x.list_budget).trim() && Number(x.list_budget_year) === year && Object.keys(x).every((k) => k === '_id' || /^list_budget/.test(k)));   // 그 학년도 예산 카드(다른 값이 섞인 줄은 건드리지 않음)
+    add('budget', bud.length + shr.length + cards.length, bud.map((x) => ({ type: 'delete', col: 'data_budget', id: x._id })).concat(shr.map((x) => ({ type: 'delete', col: 'data_sheet_rows', id: x._id }))).concat(cards.map((x) => ({ type: 'delete', col: 'data_basic', id: x._id }))));
     const sup = (await getCol('data_supply')).filter((x) => { const m = str(x.supply_year).match(/\d{4}/); return !!m && parseInt(m[0], 10) === year; }); add('supply', sup.length, sup.map((x) => ({ type: 'delete', col: 'data_supply', id: x._id })));
     const ovs = (await getCol('data_overview')).filter((x) => x._id === 'r5_' + year); add('overview', ovs.length, ovs.map((x) => ({ type: 'delete', col: 'data_overview', id: x._id })));
     const docsIn = async (col) => { try { return (await GP.db.collection(col).get()).docs.filter((d) => created(new Date(d.data().createdAt || 0))); } catch (e) { return []; } };

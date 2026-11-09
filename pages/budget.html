@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>예산</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261109g">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261109m">
   <script>window.__GP_PAGE__ = 'budget';</script>
-  <script src="../assets/js/fb-boot.js?v=20261109g"></script>
-  <script src="../assets/js/firebase-config.js?v=20261109g"></script>
-  <script src="../assets/js/gas-shim.js?v=20261109g"></script>
-  <script src="../assets/js/app-data.js?v=20261109g"></script>
-  <script src="../assets/js/dnd.js?v=20261109g"></script>
-  <script src="../assets/js/xlsx-lite.js?v=20261109g"></script>
-  <script src="../assets/js/gsheet-export.js?v=20261109g"></script>
+  <script src="../assets/js/fb-boot.js?v=20261109m"></script>
+  <script src="../assets/js/firebase-config.js?v=20261109m"></script>
+  <script src="../assets/js/gas-shim.js?v=20261109m"></script>
+  <script src="../assets/js/app-data.js?v=20261109m"></script>
+  <script src="../assets/js/dnd.js?v=20261109m"></script>
+  <script src="../assets/js/xlsx-lite.js?v=20261109m"></script>
+  <script src="../assets/js/gsheet-export.js?v=20261109m"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     /* ---- 구글 스프레드시트 느낌의 표 ---- */
@@ -84,7 +84,7 @@
     .colx { position:absolute; right:2px; top:1px; font-size:11px; color:#9aa0a6; display:none; line-height:1; }
     .sheet th:hover .colx { display:block; } .colx:hover { color:#b91c1c; }
   </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109g">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109m">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
   <div class="max-w-7xl mx-auto space-y-4">
@@ -920,11 +920,13 @@ function addImageCols(sheet, imgs, headerRow, widths) {   // sheet.rows: [머리
 }
 async function genSheet(kind, rows) {
   const n = rows.length;
-  const calcI = kind.cols.findIndex((c) => c.t === 'calc' && c.sum);
-  const body = rows.map((r) => kind.cols.map((c) => (c.t === 'calc' ? N(c.calc(r)) : c.attach ? T(withFiles(r, c)) : c.t === 'sup' ? T(supText(r, true)) : c.t === 'num' || looksNum(r[c.k]) ? N(r[c.k]) : T(r[c.k]))).map((c) => { const bg = rowBg(kind, r); if (bg) c.bg = bg; return c; }));
-  const tail = []; if (calcI >= 0) { const t = totalRow(n, kind.cols.length); t[calcI] = { v: rows.reduce((a, r) => a + kind.cols[calcI].calc(r), 0), s: 'totalNum' }; tail.push(t); }
-  const sheet = { name: safeSheetName(kind.name), widths: kind.cols.map(() => 18), freezeRow: 1, filter: true, filterRows: n + 1, rows: [kind.cols.map((c) => H(c.label))].concat(body, tail) };
-  if (kind.cols.some((c) => c.attach)) addImageCols(sheet, (await attachImages(rows, kind.cols.filter((c) => c.attach))).concat(tail.length ? [null] : []), sheet.rows[0], sheet.widths);
+  // 학급별수량 열은 내보낼 때 두 열로 나눕니다: '학급별 수량'(1반 5개, 2반 2개) · '수량'(총합 숫자)
+  const cols2 = kind.cols.reduce((a, c) => a.concat(c.t === 'sup' ? [Object.assign({}, c, { label: '학급별 수량', supMode: 'txt' }), Object.assign({}, c, { label: '수량', supMode: 'num' })] : [c]), []);
+  const calcI = cols2.findIndex((c) => c.t === 'calc' && c.sum);
+  const body = rows.map((r) => cols2.map((c) => (c.t === 'calc' ? N(c.calc(r)) : c.attach ? T(withFiles(r, c)) : c.t === 'sup' ? (c.supMode === 'num' ? N(supQty(r)) : T(supText(r, false))) : c.t === 'num' || looksNum(r[c.k]) ? N(r[c.k]) : T(r[c.k]))).map((c) => { const bg = rowBg(kind, r); if (bg) c.bg = bg; return c; }));
+  const tail = []; if (calcI >= 0) { const t = totalRow(n, cols2.length); t[calcI] = { v: rows.reduce((a, r) => a + cols2[calcI].calc(r), 0), s: 'totalNum' }; tail.push(t); }
+  const sheet = { name: safeSheetName(kind.name), widths: cols2.map((c) => (c.supMode === 'num' ? 10 : 18)), freezeRow: 1, filter: true, filterRows: n + 1, rows: [cols2.map((c) => H(c.label))].concat(body, tail) };
+  if (cols2.some((c) => c.attach)) addImageCols(sheet, (await attachImages(rows, cols2.filter((c) => c.attach))).concat(tail.length ? [null] : []), sheet.rows[0], sheet.widths);
   return sheet;
 }
 async function buildExport() {
@@ -944,10 +946,10 @@ async function buildExport() {
   if (kind.sem) {   // 학습준비물 1·2학기
     let sum = 0;
     const body = rows.map((r, i) => { const x = i + 2; const q = supQty(r), amt = num(r.supply_price) * q; sum += amt;
-      const bg = rowBg(kind, r), cells = [T(r.supply_product), T(r.supply_spec), T(supText(r, true)), T(r.supply_unit), N(r.supply_price), { v: amt, s: 'int', f: 'E' + x + '*' + q }, T(r.supply_sub), linkCell(r.supply_link)];
+      const bg = rowBg(kind, r), cells = [T(r.supply_product), T(r.supply_spec), T(supText(r, false)), N(q), T(r.supply_unit), N(r.supply_price), { v: amt, s: 'int', f: 'F' + x + '*D' + x }, T(r.supply_sub), linkCell(r.supply_link)];
       if (bg) cells.forEach((c) => { c.bg = bg; }); return cells; });
-    const tot = totalRow(n, 8); tot[5] = { v: sum, s: 'totalNum' }; if (n) tot[5].f = 'SUM(F2:F' + (n + 1) + ')';
-    const sheet = { name: kind.name, widths: [28, 22, 36, 8, 11, 13, 12, 34], freezeRow: 1, filter: true, filterRows: n + 1, rows: [['품명', '규격', '수량', '단위', '단가', '금액(합)', '과목', '링크'].map(H)].concat(body, [tot]) };
+    const tot = totalRow(n, 9); tot[6] = { v: sum, s: 'totalNum' }; if (n) tot[6].f = 'SUM(G2:G' + (n + 1) + ')';
+    const sheet = { name: kind.name, widths: [28, 22, 30, 8, 8, 11, 13, 12, 34], freezeRow: 1, filter: true, filterRows: n + 1, rows: [['품명', '규격', '학급별 수량', '수량', '단위', '단가', '금액(합)', '과목', '링크'].map(H)].concat(body, [tot]) };
     const st = supplyStats(kind);
     const sum2 = { name: '학급별 사용액', widths: [24, 16], rows: [['구분', '금액'].map(H), [T('학습준비물 총액'), N(st.total)], [T('학년공통사용액'), N(st.common)], [T('반별배부액'), N(st.alloc)]].concat(st.cls.map((c) => [T(c + ' 사용액'), N(st.use[c])])) };
     return { fileName: '학습준비물' + kind.sem + '학기_' + label, title: label + ' ' + g.grade + '학년 ' + kind.name, sheets: [sheet, sum2] };
