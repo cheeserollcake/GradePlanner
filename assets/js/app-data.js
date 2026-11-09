@@ -327,7 +327,9 @@
     const atts = await docsIn('data_files'); add('atts', atts.length, [], async () => { for (const d of atts) await d.ref.delete(); });
     const ext = await getCfg('ext_file', null); const extHit = !!(ext && ext.updatedAt && created(new Date(ext.updatedAt)));
     add('ext', extHit ? 1 : 0, extHit ? [{ type: 'delete', col: 'app_config', id: 'ext_file' }].concat((ext.chunks || []).map((id) => ({ type: 'delete', col: 'data_files', id }))) : []);
-    const cls = await storageFilesIn('classroom', r).catch(() => []); add('classroom', cls.length, [], async () => { for (const it of cls) await it.delete(); });
+    const cf = await getCfg('classroom_file', null); const cfHit = !!(cf && cf.updatedAt && created(new Date(cf.updatedAt)));
+    const cls = await storageFilesIn('classroom', r).catch(() => []);
+    add('classroom', cls.length + (cfHit ? 1 : 0), cfHit ? [{ type: 'delete', col: 'app_config', id: 'classroom_file' }].concat((cf.chunks || []).map((id) => ({ type: 'delete', col: 'data_files', id }))) : [], async () => { for (const it of cls) await it.delete(); });
     const oth = []; for (const folder of ['special_room', 'extension', 'budget']) (await storageFilesIn(folder, r).catch(() => [])).forEach((it) => oth.push(it)); add('files', oth.length, [], async () => { for (const it of oth) await it.delete(); });
     return plan;
   }

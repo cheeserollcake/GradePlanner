@@ -80,23 +80,32 @@
         cells[r + ',' + ci] = { v, bg: st.fills[xf.fill] || '', b: font.b, color: font.color, h: xf.h };
         if (r > maxR) maxR = r; if (ci > maxC) maxC = ci;
       });
-      const merges = {}, covered = {};
-      kids(sx, 'mergeCell').forEach((m) => { const [a, b] = m.getAttribute('ref').split(':'); if (!b) return; const r1 = rowIdx(a), c1 = colIdx(a), r2 = rowIdx(b), c2 = colIdx(b); merges[r1 + ',' + c1] = { rs: r2 - r1 + 1, cs: c2 - c1 + 1 }; for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) if (r !== r1 || c !== c1) covered[r + ',' + c] = 1; if (r2 > maxR) maxR = r2; if (c2 > maxC) maxC = c2; });
-      const widths = []; kids(sx, 'col').forEach((c) => { for (let i = +c.getAttribute('min'); i <= +c.getAttribute('max') && i < 200; i++) widths[i - 1] = Math.round((+c.getAttribute('width') || 8.43) * 7 + 5); });
-      sheets.push({ name: sh.getAttribute('name') || '시트', cells, merges, covered, widths, rows: maxR + 1, cols: maxC + 1 });
+      const merges = {}, covered = {}, taken = {};
+      kids(sx, 'mergeCell').forEach((m) => {
+        const [a, b] = m.getAttribute('ref').split(':'); if (!b) return; const r1 = rowIdx(a), c1 = colIdx(a), r2 = rowIdx(b), c2 = colIdx(b);
+        if (r2 < r1 || c2 < c1 || r2 > 1000 || c2 > 100) return;
+        for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) if (taken[r + ',' + c]) return;   // 서로 겹치는 병합은 표가 깨지므로 건너뜀
+        for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) { taken[r + ',' + c] = 1; if (r !== r1 || c !== c1) covered[r + ',' + c] = 1; }
+        merges[r1 + ',' + c1] = { rs: r2 - r1 + 1, cs: c2 - c1 + 1 }; if (r2 > maxR) maxR = r2; if (c2 > maxC) maxC = c2;
+      });
+      const fmt = kids(sx, 'sheetFormatPr')[0]; const defW = fmt && +fmt.getAttribute('defaultColWidth') ? Math.round(+fmt.getAttribute('defaultColWidth') * 7 + 5) : 64, defH = fmt && +fmt.getAttribute('defaultRowHeight') ? Math.round(+fmt.getAttribute('defaultRowHeight') * 4 / 3) : 20;
+      const widths = [], hiddenCols = {}; kids(sx, 'col').forEach((c) => { for (let i = +c.getAttribute('min'); i <= +c.getAttribute('max') && i < 200; i++) { widths[i - 1] = Math.round((+c.getAttribute('width') || 8.43) * 7 + 5); if (c.getAttribute('hidden') === '1' || c.getAttribute('hidden') === 'true') hiddenCols[i - 1] = 1; } });
+      const heights = {}, hiddenRows = {}; kids(sx, 'row').forEach((rw) => { const ri = +rw.getAttribute('r') - 1; if (rw.getAttribute('ht')) heights[ri] = Math.round(+rw.getAttribute('ht') * 4 / 3); if (rw.getAttribute('hidden') === '1' || rw.getAttribute('hidden') === 'true') hiddenRows[ri] = 1; });
+      sheets.push({ name: sh.getAttribute('name') || '시트', cells, merges, covered, widths, hiddenCols, heights, hiddenRows, defW, defH, rows: maxR + 1, cols: maxC + 1 });
     }
     if (!sheets.length) throw new Error('시트를 찾지 못했습니다. (파일 안 목록: ' + read.names.slice(0, 10).join(', ') + ')');
     return sheets;
   }
   function sheetHtml(s) {
-    let h = '<table style="border-collapse:collapse;font-size:14px;background:#fff;color:#0f172a"><colgroup>';
-    for (let c = 0; c < s.cols; c++) h += '<col' + (s.widths[c] ? ' style="width:' + s.widths[c] + 'px"' : '') + '>'; h += '</colgroup><tbody>';
+    let tw = 0; for (let c = 0; c < s.cols; c++) if (!s.hiddenCols[c]) tw += s.widths[c] || s.defW;
+    let h = '<table style="border-collapse:collapse;table-layout:fixed;width:' + tw + 'px;font-size:14px;background:#fff;color:#0f172a"><colgroup>';
+    for (let c = 0; c < s.cols; c++) h += '<col style="width:' + (s.widths[c] || s.defW) + 'px' + (s.hiddenCols[c] ? ';visibility:collapse' : '') + '">'; h += '</colgroup><tbody>';
     for (let r = 0; r < s.rows; r++) {
-      h += '<tr style="height:24px">';
+      h += '<tr style="height:' + (s.heights[r] || s.defH) + 'px' + (s.hiddenRows[r] ? ';display:none' : '') + '">';
       for (let c = 0; c < s.cols; c++) {
         const k = r + ',' + c; if (s.covered[k]) continue; const cell = s.cells[k] || { v: '' }, m = s.merges[k];
         const num = cell.v !== '' && /^-?[\d,]+(\.\d+)?$/.test(cell.v);
-        h += '<td' + (m ? ' rowspan="' + m.rs + '" colspan="' + m.cs + '"' : '') + ' style="border:1px solid #cbd5e1;padding:4px 8px;white-space:pre-wrap;vertical-align:middle;' + (cell.bg ? 'background:' + cell.bg + ';' : '') + (cell.b ? 'font-weight:700;' : '') + 'text-align:' + (cell.h === 'center' || cell.h === 'centerContinuous' ? 'center' : cell.h === 'right' ? 'right' : cell.h === 'left' ? 'left' : num ? 'right' : 'left') + '">' + esc(cell.v) + '</td>';
+        h += '<td' + (m ? ' rowspan="' + m.rs + '" colspan="' + m.cs + '"' : '') + ' style="border:1px solid #cbd5e1;padding:2px 6px;overflow:hidden;white-space:pre-wrap;word-break:break-all;vertical-align:middle;' + (cell.bg ? 'background:' + cell.bg + ';' : '') + (cell.b ? 'font-weight:700;' : '') + 'text-align:' + (cell.h === 'center' || cell.h === 'centerContinuous' ? 'center' : cell.h === 'right' ? 'right' : cell.h === 'left' ? 'left' : num ? 'right' : 'left') + '">' + esc(cell.v) + '</td>';
       }
       h += '</tr>';
     }
@@ -128,5 +137,5 @@
     if (mime.indexOf('pdf') >= 0) { ifr.classList.remove('hidden'); ifr.src = URL.createObjectURL(new Blob([b64ToBytes(id.split(',')[1])], { type: 'application/pdf' })); return true; }
     showXlsx(id); return true;
   }
-  window.ExtViewer = { handle, mimeOf, parseXlsx, XLSX_MIME };
+  window.ExtViewer = { handle, mimeOf, parseXlsx, sheetHtml, XLSX_MIME };
 })();

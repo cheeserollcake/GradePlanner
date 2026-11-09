@@ -1129,6 +1129,23 @@
     } catch (e) { return { success: false, message: '파일 업로드 실패: ' + e.toString() }; }
   };
 
+  // ===== 교실 배치도 이미지: Storage 대신 Firestore(data_files)에 조각으로 저장 (내선번호 파일과 같은 방식) =====
+  async function classroomGet() {
+    const meta = await getCfg('classroom_file', null); if (!meta || !meta.chunks) return '';
+    if (meta.updatedAt) { const sp = yearSpan((await loadGeneral()).year), d = new Date(meta.updatedAt); if (d < sp.start || d > sp.end) return ''; }
+    const parts = await Promise.all(meta.chunks.map((id) => db.collection('data_files').doc(id).get()));
+    return 'data:' + meta.mimeType + ';base64,' + parts.map((d) => (d.exists ? d.data().data : '')).join('');
+  }
+  async function classroomPut(file) {
+    const b64 = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = () => rej(new Error('파일을 읽을 수 없습니다.')); fr.readAsDataURL(file); });
+    const small = await shrinkImage(b64, file.type || 'image/png');
+    const old = await getCfg('classroom_file', null); const stamp = Date.now(), CH = 450000, ids = [], ops = [];
+    for (let i = 0; i * CH < small.length; i++) { const id = `cls_${stamp}_${i}`; ids.push(id); ops.push({ type: 'set', col: 'data_files', id, data: { data: small.slice(i * CH, (i + 1) * CH), i, name: file.name } }); }
+    await commit(ops);
+    await setCfg('classroom_file', { chunks: ids, mimeType: 'image/jpeg', name: file.name, updatedAt: new Date().toISOString() });
+    if (old && old.chunks && old.chunks.length) { try { await commit(old.chunks.map((id) => ({ type: 'delete', col: 'data_files', id }))); } catch (e) { /* 남은 조각은 무시 */ } }
+  }
+
   // ===== Page 11 : 쇼핑몰 학교 ID =====
   SERVER.getAppConfig = async () => { const pw = await getPw(); return { userPw: pw.access, adminPw: pw.admin }; };
   SERVER.saveAppConfig = async (c) => { const pw = await getPw(); if (c.userPw) pw.access = c.userPw; if (c.adminPw) pw.admin = c.adminPw; await setPw(pw); return true; };
@@ -1175,6 +1192,6 @@
   window.google = { script: { run: runner(null, null), host: { close() {}, setHeight() {} } } };
 
   // 직접 Firestore를 쓰는 새 페이지(예산/바로가기/교실배치도)를 위한 공용 도구
-  window.GP = { shiftBasicPeriods, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
+  window.GP = { classroomGet, classroomPut, shiftBasicPeriods, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
     getPw, setPw, readList, writeList, spaceOrphans, countSpaceData, purgeSpaceData, renameSpaceData, listSpaceData, deleteSpaceRows, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
 })();
