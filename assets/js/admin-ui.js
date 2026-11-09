@@ -90,8 +90,8 @@
     const draw = guardDraw(() => {
       const numIn = (i, k, v, ph) => '<input data-i="' + i + '" data-k="' + k + '" type="number" min="0" value="' + esc(v) + '" placeholder="' + ph + '" class="' + INP + ' w-full text-center">';
       view.innerHTML = '<div class="' + CARD + '"><h2 class="font-bold text-lg">과목 / 시수 / 전담 설정 <span class="text-xs font-normal text-slate-400">입력하면 바로 저장됩니다</span></h2>' +
-        '<div class="overflow-x-auto"><table class="w-full text-sm" style="min-width:540px"><thead><tr class="text-slate-500"><th class="text-left p-1">과목</th><th class="p-1 w-24">주당 시수</th><th class="p-1 w-28">1학기 총시수</th><th class="p-1 w-28">2학기 총시수</th><th class="p-1 w-14">전담</th><th class="w-8"></th></tr></thead><tbody>' +
-        subs.map((s, i) => '<tr><td class="p-1"><input data-i="' + i + '" data-k="name" value="' + esc(s.name) + '" class="' + INP + ' w-full" style="min-width:104px"></td>' +
+        '<div class="overflow-x-auto"><table class="w-full text-sm" style="min-width:540px"><thead><tr class="text-slate-500"><th class="w-6"></th><th class="text-left p-1">과목</th><th class="p-1 w-24">주당 시수</th><th class="p-1 w-28">1학기 총시수</th><th class="p-1 w-28">2학기 총시수</th><th class="p-1 w-14">전담</th><th class="w-8"></th></tr></thead><tbody id="subBody">' +
+        subs.map((s, i) => '<tr class="subrow" data-si="' + i + '"><td class="p-1 text-center"><span class="sgrip dnd-handle text-slate-400 text-lg leading-none" title="끌어서 순서 바꾸기">⠿</span></td><td class="p-1"><input data-i="' + i + '" data-k="name" value="' + esc(s.name) + '" class="' + INP + ' w-full" style="min-width:104px"></td>' +
           '<td class="p-1">' + numIn(i, 'hours', s.hours, '') + '</td><td class="p-1">' + numIn(i, 'h1', s.h1, '') + '</td><td class="p-1">' + numIn(i, 'h2', s.h2, '') + '</td>' +
           '<td class="p-1 text-center"><input data-i="' + i + '" data-k="special" type="checkbox" ' + (s.special ? 'checked' : '') + ' class="w-4 h-4"></td>' +
           '<td class="p-1"><button data-del="' + i + '" class="text-slate-400 hover:text-red-600">✕</button></td></tr>').join('') +
@@ -103,6 +103,10 @@
       });
       view.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => { subs.splice(+b.dataset.del, 1); draw(); saveSubs(); });
       $('addSub').onclick = () => { subs.push({ name: '', hours: '', h1: '', h2: '', special: false }); draw(); view.querySelectorAll('[data-k="name"]')[subs.length - 1].focus(); };
+      // 과목 순서: 왼쪽 ⠿ 를 잡고 끌어서 바꿉니다(마우스·터치). 이 순서가 전담 시간표 탭 순서 등에 쓰입니다.
+      DnD.bind($('subBody'), { handle: '.sgrip', item: '.subrow', drop: '.subrow', axis: 'y', onDrop: (el, tgt, after) => {
+        if (!tgt) return; const from = +el.dataset.si; let dest = +tgt.dataset.si + (after ? 1 : 0); const [m] = subs.splice(from, 1); if (from < dest) dest--; subs.splice(dest, 0, m); draw(); saveSubs();
+      } });
       bindBulk();
     });
     draw();
@@ -129,7 +133,7 @@
     const used = new Set(), plan = [];
     Object.keys(data).forEach((label) => [1, 2].forEach((n) => {
       const d = data[label]['sem' + n]; if (!d || !(d.options || []).length) return;   // 그 학기에 담당 학급이 없으면 시트도 없음
-      const cls = d.options.filter(Boolean).slice().sort((a, b) => parseInt(a, 10) - parseInt(b, 10)).join(','), tail = '(' + cls + '반)_' + n + '학기';
+      const ops = d.options.filter(Boolean).slice().sort((a, b) => (parseInt(a, 10) || 999) - (parseInt(b, 10) || 999)), cls = ops.join(','), tail = '(' + cls + (/^\d+$/.test(ops[ops.length - 1] || '') ? '반' : '') + ')_' + n + '학기';
       let subj = clean(data[label].subject || label.replace(/\(.*$/, '')); const room = 31 - tail.length; if (room < subj.length) subj = subj.slice(0, Math.max(1, room));
       let name = subj + tail, k = 2; while (used.has(name)) { const suf = '-' + k++; name = (subj + tail).slice(0, 31 - suf.length) + suf; }
       used.add(name); plan.push({ name, label, n, d });
@@ -206,7 +210,7 @@
       const tuples = [], bad = [];
       body.forEach((c, i) => {
         const line = (i + 2) + '행'; const raw = str(c[0]).trim(); const d = serial(raw) || toDate(raw); const name = str(c[3]).trim();
-        const cls = str(c[1]).split(/[,，、\s]+/).map((x) => x.trim()).filter(Boolean).map((x) => (/^\d+$/.test(x) ? x + '반' : x));
+        const cls = str(c[1]).split(/[,，、\s]+/).map((x) => x.trim()).filter(Boolean).map((x) => (/^\d+$/.test(x) ? (classes[+x - 1] || x + '반') : (classes.indexOf(x) < 0 && /^\d+반$/.test(x) && classes[parseInt(x, 10) - 1] ? classes[parseInt(x, 10) - 1] : x)));   // 학급 번호는 관리자에서 정한 학급 이름으로
         const per = str(c[2]).split(/[,，、]+/).map((x) => x.trim()).filter(Boolean).map((x) => (/^\d+$/.test(x) ? (times[+x - 1] || x + '교시') : (/^\d+교시$/.test(x) ? (times[parseInt(x, 10) - 1] || x) : x)));
         if (!d) return bad.push(line + ': 날짜를 읽을 수 없습니다. ("' + raw + '")');
         if (!cls.length) return bad.push(line + ': 학급이 비어 있습니다.'); const wrong = cls.filter((x) => classes.indexOf(x) < 0); if (wrong.length) return bad.push(line + ': 없는 학급 ' + wrong.join(', '));

@@ -3,17 +3,17 @@
   <head>
   <meta charset="UTF-8">
   <script>window.__GP_PAGE__ = 'p03';</script>
-  <script src="../assets/js/fb-boot.js?v=20261109n"></script>
+  <script src="../assets/js/fb-boot.js?v=20261110b"></script>
   
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261109n">
-  <script src="../assets/js/firebase-config.js?v=20261109n"></script>
-  <script src="../assets/js/gas-shim.js?v=20261109n"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261110b">
+  <script src="../assets/js/firebase-config.js?v=20261110b"></script>
+  <script src="../assets/js/gas-shim.js?v=20261110b"></script>
 
     
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- React 및 라이브러리 (unpkg 차단 및 Babel 호환성 문제로 cdnjs 및 Babel 7로 변경) -->
-  <script src="../assets/js/react.min.js?v=20261109n"></script>
+  <script src="../assets/js/react.min.js?v=20261110b"></script>
     
     <!-- 스타일 정의 -->
     <style>
@@ -134,7 +134,7 @@
       .xl-step { width:2rem; height:2rem; border:1px solid #cbd5e1; border-radius:.4rem; background:#fff; font-weight:700; }
       .xl-bar button:disabled { opacity:.5; cursor:wait; }
     </style>
-  <link rel="stylesheet" href="../assets/css/lock.css?v=20261109n">  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109c">
+  <link rel="stylesheet" href="../assets/css/lock.css?v=20261110b">  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109c">
 </head>
   <body>
 
@@ -172,8 +172,8 @@
       <div id="root-class"></div>
     </div>
 
-    <script src="../assets/js/xlsx-lite.js?v=20261109n"></script>
-    <script src="../assets/js/gsheet-export.js?v=20261109n"></script>
+    <script src="../assets/js/xlsx-lite.js?v=20261110b"></script>
+    <script src="../assets/js/gsheet-export.js?v=20261110b"></script>
     <script>
       (function () {
         const $ = (id) => document.getElementById(id);
@@ -187,7 +187,7 @@
         window.addEventListener('resize', navH); setInterval(navH, 1500);
         async function loadCount() {
           try { const r = JSON.parse(await call('getGradeData')); CC = (r.horizontal && r.horizontal.classCount) || 10; } catch (e) { /* 기본값 */ }
-          $('xl-class').innerHTML = Array.from({ length: CC }, (_, i) => '<option value="' + (i + 1) + '">' + (i + 1) + '반</option>').join('') + '<option value="all">전체 반 (반마다 시트)</option>';
+          $('xl-class').innerHTML = Array.from({ length: CC }, (_, i) => '<option value="' + (i + 1) + '">' + window.__cn(i + 1) + '</option>').join('') + '<option value="all">전체 반 (반마다 시트)</option>';
         }
         $('xl-class').innerHTML = '<option value="1">1반</option>'; loadCount();
         const open = () => { loadCount(); $('xl-modal').style.display = 'flex'; }, close = () => { $('xl-modal').style.display = 'none'; };
@@ -210,7 +210,7 @@
         const headers = (fields, nChk) => fields.map((f) => cell(LABEL[f], 'totalLabel')).concat(Array.from({ length: nChk }, (_, i) => cell('체크' + (i + 1), 'totalLabel')));
         const widths = (fields, nChk) => fields.map((f) => WIDTH[f]).concat(Array.from({ length: nChk }, () => WIDTH.chk));
         function classSheet(n, rows, fields, nChk) {
-          return { name: n + '반', widths: widths(fields, nChk), freezeRow: 2, rows: [[cell(n + '반 명렬표', 'title')], headers(fields, nChk)].concat(rows.map((r) => rowCells(r, fields, nChk))) };
+          return { name: String(window.__cn(n)).replace(/[\[\]:*?\/\\]/g, ' ').slice(0, 31), widths: widths(fields, nChk), freezeRow: 2, rows: [[cell(window.__cn(n) + ' 명렬표', 'title')], headers(fields, nChk)].concat(rows.map((r) => rowCells(r, fields, nChk))) };
         }
         function gradeSheet(all, fields, nChk) {   // 5개 반씩 가로로 나란히 (웹 화면과 같은 배치)
           const w = fields.length + nChk, rows = [], merges = [], wd = [];
@@ -222,7 +222,7 @@
             for (let c = 0; c < per; c++) {
               const data = all[start + c - 1] || []; let m = 0, f = 0; data.forEach((r) => { if (String(r[1]).trim()) { if (r[2] === '남성') m++; if (r[2] === '여성') f++; } });
               const fill = (t, s) => Array.from({ length: w }, (_, i) => cell(i === 0 ? t : '', s));
-              r1.push(...fill((start + c) + '반', 'totalLabel'), cell('', 'default')); r2.push(...fill('재적: ' + (m + f) + ' (남' + m + '/여' + f + ')', 'totalLabel'), cell('', 'default')); r3.push(...headers(fields, nChk), cell('', 'default'));
+              r1.push(...fill(window.__cn(start + c), 'totalLabel'), cell('', 'default')); r2.push(...fill('재적: ' + (m + f) + ' (남' + m + '/여' + f + ')', 'totalLabel'), cell('', 'default')); r3.push(...headers(fields, nChk), cell('', 'default'));
               const base = c * (w + 1); if (w > 1) merges.push(ref(top, base) + ':' + ref(top, base + w - 1), ref(top + 1, base) + ':' + ref(top + 1, base + w - 1));
             }
             rows.push(r1, r2, r3);
@@ -240,7 +240,7 @@
             const sheets = []; for (let n = 1; n <= CC; n++) { const d = await getClass(n); if (d.some((r) => String(r[1]).trim())) sheets.push(classSheet(n, d, fields, nChk)); }
             if (!sheets.length) throw new Error('명단이 입력된 반이 없습니다.'); return { sheets, file: '반별_명렬표_전체' };
           }
-          const n = Number($('xl-class').value); return { sheets: [classSheet(n, await getClass(n), fields, nChk)], file: n + '반_명렬표' };
+          const n = Number($('xl-class').value); return { sheets: [classSheet(n, await getClass(n), fields, nChk)], file: window.__cn(n) + '_명렬표' };
         }
         const btns = () => [$('xl-go'), $('xl-gs')];
         $('xl-go').onclick = async () => {
@@ -316,6 +316,7 @@
           const out = [], notes = [];
           sheets.forEach((sh) => {
             let cls = (String(sh.name).match(/(\d+)\s*반/) || [])[1];
+            { const ci = (window.__CN || []).indexOf(String(sh.name).trim()); if (ci >= 0) cls = String(ci + 1); }   // 시트 이름이 학급 이름(예: 사과반)이면 그 반
             if (!cls) for (let i = 0; i < Math.min(3, sh.rows.length) && !cls; i++) cls = ((sh.rows[i] || []).map(String).join(' ').match(/(\d+)\s*반\s*명렬표/) || [])[1];
             let h = -1; for (let i = 0; i < Math.min(8, sh.rows.length); i++) if ((sh.rows[i] || []).some((x) => String(x).trim() === '이름')) { h = i; break; }
             if (h < 0) return;
@@ -340,7 +341,7 @@
             const bad = rows.filter((r) => r.cls < 1 || r.cls > CC); const ok = rows.filter((r) => r.cls >= 1 && r.cls <= CC);
             if (!ok.length) return alert('올릴 명단을 찾지 못했습니다. 예시 파일의 형식(시트 이름 ‘1반’, 머리글 번호·이름·성별·기타·생년월일)을 확인해 주세요.' + (notes.length ? '\n\n' + notes.slice(0, 5).join('\n') : ''));
             const classes = [...new Set(ok.map((r) => r.cls))].sort((a, b) => a - b);
-            const msg = classes.map((c) => c + '반 ' + ok.filter((r) => r.cls === c).length + '명').join(', ') + '\n\n위 반의 기존 명단은 파일 내용으로 바뀝니다(파일에 없는 번호는 비워집니다). 계속할까요?' + (bad.length ? '\n\n※ 학급 수(' + CC + '개) 밖의 반 ' + bad.length + '명은 제외됩니다.' : '') + (notes.length ? '\n\n' + notes.slice(0, 5).join('\n') : '');
+            const msg = classes.map((c) => window.__cn(c) + ' ' + ok.filter((r) => r.cls === c).length + '명').join(', ') + '\n\n위 반의 기존 명단은 파일 내용으로 바뀝니다(파일에 없는 번호는 비워집니다). 계속할까요?' + (bad.length ? '\n\n※ 학급 수(' + CC + '개) 밖의 반 ' + bad.length + '명은 제외됩니다.' : '') + (notes.length ? '\n\n' + notes.slice(0, 5).join('\n') : '');
             if (!confirm(msg)) return;
             $('xl-msg').textContent = '업로드 중…';
             const res = JSON.parse(await call('importStudents', ok)); if (!res.success) throw new Error(res.error);

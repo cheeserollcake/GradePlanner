@@ -195,6 +195,7 @@
   //  - 학년도를 바꾸면 새 학년도의 담임/전담교사/공간 개방 설정은 비어 있는 상태로 시작합니다.
   //  - 학년도 구분이 없던 이전 데이터는 처음 저장할 때 그 당시 학년도의 것으로 옮깁니다.
   const yearNow = () => { const n = new Date(); return n.getMonth() >= 1 ? n.getFullYear() : n.getFullYear() - 1; };
+  window.__cn = (n) => (window.__CN && window.__CN[Number(n) - 1]) || (n + '반');   // 학급 번호 → 관리자에서 정한 학급 이름
   async function loadGeneral() {
     const base = Object.assign({ year: yearNow(), grade: 6, classCount: 10, classNames: [] }, await getCfg('general', {}));
     const yd = await getCfg('year_' + base.year, null);
@@ -207,6 +208,7 @@
       }
     }
     const classNames = Array.from({ length: base.classCount }, (_, i) => (base.classNames && base.classNames[i]) || `${i + 1}반`);
+    window.__CN = classNames.slice();   // 화면에서 학급 번호 → 학급 이름(예: 11 → 사과반)으로 바꿀 때 사용 (window.__cn)
     return { year: base.year, grade: base.grade || 6, classCount: base.classCount, classNames, homerooms: Array.isArray(homerooms) ? homerooms : [], specials: Array.isArray(specials) ? specials : [], legacyMigrated: !!base.legacyMigrated };
   }
   async function loadOpen(year) {
@@ -998,9 +1000,9 @@
   SERVER.getImages = async function () {
     try {
       const snap = await db.collection('data_images').get(); const sp = yearSpan((await loadGeneral()).year);   // 지금 학년도에 올린 이미지만
-      return snap.docs.map((d) => { const x = d.data(); return { id: d.id, url: x.dataUrl, name: x.name || '', t: x.createdAt || '' }; })
+      return snap.docs.map((d) => { const x = d.data(); return { id: d.id, url: x.dataUrl, name: x.name || '', t: x.createdAt || '', o: (x.order === undefined || x.order === null) ? null : Number(x.order) }; })
         .filter((x) => { const d = x.t ? new Date(x.t) : null; return !d || (d >= sp.start && d <= sp.end); })
-        .sort((p, q) => String(p.t).localeCompare(String(q.t))).map(({ id, url, name }) => ({ id, url, name }));
+        .sort((p, q) => (p.o !== null && q.o !== null ? p.o - q.o : p.o !== null ? -1 : q.o !== null ? 1 : String(p.t).localeCompare(String(q.t))))   // 끌어서 정한 순서 → 없으면 올린 순서.map(({ id, url, name }) => ({ id, url, name }));
     } catch (e) { console.warn(e); return []; }
   };
   SERVER.uploadImage = async function (data, name, mime) {   // data: Blob(권장) 또는 base64 문자열
@@ -1012,6 +1014,10 @@
       await ref.set({ name: safeName(name), mime: mime || 'image/jpeg', dataUrl, size, createdAt: new Date().toISOString() });
       return { success: true, item: { id: ref.id, url: dataUrl, name: safeName(name) } };
     } catch (e) { console.warn(e); return { success: false, error: String(e && e.message ? e.message : e) }; }
+  };
+  SERVER.reorderImages = async function (ids) {   // 시간표 이미지 순서 저장 (화면에 보이는 순서대로 0,1,2…)
+    try { const batch = db.batch(); (ids || []).forEach((id, i) => { if (id) batch.update(db.collection('data_images').doc(id), { order: i }); }); await batch.commit(); return { success: true }; }
+    catch (e) { return { success: false, error: e.toString() }; }
   };
   SERVER.deleteImage = async function (id) {
     try { await db.collection('data_images').doc(id).delete(); return { success: true }; } catch (e) { return { success: false, error: e.toString() }; }

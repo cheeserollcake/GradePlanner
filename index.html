@@ -22,19 +22,23 @@
     .nav-item.active { background: #e0e7ff; color: #3730a3; font-weight: 700; }
     .group { padding: 12px 12px 4px; font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: .04em; }
   </style>
+  <link rel="stylesheet" href="assets/css/themes.css?v=20261110b">
 </head>
 <body>
   <header id="bar">
     <button id="burger" aria-label="메뉴 열기">☰</button>
     <a id="title" href="#/home" title="홈으로" style="text-decoration:none;cursor:pointer"></a>
     <span id="pageName"></span>
+    <div id="themeSel" role="group" aria-label="디자인 선택">
+      <button data-theme="" title="기본 디자인">기본</button><button data-theme="flat" title="플랫 디자인">플랫</button><button data-theme="neu" title="뉴모피즘 디자인">뉴</button><button data-theme="clay" title="클레이모피즘 디자인">클레이</button>
+    </div>
   </header>
   <div id="overlay"></div>
   <nav id="drawer"><div id="drawerTitle"></div></nav>
   <iframe id="frame" title="내용"></iframe>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="assets/js/firebase-config.js?v=20261109n"></script>
+<script src="assets/js/firebase-config.js?v=20261110b"></script>
 <script>
 (function () {
   // Firebase 도구는 여기서 한 번만 불러와 연결하고, 안쪽 페이지들이 그대로 가져다 씁니다(fb-boot.js).
@@ -74,6 +78,23 @@
     } catch (e) {}
   }
   document.getElementById('frame').addEventListener('load', applyWidth);
+  // 디자인 보기(기본/플랫/뉴/클레이): 색·그림자·모서리·아이콘 모양만 바꾸는 스타일을 바깥 화면과 안쪽 페이지에 함께 적용합니다.
+  var THEME = ''; try { THEME = localStorage.getItem('gp_theme') || ''; } catch (e) {}
+  function applyTheme() {
+    var fr = document.getElementById('frame'); [document, fr && fr.contentDocument].forEach(function (d) {
+      try {
+        if (!d || !d.documentElement) return;
+        if (THEME) d.documentElement.setAttribute('data-gp-theme', THEME); else d.documentElement.removeAttribute('data-gp-theme');
+        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261110b'; d.head.appendChild(l); }
+      } catch (e) {}
+    });
+    [].forEach.call(document.querySelectorAll('#themeSel button'), function (b) { b.classList.toggle('on', (b.getAttribute('data-theme') || '') === THEME); });
+  }
+  [].forEach.call(document.querySelectorAll('#themeSel button'), function (b) {
+    b.addEventListener('click', function () { THEME = b.getAttribute('data-theme') || ''; try { localStorage.setItem('gp_theme', THEME); } catch (e) {} applyTheme(); });
+  });
+  document.getElementById('frame').addEventListener('load', applyTheme);
+  applyTheme();
   var drawer = document.getElementById('drawer'), overlay = document.getElementById('overlay'), frame = document.getElementById('frame');
   var items = [];
   MENU.forEach(function (m) {
@@ -94,7 +115,7 @@
   function route() {
     var page = location.hash.replace('#/', '') || 'home';
     curPage = page;
-    frame.src = 'pages/' + page + '.html?v=20261109n';
+    frame.src = 'pages/' + page + '.html?v=20261110b';
     items.forEach(function (a) { a.classList.toggle('active', a.dataset.page === page); });
     setOpen(false); applyMeta();
   }
