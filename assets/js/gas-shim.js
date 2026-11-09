@@ -923,7 +923,7 @@
       const g = await generalCfg(); const tabs = await specialTabs(g); const sems = await semestersOfYear(g.year);
       const times = await periodLabels(); const sub = await getCol('data_sub_timetable'); const subCfg = await getSubjectConfig(); const data = {};
       const subjOrder = subCfg.map((x) => x.name);   // 탭 순서: 시간표 설정의 과목 순서 → 같은 과목 안에서는 담당 학급 번호가 작은 순 (정렬은 화면에서 학기별로 합니다)
-      for (const tab of tabs.values()) data[tab.label] = { space: tab.space, subjIdx: subjOrder.indexOf(tab.subject) < 0 ? 999 : subjOrder.indexOf(tab.subject), sem1: await teacherGrid(g, tab, 1, sems, times, sub, subCfg), sem2: await teacherGrid(g, tab, 2, sems, times, sub, subCfg) };
+      for (const tab of tabs.values()) data[tab.label] = { space: tab.space, subject: tab.subject, subjIdx: subjOrder.indexOf(tab.subject) < 0 ? 999 : subjOrder.indexOf(tab.subject), sem1: await teacherGrid(g, tab, 1, sems, times, sub, subCfg), sem2: await teacherGrid(g, tab, 2, sems, times, sub, subCfg) };
       const today = new Date(); const s2 = sems.find((x) => x.name === '2학기');
       return JSON.stringify({ success: true, data, currentSemester: s2 && today >= s2.start ? 2 : 1 });
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
