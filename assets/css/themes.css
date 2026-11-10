@@ -31,7 +31,7 @@ html[data-gp-theme="flat"] .text-indigo-600, html[data-gp-theme="flat"] .text-in
 html[data-gp-theme="flat"] input:not([type=checkbox]):not([type=radio]):not([type=color]), html[data-gp-theme="flat"] select, html[data-gp-theme="flat"] textarea { border-radius: 4px; border-color: #c7cfdc; }
 html[data-gp-theme="flat"] input:focus, html[data-gp-theme="flat"] select:focus, html[data-gp-theme="flat"] textarea:focus { outline: 2px solid #2563eb; outline-offset: -1px; }
 /* 아이콘: 굵고 각진 선 */
-html[data-gp-theme="flat"] svg[stroke] { stroke-width: 2.6; stroke-linecap: square; stroke-linejoin: miter; }
+html[data-gp-theme="flat"] svg[stroke]:not(.gp-has-alt):not(.gp-alt) { stroke-width: 2.6; stroke-linecap: square; stroke-linejoin: miter; }
 /* 상단 바·메뉴 */
 html[data-gp-theme="flat"] #bar { background: #2563eb; border-bottom: 0; }
 html[data-gp-theme="flat"] #bar #title, html[data-gp-theme="flat"] #bar #burger { color: #fff; }
@@ -48,7 +48,7 @@ html[data-gp-theme="flat"] #frame { background: #eef1f6; }
 /* =====================================================================
    2) 뉴(뉴모피즘) — 바탕과 같은 색의 면이 부드러운 빛·그림자로 솟아오르거나 눌려 보임
    ===================================================================== */
-html[data-gp-theme="neu"] { --neu: #e3e8ef; --neu-d: #bec7d4; --neu-l: #ffffff; }
+html[data-gp-theme="neu"] { --neu: #ffffff; --neu-d: #cfd7e3; --neu-l: #ffffff; --neu-in: #f3f6fa; }
 html[data-gp-theme="neu"] body,
 html[data-gp-theme="neu"] .bg-slate-50:not(td):not(th),
 html[data-gp-theme="neu"] .bg-gray-50:not(td):not(th) { background-color: var(--neu); }
@@ -86,8 +86,8 @@ html[data-gp-theme="neu"] input:not([type=checkbox]):not([type=radio]):not([type
 html[data-gp-theme="neu"] td input:not([type=checkbox]):not([type=radio]):not([type=color]), html[data-gp-theme="neu"] td select, html[data-gp-theme="neu"] th input:not([type=checkbox]):not([type=radio]):not([type=color]) { background-color: transparent; box-shadow: none; border-radius: 0; }
 html[data-gp-theme="neu"] .text-indigo-600, html[data-gp-theme="neu"] .text-indigo-700 { color: #4f46e5; }
 /* 아이콘: 가늘고 부드러운 회청색 */
-html[data-gp-theme="neu"] svg[stroke] { stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-html[data-gp-theme="neu"] h1 svg, html[data-gp-theme="neu"] h2 svg, html[data-gp-theme="neu"] h3 svg { color: #6b7a99; filter: drop-shadow(1px 1px 1px var(--neu-l)); }
+html[data-gp-theme="neu"] svg[stroke]:not(.gp-has-alt):not(.gp-alt) { stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+html[data-gp-theme="neu"] h1 svg, html[data-gp-theme="neu"] h2 svg, html[data-gp-theme="neu"] h3 svg { color: #6b7a99; }
 /* 상단 바·메뉴 */
 html[data-gp-theme="neu"] #bar { background: var(--neu); border-bottom: 0; box-shadow: 0 4px 10px -4px var(--neu-d); }
 html[data-gp-theme="neu"] #burger { box-shadow: 3px 3px 6px var(--neu-d), -3px -3px 6px var(--neu-l); }
@@ -137,7 +137,7 @@ html[data-gp-theme="clay"] input:not([type=checkbox]):not([type=radio]):not([typ
 html[data-gp-theme="clay"] td input:not([type=checkbox]):not([type=radio]):not([type=color]), html[data-gp-theme="clay"] td select, html[data-gp-theme="clay"] th input:not([type=checkbox]):not([type=radio]):not([type=color]) { border-radius: 0; box-shadow: none; }
 html[data-gp-theme="clay"] input[type=checkbox], html[data-gp-theme="clay"] input[type=radio] { accent-color: #8b5cf6; }
 /* 아이콘: 두툼한 선 + 속을 옅게 채움 */
-html[data-gp-theme="clay"] svg[stroke] { stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; fill: currentColor; fill-opacity: .16; }
+html[data-gp-theme="clay"] svg[stroke]:not(.gp-has-alt):not(.gp-alt) { stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; fill: currentColor; fill-opacity: .16; }
 /* 상단 바·메뉴 */
 html[data-gp-theme="clay"] #bar { background: #fbf9ff; border-bottom: 0; box-shadow: 0 8px 18px -12px var(--clay-sh); }
 html[data-gp-theme="clay"] #title, html[data-gp-theme="clay"] #drawerTitle { color: #7c3aed; }
@@ -150,3 +150,44 @@ html[data-gp-theme="clay"] .nav-item { border-radius: 999px; }
 html[data-gp-theme="clay"] .nav-item:hover { background: #f1ecff; }
 html[data-gp-theme="clay"] .nav-item.active { background: #8b5cf6; color: #fff; box-shadow: 0 6px 12px -6px rgba(139, 92, 246, .8), inset -2px -3px 5px rgba(76, 29, 149, .3), inset 2px 2px 5px rgba(255, 255, 255, .4); }
 html[data-gp-theme="clay"] #frame { background: var(--clay-bg); }
+
+/* =====================================================================
+   아이콘 그림 교체 (theme-icons.js 가 원래 아이콘 안에 세 가지 모양을 넣어 둠)
+   플랫 = 꽉 찬 단색(Fill) · 뉴 = 가늘고 부드러운 선(Light) · 클레이 = 두 톤(Duotone)
+   ===================================================================== */
+svg .gp-alt { display: none; }
+html[data-gp-theme="flat"] svg.gp-has-alt > :not(.gp-alt), html[data-gp-theme="neu"] svg.gp-has-alt > :not(.gp-alt), html[data-gp-theme="clay"] svg.gp-has-alt > :not(.gp-alt) { display: none; }
+html[data-gp-theme="flat"] svg.gp-has-alt > .gp-alt-f, html[data-gp-theme="neu"] svg.gp-has-alt > .gp-alt-l, html[data-gp-theme="clay"] svg.gp-has-alt > .gp-alt-d { display: inline; }
+html[data-gp-theme="clay"] svg.gp-has-alt > .gp-alt-d { color: #7c3aed; }
+html[data-gp-theme="clay"] .text-white svg.gp-has-alt > .gp-alt-d, html[data-gp-theme="clay"] button.bg-indigo-600 svg.gp-has-alt > .gp-alt-d, html[data-gp-theme="clay"] .bg-red-500 svg.gp-has-alt > .gp-alt-d { color: inherit; }
+
+/* =====================================================================
+   페이지 위쪽 제목줄(고정 머리글) — 스크롤해도 디자인과 어울리게
+   ===================================================================== */
+/* 플랫: 흰 바탕 + 굵은 아래 선, 그림자 없음 */
+html[data-gp-theme="flat"] header.bg-white, html[data-gp-theme="flat"] nav.bg-white, html[data-gp-theme="flat"] .bg-white.sticky:not(.rounded-xl), html[data-gp-theme="flat"] .bg-white.border-b:not(td):not(th):not(tr) {
+  border-radius: 0; border-bottom: 2px solid #d7dde8;
+}
+html[data-gp-theme="flat"] #bar { background: #fff; border-bottom: 3px solid #2563eb; }
+html[data-gp-theme="flat"] #bar #title { color: #1d4ed8; }
+html[data-gp-theme="flat"] #bar #burger { color: #1e293b; }
+html[data-gp-theme="flat"] #bar #pageName { color: #64748b; }
+html[data-gp-theme="flat"] #bar #burger:hover { background: #e2e8f0; }
+html[data-gp-theme="flat"] #themeSel { background: #e2e8f0; }
+html[data-gp-theme="flat"] #themeSel button { color: #475569; }
+html[data-gp-theme="flat"] #themeSel button.on { background: #2563eb; color: #fff; }
+/* 뉴: 흰 바탕 위에 아래로 부드러운 그림자만 */
+html[data-gp-theme="neu"] header.bg-white, html[data-gp-theme="neu"] nav.bg-white, html[data-gp-theme="neu"] .bg-white.sticky:not(.rounded-xl), html[data-gp-theme="neu"] .bg-white.border-b:not(td):not(th):not(tr) {
+  background-color: #fff; border-radius: 0; border-color: transparent; box-shadow: 0 8px 14px -10px var(--neu-d);
+}
+html[data-gp-theme="neu"] #bar { background: #fff; box-shadow: 0 8px 14px -10px var(--neu-d); }
+html[data-gp-theme="neu"] td.bg-white, html[data-gp-theme="neu"] th.bg-white, html[data-gp-theme="neu"] tr.bg-white { background-color: #fff; }
+html[data-gp-theme="neu"] .bg-slate-50:not(td):not(th), html[data-gp-theme="neu"] .bg-gray-50:not(td):not(th) { background-color: #fff; }
+/* 클레이: 반투명 파스텔 + 흐림 효과, 아래쪽 둥근 모서리 */
+html[data-gp-theme="clay"] header.bg-white, html[data-gp-theme="clay"] nav.bg-white, html[data-gp-theme="clay"] .bg-white.sticky:not(.rounded-xl), html[data-gp-theme="clay"] .bg-white.border-b:not(td):not(th):not(tr) {
+  background-color: rgba(251, 249, 255, .82); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border-color: transparent; border-radius: 0 0 22px 22px; box-shadow: 0 10px 22px -16px var(--clay-sh), inset 0 -2px 4px rgba(120, 96, 210, .08);
+}
+html[data-gp-theme="clay"] #bar { background: rgba(251, 249, 255, .9); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 0 0 22px 22px; }
+html[data-gp-theme="clay"] #frame { background: transparent; }
+html[data-gp-theme="clay"] body { background-color: var(--clay-bg); }

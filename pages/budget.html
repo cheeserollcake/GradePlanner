@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>예산</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261110b">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261110d">
   <script>window.__GP_PAGE__ = 'budget';</script>
-  <script src="../assets/js/fb-boot.js?v=20261110b"></script>
-  <script src="../assets/js/firebase-config.js?v=20261110b"></script>
-  <script src="../assets/js/gas-shim.js?v=20261110b"></script>
-  <script src="../assets/js/app-data.js?v=20261110b"></script>
-  <script src="../assets/js/dnd.js?v=20261110b"></script>
-  <script src="../assets/js/xlsx-lite.js?v=20261110b"></script>
-  <script src="../assets/js/gsheet-export.js?v=20261110b"></script>
+  <script src="../assets/js/fb-boot.js?v=20261110d"></script>
+  <script src="../assets/js/firebase-config.js?v=20261110d"></script>
+  <script src="../assets/js/gas-shim.js?v=20261110d"></script>
+  <script src="../assets/js/app-data.js?v=20261110d"></script>
+  <script src="../assets/js/dnd.js?v=20261110d"></script>
+  <script src="../assets/js/xlsx-lite.js?v=20261110d"></script>
+  <script src="../assets/js/gsheet-export.js?v=20261110d"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     /* ---- 구글 스프레드시트 느낌의 표 ---- */
@@ -84,7 +84,7 @@
     .colx { position:absolute; right:2px; top:1px; font-size:11px; color:#9aa0a6; display:none; line-height:1; }
     .sheet th:hover .colx { display:block; } .colx:hover { color:#b91c1c; }
   </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261110b">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261110d">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
   <div class="max-w-7xl mx-auto space-y-4">
@@ -294,11 +294,19 @@ function renderAll() { renderTabs(); renderCards(); renderSupplyBox(); renderFil
 
 async function renderCards() {
   const box = $('cards'); const pg = mode;   // 카드는 관리자 > 예산 설정에서 이 예산 페이지에 표시하기로 한 것만 나옵니다.
-  const cards = (await GP.buildBudgetCards(pg)); if (pg !== mode) return;
+  const all = (await GP.buildBudgetCards(pg)); if (pg !== mode) return;
+  const cards = all.filter((c) => c.kind !== 'classStats'), stats = all.filter((c) => c.kind === 'classStats');
   box.innerHTML = cards.map((c, i) => '<div class="border border-slate-200 rounded-xl p-3 shadow-sm" style="background:' + esc(c.color || cardColor(c.name) || CARD_PALETTE[i % CARD_PALETTE.length]) + '"><div class="font-bold text-sm border-b border-black/10 pb-1 mb-1">' + esc(c.name) + '</div>' +
     '<div class="flex justify-between text-xs"><span>배정액</span><b>' + fmt(c.assigned) + '</b></div><div class="flex justify-between text-xs"><span>사용액</span><b>' + fmt(c.used) + '</b></div>' +
     '<div class="flex justify-between text-sm mt-1 pt-1 border-t border-black/10"><span>잔액</span><b class="' + (c.balance < 0 ? 'text-red-600' : 'text-blue-700') + '">' + fmt(c.balance) + '</b></div></div>').join('') +
     '<div class="flex items-end"><button id="cardAdmin" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600 border border-indigo-100" title="관리자 페이지로 이동 (예산 카드 관리)" aria-label="관리자"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 2.5h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7v-.2a2 2 0 0 0-2-2Z" /><circle cx="12" cy="12" r="3" /></svg></button></div>';
+  // 반별 사용액 통계 카드: 예산 카드 아래 줄을 바꿔 한 줄 전체로 표시 (반별배부액보다 많이 쓴 반은 빨간 굵은 글씨)
+  box.insertAdjacentHTML('beforeend', stats.map((c, i) => { const st = c.stats; const T = (label, v, red, note) => '<div class="bg-white/70 border border-black/10 rounded-lg px-3 py-2 min-w-0"><div class="text-xs font-semibold text-slate-500">' + label + (note ? '<span class="font-normal text-slate-400 hidden sm:inline"> ' + note + '</span>' : '') + '</div><div class="text-right font-bold ' + (red ? 'text-red-600' : '') + '">' + fmt(v) + '</div></div>';
+    return '<div class="border border-slate-200 rounded-xl p-3 shadow-sm space-y-2" style="grid-column:1/-1;background:' + esc(c.color || cardColor(c.name) || CARD_PALETTE[(cards.length + i) % CARD_PALETTE.length]) + '">' +
+      '<div class="font-bold text-sm border-b border-black/10 pb-1">' + esc(c.name) + ' <span class="text-xs font-normal text-slate-500">반별 사용액 통계</span></div>' +
+      '<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">' + T('총액', st.total) + T('학년공통사용액', st.common, false, st.commonManual ? '(직접 입력)' : '(자동)') + T('반별배부액', st.alloc, false, '(총액 − 학년공통) ÷ ' + st.classes.length + '학급') + T('잔액', st.remain, st.remain < 0) + '</div>' +
+      '<div class="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-10 gap-2">' + st.classes.map((k) => { const u = st.use[k] || 0, over = u > st.alloc; return '<div class="bg-white/70 border border-black/10 rounded-lg px-2 py-1.5 min-w-0"><div class="text-xs font-semibold text-slate-500 truncate">' + esc(k) + '</div><div class="text-right ' + (over ? 'text-red-600 font-extrabold' : 'font-medium') + '">' + fmt(u) + '</div></div>'; }).join('') + '</div></div>';
+  }).join(''));
   $('cardAdmin').onclick = openAdminGate;
 }
 function renderFilters() {

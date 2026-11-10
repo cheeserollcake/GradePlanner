@@ -353,7 +353,7 @@
       subs: uniq('list_sub'), times: (await readList('list_time')).map((i) => i.value),
       gyms: uniq('list_gym'), rooms: uniq('list_room'), teachers: uniq('list_t'),
       budgets: rows.filter((r) => str(r.list_budget).trim() && budgetYearOK(r, curY))
-        .map((r, i) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount), color: str(r.list_budget_color).trim(), pages: str(r.list_budget_pages).trim() ? str(r.list_budget_pages).split(',').filter(Boolean).map((p) => (p === 'supply' ? 'supply1' : p)) : ['budget'], _o: (r.list_budget_order === undefined || r.list_budget_order === '' || r.list_budget_order === null) ? 1e6 + i : Number(r.list_budget_order) }))
+        .map((r, i) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount), color: str(r.list_budget_color).trim(), kind: str(r.list_budget_kind).trim(), classes: str(r.list_budget_classes).split(',').map((x) => x.trim()).filter(Boolean), common: (r.list_budget_common === undefined || r.list_budget_common === null) ? '' : r.list_budget_common, pages: str(r.list_budget_pages).trim() ? str(r.list_budget_pages).split(',').filter(Boolean).map((p) => (p === 'supply' ? 'supply1' : p)) : ['budget'], _o: (r.list_budget_order === undefined || r.list_budget_order === '' || r.list_budget_order === null) ? 1e6 + i : Number(r.list_budget_order) }))
         .sort((a, b) => a._o - b._o).map(({ _o, ...b }) => { if (/학년회비|친목회비/.test(b.name) && b.pages.indexOf('budget') >= 0 && b.pages.indexOf('fee') < 0) b.pages = b.pages.map((x) => (x === 'budget' ? 'fee' : x)); return b; }),
       budgetHeaders: uniq('list_budget_header')
     };
@@ -403,18 +403,21 @@
   const FEE_RE = /학년회비|친목회비/;
   async function budgetLines() {
     const lists = await getLists(); const classes = lists.classes.filter((c) => c !== '학년공통'); const out = [];
-    const add = (name, spec, n, p) => {
+    const add = (name, spec, n, p, r) => {
       name = str(name).trim(); if (!name) return;
-      out.push({ name, amount: num(n) * num(p), fee: FEE_RE.test(name) && str(spec).split(',').map((x) => x.trim()).some((t) => t === '+' || classes.indexOf(t) >= 0) });
+      // 학급별 금액(반별사용액 통계 카드용): 학급별수량이 있으면 학급마다 수량×단가, 없으면 학급 구분 없음('')
+      const cls = {}, cl = str(r && r.supply_class).split(',').map((x) => x.trim()).filter(Boolean), ns = str(r && r.supply_class_num).split(',').map((x) => x.trim());
+      if (cl.length) cl.forEach((c, i) => { cls[c] = (cls[c] || 0) + num(ns[i]) * num(p); }); else cls[''] = num(n) * num(p);
+      out.push({ name, amount: num(n) * num(p), cls, fee: FEE_RE.test(name) && str(spec).split(',').map((x) => x.trim()).some((t) => t === '+' || classes.indexOf(t) >= 0) });
     };
-    (await getCol('data_budget')).forEach((r) => add(r.budget_name, r.budget_spec, r.budget_num, r.budget_price));
+    (await getCol('data_budget')).forEach((r) => add(r.budget_name, r.budget_spec, r.supply_class && str(r.supply_class).trim() ? str(r.supply_class_num).split(',').reduce((a, x) => a + num(x), 0) : r.budget_num, r.budget_price, r));
     const cfg = await getCfg('budget_sheets', { sheets: [] }), sheets = Array.isArray(cfg.sheets) ? cfg.sheets : [];
     if (sheets.length) {
       const rows = await getCol('data_sheet_rows');
       sheets.forEach((s) => {
         const by = (n) => (s.cols || []).find((c) => str(c.name).trim() === n), cn = by('예산종류'), cs = by('규격'), cq = by('수량'), cp = by('단가'), cu = by('학급별수량'); if (!cn || !(cq || cu) || !cp) return;
         const supQ = (r) => { const cl = str(r.supply_class).split(',').map((x) => x.trim()).filter(Boolean), ns = str(r.supply_class_num).split(',').map((x) => x.trim()).filter(Boolean); return cl.length ? cl.reduce((a, _, i) => a + num(ns[i]), 0) : ns.reduce((a, n) => a + num(n), 0); };   // 학급별수량 칸: 학습준비물과 같은 방식
-        rows.filter((r) => r.sheet === s.id).forEach((r) => add(r['f_' + cn.id], cs ? r['f_' + cs.id] : '', cu && supQ(r) > 0 ? supQ(r) : cq ? r['f_' + cq.id] : 0, r['f_' + cp.id]));
+        rows.filter((r) => r.sheet === s.id).forEach((r) => add(r['f_' + cn.id], cs ? r['f_' + cs.id] : '', cu && supQ(r) > 0 ? supQ(r) : cq ? r['f_' + cq.id] : 0, r['f_' + cp.id], cu ? r : null));
       });
     }
     return out;
@@ -439,6 +442,15 @@
       const mine = lines.filter((r) => r.name === name || r.name === h || r.name === b.name);
       const used = mine.filter((r) => !r.fee).reduce((a, r) => a + r.amount, 0);
       const assigned = base + mine.filter((r) => r.fee).reduce((a, r) => a + r.amount, 0);   // 학년회비 등 학급을 체크한 줄은 배정액에 추가
+      if (!merged && b.kind === 'classStats') {   // 반별사용액 통계: 총액만 입력 → 학년공통·반별배부액·학급별 사용액·잔액은 자동
+        const all = lists.classes.filter((c) => c !== '학년공통'); const cls = (b.classes && b.classes.length ? b.classes : all).filter((c) => all.indexOf(c) >= 0);
+        const use = {}; cls.forEach((c) => { use[c] = 0; }); let autoCommon = 0;
+        mine.forEach((r) => Object.keys(r.cls || {}).forEach((c) => { if (c in use) use[c] += r.cls[c]; else autoCommon += r.cls[c]; }));   // 학급이 정해지지 않은 금액·'학년공통'은 학년공통사용액
+        const hasCommon = b.common !== '' && b.common !== null && b.common !== undefined; const common = hasCommon ? num(b.common) : autoCommon;
+        const total = b.amount, alloc = cls.length ? Math.round((total - common) / cls.length) : 0, spent = mine.reduce((a, r) => a + r.amount, 0);
+        cards.push({ name, kind: 'classStats', assigned: total, used: spent, balance: total - spent, color: b.color, stats: { total, common, commonManual: hasCommon, alloc, classes: cls, use, spent, remain: total - spent } });
+        done.add(h); return;
+      }
       cards.push({ name, assigned, used, balance: assigned - used, color: merged ? '' : b.color });
       done.add(h);
     });

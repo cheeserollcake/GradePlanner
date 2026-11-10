@@ -679,13 +679,15 @@
     const pageName = (id) => (PAGES.find((x) => x[0] === id) || [id, id])[1];
     let layout = await GP.getCfg('budget_layout', {}); if (!layout || typeof layout !== 'object') layout = {};
     if (layout.supply && !layout.supply1) { layout.supply1 = layout.supply; delete layout.supply; }
-    let items = (await GP.readList('list_budget')).map((i) => ({ name: i.value, amount: num(i.row.list_budget_amount), color: str(i.row.list_budget_color).trim(), pages: str(i.row.list_budget_pages).trim() ? str(i.row.list_budget_pages).split(',').filter(Boolean).map((p) => (p === 'supply' ? 'supply1' : p)) : ['budget'] }));
+    let items = (await GP.readList('list_budget')).map((i) => ({ name: i.value, amount: num(i.row.list_budget_amount), color: str(i.row.list_budget_color).trim(), pages: str(i.row.list_budget_pages).trim() ? str(i.row.list_budget_pages).split(',').filter(Boolean).map((p) => (p === 'supply' ? 'supply1' : p)) : ['budget'],
+      kind: str(i.row.list_budget_kind).trim(), classes: str(i.row.list_budget_classes).split(',').map((x) => x.trim()).filter(Boolean), common: (i.row.list_budget_common === undefined || i.row.list_budget_common === null) ? '' : i.row.list_budget_common }));
+    const allClasses = (await APP.getGeneral()).classNames.slice();   // 반별사용액 통계의 기본 학급 = 관리자 > 학년 기초 설정의 학급
     items.forEach((it) => { if (/학년회비|친목회비/.test(it.name) && it.pages.indexOf('budget') >= 0 && it.pages.indexOf('fee') < 0) it.pages = it.pages.map((x) => (x === 'budget' ? 'fee' : x)); });   // 학년회비류는 '학년회비' 페이지로
     const used = (name) => lines.filter((r) => r.name === name && !r.fee).reduce((a, r) => a + r.amount, 0);
     const added = (name) => lines.filter((r) => r.name === name && r.fee).reduce((a, r) => a + r.amount, 0);   // 학년회비 등 학급을 체크한 줄 = 배정액에 추가
     const colorOf = (it) => it.color || PALETTE[items.indexOf(it) % PALETTE.length];   // 색을 정하지 않은 카드는 전체 순서 기준의 기본 색
     const fmt = (n) => Number(n).toLocaleString();
-    const save = () => autosave(() => GP.writeList('list_budget', items.map((i) => ({ value: i.name, extra: { list_budget_amount: i.amount, list_budget_color: i.color || '', list_budget_pages: i.pages.join(',') } }))));
+    const save = () => autosave(() => GP.writeList('list_budget', items.map((i) => ({ value: i.name, extra: { list_budget_amount: i.amount, list_budget_color: i.color || '', list_budget_pages: i.pages.join(','), list_budget_kind: i.kind || '', list_budget_classes: (i.classes || []).join(','), list_budget_common: i.common === undefined ? '' : i.common } }))));
     const saveLayout = () => autosave(() => GP.setCfg('budget_layout', layout));
     const shown = () => {   // 지금 화면에 보이는 카드(그 페이지에서 정한 순서)
       if (bdSel === 'all') return items.slice();
@@ -693,13 +695,18 @@
       return items.filter((i) => i.pages.indexOf(bdSel) >= 0).map((it, k) => ({ it, k })).sort((x, y) => pos(x.it.name) - pos(y.it.name) || x.k - y.k).map((x) => x.it);
     };
     // 이름·배정액·표시할 페이지 입력창 (수정/추가 공통)
-    function editDialog(it) {
+    function editDialog(it, statsNew) {
       return new Promise((resolve) => {
+        const stats = statsNew || (it && it.kind === 'classStats');   // 반별사용액 통계 카드
         const pages = it ? it.pages : [bdSel === 'all' ? 'budget' : bdSel];
+        const selCls = it && it.classes && it.classes.length ? it.classes : allClasses;
         const wrap = document.createElement('div'); wrap.className = 'fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50';
-        wrap.innerHTML = '<div class="bg-white rounded-2xl p-5 w-full max-w-sm space-y-3"><h3 class="font-bold text-lg">' + (it ? '예산 수정' : '예산 추가') + '</h3>' +
+        wrap.innerHTML = '<div class="bg-white rounded-2xl p-5 w-full max-w-sm space-y-3"><h3 class="font-bold text-lg">' + (stats ? '반별 사용액 통계 ' + (it ? '수정' : '추가') : (it ? '예산 수정' : '예산 추가')) + '</h3>' +
+          (stats ? '<p class="text-xs text-slate-500">총액만 넣으면 반별배부액 = (총액 − 학년공통사용액) ÷ 학급 수, 학급별 사용액과 잔액은 예산 표(학급별수량 칸)에서 자동으로 계산합니다. 반별배부액보다 많이 쓴 반은 빨간 굵은 글씨로 보입니다.</p>' : '') +
           '<label class="text-sm font-semibold block">예산 이름<input id="bdN" class="' + INP + ' w-full mt-1" value="' + esc(it ? it.name : '') + '" placeholder="예: 체험학습비"></label>' +
-          '<label class="text-sm font-semibold block">배정액<input id="bdA" inputmode="numeric" class="' + INP + ' w-full mt-1 text-right" value="' + (it ? fmt(it.amount) : '') + '" placeholder="0"></label>' +
+          '<label class="text-sm font-semibold block">' + (stats ? '총액 <span class="text-red-500">*</span>' : '배정액') + '<input id="bdA" inputmode="numeric" class="' + INP + ' w-full mt-1 text-right" value="' + (it ? fmt(it.amount) : '') + '" placeholder="0"></label>' +
+          (stats ? '<label class="text-sm font-semibold block">학년공통사용액 <span class="font-normal text-slate-400">(선택 · 비우면 표에서 학급이 정해지지 않은 금액으로 자동)</span><input id="bdC" inputmode="numeric" class="' + INP + ' w-full mt-1 text-right" value="' + (it && it.common !== '' && it.common !== undefined ? fmt(num(it.common)) : '') + '" placeholder="자동"></label>' +
+            '<div class="text-sm font-semibold">학급 <span class="font-normal text-slate-400">(기본: 학년 기초 설정의 학급)</span><div class="flex flex-wrap gap-x-3 gap-y-1 mt-1 font-normal">' + allClasses.map((c) => '<label class="flex items-center gap-1"><input type="checkbox" class="bdK" value="' + esc(c) + '" ' + (selCls.indexOf(c) >= 0 ? 'checked' : '') + '>' + esc(c) + '</label>').join('') + '</div></div>' : '') +
           '<div class="text-sm font-semibold">표시할 예산 페이지<div class="flex flex-wrap gap-x-4 gap-y-1 mt-1 font-normal">' + PAGES.map((x) => '<label class="flex items-center gap-1.5"><input type="checkbox" class="bdP" value="' + esc(x[0]) + '" ' + (pages.indexOf(x[0]) >= 0 ? 'checked' : '') + '>' + esc(x[1]) + '</label>').join('') + '</div></div>' +
           '<p id="bdE" class="text-sm font-semibold text-red-600 hidden"></p>' +
           '<div class="flex justify-between gap-2 pt-1"><div>' + (it ? '<button id="bdDel" class="px-4 py-2 rounded-lg bg-white border border-red-200 text-red-600 text-sm font-semibold">삭제</button>' : '') + '</div>' +
@@ -707,13 +714,17 @@
         document.body.appendChild(wrap);
         const done = (v) => { wrap.remove(); resolve(v); };
         const A = wrap.querySelector('#bdA'); A.onblur = () => { const n = num(A.value.replace(/,/g, '')); A.value = A.value.trim() ? fmt(n) : ''; };
+        const C = wrap.querySelector('#bdC'); if (C) C.onblur = () => { const n = num(C.value.replace(/,/g, '')); C.value = C.value.trim() ? fmt(n) : ''; };
         wrap.querySelector('#bdNo').onclick = () => done(null);
         if (it) wrap.querySelector('#bdDel').onclick = () => { if (confirm('[' + it.name + '] 예산을 삭제할까요?\n예산 표에 입력된 내역은 그대로 남습니다.')) done({ del: true }); };
         const ok = () => {
           const name = wrap.querySelector('#bdN').value.trim(), amount = num(A.value.replace(/,/g, '')), err = wrap.querySelector('#bdE');
           const pg = [...wrap.querySelectorAll('.bdP')].filter((c) => c.checked).map((c) => c.value);
           const bad = !name ? '예산 이름을 입력하세요.' : items.some((x) => x !== it && x.name === name) ? '같은 이름의 예산이 이미 있습니다.' : /[\/,]/.test(name) ? '예산 이름에는 / 와 , 를 쓸 수 없습니다.' : '';
-          if (bad) { err.textContent = bad; err.classList.remove('hidden'); return; } done({ name, amount, pages: pg });
+          const cls = stats ? [...wrap.querySelectorAll('.bdK')].filter((c) => c.checked).map((c) => c.value) : [];
+          const bad2 = bad || (stats && !(amount > 0) ? '총액을 입력하세요.' : stats && !cls.length ? '학급을 하나 이상 고르세요.' : '');
+          if (bad2) { err.textContent = bad2; err.classList.remove('hidden'); return; }
+          done(stats ? { name, amount, pages: pg, kind: 'classStats', classes: cls.length === allClasses.length ? [] : cls, common: C && C.value.trim() ? num(C.value.replace(/,/g, '')) : '' } : { name, amount, pages: pg });
         };
         wrap.querySelector('#bdOk').onclick = ok; wrap.onkeydown = (e) => { if (e.key === 'Enter') ok(); else if (e.key === 'Escape') done(null); };
         wrap.querySelector('#bdN').focus();
@@ -733,15 +744,15 @@
             '<span class="flex shrink-0 gap-1"><label class="cursor-pointer relative" title="배경색">🎨<input type="color" data-color="' + i + '" value="' + colorOf(it) + '" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"></label><button data-edit="' + i + '" title="수정">✏️</button></span></div>' +
             '<div class="flex justify-between text-xs"><span>배정액</span><b>' + fmt(asg) + '</b></div><div class="flex justify-between text-xs"><span>사용액</span><b>' + fmt(u) + '</b></div>' +
             '<div class="flex justify-between text-sm mt-1 pt-1 border-t border-black/10"><span>잔액</span><b class="' + (bal < 0 ? 'text-red-600' : 'text-blue-700') + '">' + fmt(bal) + '</b></div>' +
-            '<div class="text-[11px] text-slate-500 mt-1 pt-1 border-t border-black/10 leading-tight">표시: ' + esc(where) + '</div></div>';
-        }).join('') + '<button id="bdAdd" class="border-2 border-dashed border-slate-300 rounded-xl text-3xl font-bold text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 min-h-[110px]" title="예산 추가">+</button></div>' +
+            '<div class="text-[11px] text-slate-500 mt-1 pt-1 border-t border-black/10 leading-tight">' + (it.kind === 'classStats' ? '<b class="text-indigo-600">반별 사용액 통계</b> · ' : '') + '표시: ' + esc(where) + '</div></div>';
+        }).join('') + '<button id="bdAdd" class="border-2 border-dashed border-slate-300 rounded-xl text-3xl font-bold text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 min-h-[110px]" title="예산 추가">+</button><button id="bdAddStats" class="border-2 border-dashed border-indigo-200 rounded-xl text-sm font-bold text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 min-h-[110px] px-2" title="반별 사용액 통계 추가">+ 반별 사용액<br>통계</button></div>' +
         (list.length ? '' : '<p class="text-sm text-slate-400">이 페이지에 표시되는 예산 카드가 없습니다. + 로 추가하거나, 전체 보기에서 카드의 ✏️ 로 표시할 페이지를 고르세요.</p>') + '</div>';
       view.querySelectorAll('[data-bp]').forEach((b) => b.onclick = () => { bdSel = b.dataset.bp; draw(); });
       const box = $('bdCards');
       box.querySelectorAll('[data-edit]').forEach((b) => b.onclick = async () => {
         const it = list[+b.dataset.edit], r = await editDialog(it); if (!r) return;
         if (r.del) { items.splice(items.indexOf(it), 1); Object.keys(layout).forEach((k) => { if (Array.isArray(layout[k])) layout[k] = layout[k].filter((n) => n !== it.name); }); await save(); await saveLayout(); return draw(); }
-        const old = it.name; it.name = r.name; it.amount = r.amount; it.pages = r.pages;
+        const old = it.name; it.name = r.name; it.amount = r.amount; it.pages = r.pages; if (r.kind) { it.kind = r.kind; it.classes = r.classes; it.common = r.common; }
         if (old !== r.name) Object.keys(layout).forEach((k) => { if (Array.isArray(layout[k])) layout[k] = layout[k].map((n) => (n === old ? r.name : n)); });
         await save(); if (old !== r.name) await saveLayout();
         if (old !== r.name) {   // 예산 표에 이미 입력한 내역도 새 이름으로 맞춤
@@ -752,6 +763,7 @@
       });
       box.querySelectorAll('input[data-color]').forEach((inp) => { inp.onchange = () => { list[+inp.dataset.color].color = inp.value; save(); draw(); }; });
       $('bdAdd').onclick = async () => { const r = await editDialog(null); if (!r || r.del) return; const it = { name: r.name, amount: r.amount, color: '', pages: r.pages }; items.push(it); await save(); draw(); };
+      $('bdAddStats').onclick = async () => { const r = await editDialog(null, true); if (!r || r.del) return; items.push({ name: r.name, amount: r.amount, color: '', pages: r.pages, kind: 'classStats', classes: r.classes, common: r.common }); await save(); draw(); };
       // 끌어서 순서 바꾸기 (마우스·터치 모두: 카드 왼쪽 위 ⠿ 를 잡고 끕니다)
       if (!box._dnd) { box._dnd = true; DnD.bind(box, { handle: '.bdgrip', item: '.bdc', drop: '.bdc', axis: 'x', onDrop: (el, tgt, after) => {
         const from = +el.dataset.i, to = +tgt.dataset.i; let dest = to + (after ? 1 : 0); const cur = shown(); const order = cur.slice(); const [m] = order.splice(from, 1); if (from < dest) dest--; order.splice(dest, 0, m);
