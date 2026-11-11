@@ -59,7 +59,7 @@
     const weeks = () => { const mon = GP.mondayOf(GP.toDate(S.date) || new Date()); return [0, 1, 2, 3, 4].map((w) => DAYS.map((_, d) => GP.addDays(mon, w * 7 + d))); };
     const md = (d) => (d.getMonth() + 1) + '/' + d.getDate();
     const key = (d, p) => GP.ymd(d) + '|' + p;
-    const hits = (cls, d, p) => (idx.get(key(d, p)) || []).filter((e) => (!S.gym || e.src !== 'gym') && e.cls.some((c) => c === cls || ALL_TOKENS.test(c)));
+    const hits = (cls, d, p) => (idx.get(key(d, p)) || []).filter((e) => (S.gym || e.src !== 'gym') && e.cls.some((c) => c === cls || ALL_TOKENS.test(c)));
     // 칸 내용 해석: "1 2 3" → ['1반','2반','3반'] (번호는 관리자의 학급 순서 → 학급 이름)
     function parse(text) {
       const out = [], bad = [];
@@ -182,7 +182,8 @@
       if (!S.days.length || !S.pers.length) return toast('요일과 교시를 하나 이상 고르세요.', true);
       const need = {}; const cnt = counts(); classes.forEach((c) => { need[c] = Math.max(0, hours - (cnt[c] || 0)); });
       const slots = []; weeks().forEach((wk, w) => wk.forEach((d, i) => { if (S.days.indexOf(i) < 0 || hol.get(GP.ymd(d))) return; S.pers.forEach((p) => slots.push({ w, d, p })); }));
-      const usedDay = {}; Object.keys(S.grid).forEach((k) => parse(S.grid[k]).cls.forEach((c) => { usedDay[c + '|' + k.split('|')[0]] = true; }));
+      const W5 = weeks(), weekOf = (ymd) => W5.findIndex((wk) => wk.some((d) => GP.ymd(d) === ymd));
+      const usedDay = {}, usedWeek = {}; Object.keys(S.grid).forEach((k) => { const day = k.split('|')[0]; parse(S.grid[k]).cls.forEach((c) => { usedDay[c + '|' + day] = true; usedWeek[c + '|' + weekOf(day)] = true; }); });
       // 칸을 비울 수밖에 없는 이유 (그 순간의 남은 시수 기준)
       const selP = periods.filter((p) => S.pers.indexOf(p) >= 0), pairOf = (p) => { if (!S.block) return null; const k = selP.indexOf(p); if (k < 0) return null; const q = k % 2 === 0 ? selP[k + 1] : selP[k - 1]; return q || null; };
       const why = (d, p) => {
@@ -191,15 +192,18 @@
         if (!left.length) return classes.some((c) => need[c] > 0) ? '남은 시수가 1차시뿐이라 연차시(2차시)로 넣을 수 없음' : '모든 반의 시수를 다 배정함';
         const reasons = left.map((c) => {
           const h = hits(c, d, p); if (h.length) return c + ' ' + (h[0].name || '') + '(' + SRC[h[0].src].label + ')';
+          if (usedDay[c + '|' + GP.ymd(d)]) return c + ' 오늘 이미 배정';
           const q = pairOf(p); if (q) { if ((S.grid[key(d, q)] || '').trim()) return c + ' 짝 교시(' + q + ')가 이미 찼음'; const h2 = hits(c, d, q); if (h2.length) return c + ' ' + q + '에 ' + (h2[0].name || '') + '(' + SRC[h2[0].src].label + ')'; }
           return '';
         }).filter(Boolean);
-        return reasons.length ? '남은 반이 모두 겹침 — ' + reasons.slice(0, 4).join(', ') + (reasons.length > 4 ? ' 외 ' + (reasons.length - 4) + '반' : '') : '배정할 수 있는 반이 없음';
+        return reasons.length ? '남은 반이 모두 겹치거나 오늘 이미 배정됨 — ' + reasons.slice(0, 4).join(', ') + (reasons.length > 4 ? ' 외 ' + (reasons.length - 4) + '반' : '') : '배정할 수 있는 반이 없음';
       };
-      // 지정한 요일·교시를 날짜·교시 순서대로 빠짐없이 채움: 겹치지 않는 반 중에서 오늘 아직 안 들어간 반 → 남은 시수가 많은 반 순.
+      // 지정한 요일·교시를 날짜·교시 순서대로 채움: 겹치지 않고 오늘 아직 안 들어간 반 중에서 고름.
       //  남은 시수가 있는데도 못 채운 칸은 그때의 이유를 기록해 두었다가 그 주 안내 창에 보여 줌.
       let added = 0; const skipWhy = {};
-      const pick = (free, day) => { const fresh = free.filter((c) => !usedDay[c + '|' + day]); return (fresh.length ? fresh : free).sort((x, y) => need[y] - need[x] || classes.indexOf(x) - classes.indexOf(y))[0]; };
+      // 규칙: 같은 반은 하루에 한 번만(연차시는 한 번 = 2차시 연달아). 되도록 같은 반은 한 주에 한 번만 → 이번 주에 아직 안 나온 반 → 남은 시수가 많은 반 순
+      const pick = (free, day) => { const w = weekOf(day); return free.slice().sort((x, y) => (usedWeek[x + '|' + w] ? 1 : 0) - (usedWeek[y + '|' + w] ? 1 : 0) || need[y] - need[x] || classes.indexOf(x) - classes.indexOf(y))[0]; };
+      const mark = (c, day) => { usedDay[c + '|' + day] = true; usedWeek[c + '|' + weekOf(day)] = true; };
       if (S.block) {   // 연차시: 고른 교시를 앞에서부터 2개씩 짝지어(예: 2·3교시, 4·5교시) 한 반을 연달아 배치
         if (selP.length < 2) return toast('연차시는 교시를 2개 이상 골라야 합니다.', true);
         const pairs = []; for (let i = 0; i + 1 < selP.length; i += 2) pairs.push([selP[i], selP[i + 1]]);
@@ -208,18 +212,18 @@
           pairs.forEach(([pa, pb]) => {
             const ka = key(d, pa), kb = key(d, pb); if ((S.grid[ka] || '').trim() || (S.grid[kb] || '').trim()) return;
             if (!classes.some((c) => need[c] >= 2)) return;
-            const free = classes.filter((c) => need[c] >= 2 && !hits(c, d, pa).length && !hits(c, d, pb).length);
+            const free = classes.filter((c) => need[c] >= 2 && !usedDay[c + '|' + day] && !hits(c, d, pa).length && !hits(c, d, pb).length);
             if (!free.length) { skipWhy[ka] = why(d, pa); skipWhy[kb] = why(d, pb); return; }
-            const c = pick(free, day), n = String(classes.indexOf(c) + 1); S.grid[ka] = n; S.grid[kb] = n; need[c] -= 2; usedDay[c + '|' + day] = true; added += 2;
+            const c = pick(free, day), n = String(classes.indexOf(c) + 1); S.grid[ka] = n; S.grid[kb] = n; need[c] -= 2; mark(c, day); added += 2;
           });
         }));
       } else {
         for (const sl of slots) {
           const k = key(sl.d, sl.p); if ((S.grid[k] || '').trim()) continue;
           if (!classes.some((c) => need[c] > 0)) continue;
-          const day = GP.ymd(sl.d), free = classes.filter((c) => need[c] > 0 && !hits(c, sl.d, sl.p).length);
+          const day = GP.ymd(sl.d), free = classes.filter((c) => need[c] > 0 && !usedDay[c + '|' + day] && !hits(c, sl.d, sl.p).length);
           if (!free.length) { skipWhy[k] = why(sl.d, sl.p); continue; }
-          const c = pick(free, day); S.grid[k] = String(classes.indexOf(c) + 1); need[c]--; usedDay[c + '|' + day] = true; added++;
+          const c = pick(free, day); S.grid[k] = String(classes.indexOf(c) + 1); need[c]--; mark(c, day); added++;
         }
       }
       const short = classes.filter((c) => need[c] > 0).map((c) => c + ' ' + need[c] + '차시');
