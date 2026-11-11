@@ -219,7 +219,7 @@
     const hasBase = !!(base.sem1 && Object.keys(base.sem1).length) || !!(base.sem2 && Object.keys(base.sem2).length) || !!(base.exceptions && base.exceptions.length) || !!(base.closeExceptions && base.closeExceptions.length);
     const src = yd || (!gen.legacyMigrated || (!anyYearly && hasBase) ? base : {});
     // 개방 칸 키는 '<요일>|<교시이름>|<공간>' (교시 이름 기준). 예전 형식 '<요일>_<번호>_<공간>' 은 번호를 'N교시' 이름으로 보고 바꿔 읽습니다.
-    const norm = (o) => { const out = {}; Object.keys(o || {}).forEach((k) => { const m = /^(\d)_(\d+)_(.+)$/.exec(k); out[m ? `${m[1]}|${m[2]}교시|${m[3]}` : k] = o[k]; }); return out; };
+    const norm = (o) => { const out = {}; Object.keys(o || {}).forEach((k) => { const m = /^([A-Za-z]+|\d)_(\d+)_(.+)$/.exec(k); out[m ? `${m[1]}|${m[2]}교시|${m[3]}` : k] = o[k]; }); return out; };
     const nex = (a) => (a || []).map((e) => (/^\d+$/.test(str(e.period).trim()) ? Object.assign({}, e, { period: str(e.period).trim() + '교시' }) : e));
     return { sem1: norm(src.sem1), sem2: norm(src.sem2), exceptions: nex(src.exceptions), closeExceptions: nex(src.closeExceptions), colors: base.colors || {} };
   }
@@ -551,7 +551,7 @@
     // 특별실 시간표 페이지는 교시를 '표의 몇 번째 줄'로 받으므로, 교시 이름 기준 설정을 지금 교시 목록의 위치로 바꿔 넘깁니다.
     const idxOf = (nm) => times.indexOf(nm);
     const fixEx = (arr) => (arr || []).map((e) => ({ date: e.date, period: idxOf(str(e.period).trim()) + 1, space: e.space })).filter((e) => e.period > 0);
-    const openIdx = (o) => { const out = {}; Object.keys(o || {}).forEach((k) => { const m = /^(\d)\|([^|]*)\|(.+)$/.exec(k); if (!m || !o[k]) return; const i = idxOf(m[2]); if (i >= 0) out[`${m[1]}_${i + 1}_${m[3]}`] = true; }); return out; };
+    const openIdx = (o) => { const out = {}; Object.keys(o || {}).forEach((k) => { const m = /^([A-Za-z]+|\d)\|([^|]*)\|(.+)$/.exec(k); if (!m || !o[k]) return; const i = idxOf(m[2]); if (i >= 0) out[`${m[1]}_${i + 1}_${m[3]}`] = true; }); return out; };
     const sems = await semestersOfYear(g.year);
     return { sem1: openIdx(cfg.sem1), sem2: openIdx(cfg.sem2), exceptions: fixEx(cfg.exceptions), closeExceptions: fixEx(cfg.closeExceptions),
       gymSpaces: gym, roomSpaces: room, times, colors, classNames: g.classNames, year: g.year,
@@ -1191,8 +1191,8 @@
       if (!/^space_open_\d+$/.test(doc.id)) return;
       let o; try { o = JSON.parse(doc.data().json || '{}'); } catch (e) { return; } let ch = false;
       ['sem1', 'sem2'].forEach((k) => { const src = o[k] || {}, out = {}; Object.keys(src).forEach((key) => {
-        let m = /^(\d)\|([^|]*)\|(.+)$/.exec(key), nk = key;
-        if (m && m[2] === from) nk = `${m[1]}|${to}|${m[3]}`; else if (!m && ln && (m = /^(\d)_(\d+)_(.+)$/.exec(key)) && m[2] === ln) nk = `${m[1]}|${to}|${m[3]}`;
+        let m = /^([A-Za-z]+|\d)\|([^|]*)\|(.+)$/.exec(key), nk = key;
+        if (m && m[2] === from) nk = `${m[1]}|${to}|${m[3]}`; else if (!m && ln && (m = /^([A-Za-z]+|\d)_(\d+)_(.+)$/.exec(key)) && m[2] === ln) nk = `${m[1]}|${to}|${m[3]}`;
         if (nk !== key) ch = true; out[nk] = src[key]; }); o[k] = out; });
       ['exceptions', 'closeExceptions'].forEach((k) => { o[k] = (o[k] || []).map((e) => { const pv = str(e.period).trim(); if (pv === from || (ln && pv === ln)) { ch = true; return Object.assign({}, e, { period: to }); } return e; }); });
       if (ch) ops.push({ type: 'set', col: 'app_config', id: doc.id, data: { json: JSON.stringify(o), updatedAt: new Date().toISOString() } });

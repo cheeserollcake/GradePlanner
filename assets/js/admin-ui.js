@@ -618,7 +618,7 @@
       const removed = removedNames.filter((o) => !items.some((x) => x.value === o)); removedNames.length = 0;
       for (const o of Object.keys(renamed)) await GP.renameSpaceData(o, renamed[o]);
       await mutateOpen((c) => {
-        const fix = (obj) => Object.keys(obj).forEach((k) => { const m = k.match(/^(\d\|[^|]*\|)(.+)$/); if (!m) return; if (renamed[m[2]]) { obj[m[1] + renamed[m[2]]] = obj[k]; delete obj[k]; } else if (removed.indexOf(m[2]) >= 0) delete obj[k]; });
+        const fix = (obj) => Object.keys(obj).forEach((k) => { const m = k.match(/^((?:[A-Za-z]+|\d)\|[^|]*\|)(.+)$/); if (!m) return; if (renamed[m[2]]) { obj[m[1] + renamed[m[2]]] = obj[k]; delete obj[k]; } else if (removed.indexOf(m[2]) >= 0) delete obj[k]; });
         fix(c.sem1); fix(c.sem2);
         ['exceptions', 'closeExceptions'].forEach((n) => { c[n] = (c[n] || []).map((e) => (renamed[e.space] ? Object.assign({}, e, { space: renamed[e.space] }) : e)).filter((e) => removed.indexOf(e.space) < 0); });
         Object.keys(renamed).forEach((o) => { if (c.colors[o]) { c.colors[renamed[o]] = c.colors[o]; delete c.colors[o]; } });
