@@ -155,7 +155,17 @@
         days.forEach((dn, i) => { for (let p = 0; p < np; p++) { head2.push({ v: p === 0 ? dn + '요일' : '', s: 'header' }); head3.push({ v: (d.names && d.names[p]) || p + 1, s: 'header' }); } merges.push(XlsxLite.colName(2 + i * np) + '2:' + XlsxLite.colName(2 + i * np + np - 1) + '2'); });
         const body = d.bottom.map((row) => row.map((v, ci) => ({ v: ci < 2 ? v : '', s: 'center' })));   // 양식에는 주·기간만 채우고 입력 칸은 비워 둡니다
         sheets.push({ name: pl.name, widths: [6, 14].concat(Array(5 * np).fill(5)), freezeRow: 3, merges, rows: [head1, head2, head3].concat(body) });
+        if (!sheets.some((x) => x.name === '작성 예시')) {   // 첫 시트 모양 그대로 몇 칸을 채운 예시 (올릴 때 이 시트는 읽지 않음)
+          const o = d.options.filter(Boolean), c1 = o[0] || '1', c2 = o[1] || c1, num = (x) => (/^\d+$/.test(x) ? x : '');
+          const ex = body.slice(0, Math.min(4, body.length)).map((row, w) => row.map((cell, ci) => {
+            if (ci < 2) return cell; const p = (ci - 2) % np, day = Math.floor((ci - 2) / np);
+            const v = day === 0 && p === 1 ? c1 : day === 0 && p === 2 ? c1 + (num(c1) ? '반' : '') : day === 1 && p === 0 && num(c2) ? (pl.d.title.match(/\d학기 (\S)/) || [])[1] + '(6-' + c2 + ')' : day === 1 && p === 0 ? c2 : '';
+            return { v: w === 0 ? '' : v, s: 'center' };
+          }));
+          sheets.push({ name: '작성 예시', widths: [6, 14].concat(Array(5 * np).fill(5)), freezeRow: 3, merges, rows: [[{ v: '작성 예시 — 이 시트는 올릴 때 읽지 않습니다. 칸에 학급 번호(' + c1 + '), ' + c1 + (num(c1) ? '반' : '') + ', 과(6-' + (num(c2) || '1') + ') 처럼 적으면 됩니다. 빈 칸은 기존 내용을 그대로 둡니다.', s: 'title' }], head2, head3].concat(ex) });
+        }
       });
+      { const i = sheets.findIndex((x) => x.name === '작성 예시'); if (i > 0) sheets.push(sheets.splice(i, 1)[0]); }   // 예시 시트는 맨 뒤로
       sheets.push({ name: '사용법', widths: [90], rows: [[{ v: '사용법', s: 'title' }], ['전담(과목·담당학급)·학기마다 시트가 하나씩 있고 시트 이름은 과목(담당학급반)_학기 형식입니다(예: 과학(1,2반)_1학기). 시트 이름과 위 3줄(제목·요일·교시 번호), 주·기간 열은 바꾸지 마세요.'], ['칸에 학급 번호(예: 3, 3반, 과(6-3))를 적으면 그 교시에 등록됩니다. 비워 둔 칸은 지금 등록된 내용을 그대로 둡니다(지우려면 전담 시간표 페이지에서 지우세요).'], ['시수가 비어 있어도 상관없습니다. 학급이 담당 학급이 아니거나 잘못된 값이면 올릴 때 알려 드립니다.'], ['저장한 뒤 학년 관리자 > 시간표 설정 > 전담 시간표 > 엑셀 업로드로 올리세요.']].map((r) => r.map((c) => (typeof c === 'string' ? { v: c, s: 'text' } : c))) });
       saveXlsx(sheets, '전담시간표_양식.xlsx'); toast('양식을 내려받았습니다.');
     });
@@ -169,7 +179,7 @@
       const byName = {}; sheetPlan(data).forEach((pl) => { byName[pl.name] = pl; });
       const list = [], bad = [], summary = [], skipped = [];
       parsed.forEach((sh) => {
-        const t = byName[sh.name]; if (!t) { if (sh.name !== '사용법') skipped.push(sh.name); return; } const np = t.d.np || 6; let hr = -1;
+        const t = byName[sh.name]; if (!t) { if (sh.name !== '사용법' && sh.name !== '작성 예시') skipped.push(sh.name); return; } const np = t.d.np || 6; let hr = -1;
         for (let r = 0; r < Math.min(sh.rows, 8); r++) if (cellOf(sh, r, 0) === '주' && cellOf(sh, r, 1) === '기간') { hr = r; break; }
         if (hr < 0) { bad.push(sh.name + ': 표 머리글(주·기간)을 찾지 못했습니다.'); return; }
         const ncols = sh.cols - 2; if (ncols !== 5 * np) { bad.push(sh.name + ': 교시 수가 맞지 않습니다. (현재 설정 ' + np + '교시 — 양식을 다시 내려받으세요)'); return; }
@@ -374,7 +384,7 @@
         '<label class="flex items-center gap-1 text-sm"><input id="evHol" type="checkbox" ' + (ed && ed.kind === 'holiday' ? 'checked' : '') + '> 휴일</label>' +
         '<button id="evSave" class="' + BTN_P + '">' + (ed ? '수정 저장' : '추가') + '</button>' + (ed ? '<button id="evCancel" class="' + BTN_G + '">취소</button>' : '') + '</div>' +
         '<p class="text-xs text-slate-400">종료일을 비워 두면 하루짜리 일정입니다. 휴일(선거일, 임시공휴일 등)로 체크하면 data_basic 의 holiday 필드에 저장됩니다.</p>' +
-        '<div class="flex flex-wrap gap-2 items-center"><button id="tpl" class="' + BTN_G + '">CSV 양식 다운로드</button><label class="' + BTN_G + ' cursor-pointer">CSV 업로드<input id="csv" type="file" accept=".csv,text/csv" class="hidden"></label></div>' +
+        '<div class="flex flex-wrap gap-2 items-center"><button id="tpl" class="' + BTN_G + '">양식 다운로드 (.xlsx)</button><label class="' + BTN_G + ' cursor-pointer">엑셀·CSV 업로드<input id="csv" type="file" accept=".xlsx,.csv,text/csv" class="hidden"></label></div>' +
         '<div class="flex items-center justify-between"><span class="text-xs text-slate-400">' + evCount + '개 일정</span><button id="evExpand" class="' + BTN_G + '">' + (window.__evOpen ? '접기' : '펼침 보기') + '</button></div>' +
         '<div id="evBox" class="border rounded-lg" style="' + (window.__evOpen ? '' : 'max-height:615px;overflow-y:auto;') + '"><table class="w-full text-sm"><tbody>' + (evHtml || '<tr><td class="p-4 text-center text-slate-400">이 학년도에 등록된 일정이 없습니다.</td></tr>') + '</tbody></table></div></div>';
       const classCard =
@@ -491,19 +501,30 @@
       if ($('evCancel')) $('evCancel').onclick = () => { editItem = null; draw(); };
       view.querySelectorAll('[data-eedit]').forEach((b) => b.onclick = () => { editItem = items[+b.dataset.eedit]; draw(); });
       view.querySelectorAll('[data-edel]').forEach((b) => b.onclick = () => { if (confirm('이 일정을 삭제할까요?')) guard(async () => { await APP.deleteBaseItem(items[+b.dataset.edel]); await loadYearData(); draw(); }, '삭제되었습니다.'); });
-      $('tpl').onclick = () => {
-        const blob = new Blob(['\uFEFF학교 행사,시작 날짜,종료 날짜,휴일 여부\n개학식,' + g.year + '-03-02,,\n중간고사,' + g.year + '-04-20,' + g.year + '-04-24,\n전국동시지방선거,' + (g.year + 1) + '-06-03,,휴일\n'], { type: 'text/csv;charset=utf-8' });
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = '기초일정_양식.csv'; a.click();
+      $('tpl').onclick = () => {   // 입력할 시트 + 작성 예시 시트
+        const H = ['학교 행사', '시작 날짜', '종료 날짜', '휴일 여부'].map((v) => ({ v, s: 'header' })), W = [26, 14, 14, 10];
+        saveXlsx([
+          { name: '기초 일정', widths: W, freezeRow: 1, rows: [H] },
+          { name: '작성 예시', widths: W, rows: [H, ['개학식', g.year + '-03-02', '', ''], ['중간고사', g.year + '-04-20', g.year + '-04-24', ''], ['전국동시지방선거', (g.year + 1) + '-06-03', '', '휴일'],
+            ['※ 이 시트는 읽지 않습니다. [기초 일정] 시트에 같은 형식으로 적어 주세요. 하루짜리 일정은 종료 날짜를 비우고, 쉬는 날은 휴일 여부에 "휴일"이라고 적습니다. 이미 등록된 일정(이름·날짜가 같은 것)은 건너뜁니다.']] }
+        ], '기초일정_양식.xlsx'); toast('양식을 내려받았습니다.');
       };
       $('csv').onchange = (ev) => guard(async () => {
-        const f = ev.target.files[0]; ev.target.value = ''; if (!f) return; const rows = parseCSV(await readCsvFile(f)); const r = range();
+        const f = ev.target.files[0]; ev.target.value = ''; if (!f) return; const r = range(); let rows;
+        if (/\.xlsx$/i.test(f.name)) {   // 엑셀: [기초 일정] 시트(없으면 '작성 예시'가 아닌 첫 시트)
+          const sh = await ExtViewer.parseXlsx(new Uint8Array(await f.arrayBuffer())); const s0 = sh.find((x) => x.name === '기초 일정') || sh.find((x) => x.name !== '작성 예시') || sh[0];
+          const serial = (v) => (/^\d{5}$/.test(v) ? (() => { const d = new Date(Math.round((Number(v) - 25569) * 86400000)); return GP.ymd(new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())); })() : v);
+          rows = []; for (let i = 0; i < s0.rows; i++) rows.push([0, 1, 2, 3].map((c) => { const v = cellOf(s0, i, c); return c === 1 || c === 2 ? serial(v) : v; })); rows = rows.filter((x) => x.some((v) => v));
+        } else rows = parseCSV(await readCsvFile(f));
         const body = rows.length && /학교|행사|일정/.test(rows[0][0]) ? rows.slice(1) : rows; const ok = [], bad = [];
+        const have = new Set(items.map((x) => [str(x.name).trim(), x.start ? GP.ymd(x.start) : '', GP.ymd(x.end || x.start)].join('|'))); let dup = 0;   // 이미 있는 일정은 건너뜀(기존 일정은 지우지 않음)
         body.forEach((c, i) => {
           const name = str(c[0]).trim(), a = toDate(c[1]), b = toDate(c[2]);
-          if (!name || !a || a < r.start || a > r.end || (b && (b < a || b > r.end))) bad.push((i + 1) + '행'); else ok.push({ name, start: a, end: b, holiday: isHolidayWord(c[3]) });
+          if (!name || !a || a < r.start || a > r.end || (b && (b < a || b > r.end))) bad.push((i + 1) + '행');
+          else { const k = [name, GP.ymd(a), GP.ymd(b || a)].join('|'); if (have.has(k)) dup++; else { have.add(k); ok.push({ name, start: a, end: b, holiday: isHolidayWord(c[3]) }); } }
         });
         if (ok.length) await APP.addBaseItems(ok); await loadYearData(); draw();
-        toast(ok.length + '건 추가' + (bad.length ? ', 건너뜀: ' + bad.slice(0, 5).join(', ') + (bad.length > 5 ? ' 외' : '') : ''), bad.length > 0);
+        toast(ok.length + '건 추가' + (dup ? ', 이미 있는 일정 ' + dup + '건 건너뜀' : '') + (bad.length ? ', 건너뜀: ' + bad.slice(0, 5).join(', ') + (bad.length > 5 ? ' 외' : '') : ''), bad.length > 0);
       });
 
       // 학급 설정
