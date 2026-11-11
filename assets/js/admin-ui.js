@@ -60,7 +60,7 @@
   $('lock').onclick = () => { location.reload(); };
 
   { const st = document.createElement('style'); st.textContent = 'input.no-spin::-webkit-outer-spin-button,input.no-spin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}input.no-spin{-moz-appearance:textfield}'; document.head.appendChild(st); }
-  const TABS = [['year', '학년도 설정'], ['time', '시간표 설정'], ['basic', '학년 기초 설정'], ['space', '공간 개방 설정'], ['budget', '예산 설정'], ['data', '비밀번호/데이터 관리']];
+  const TABS = [['year', '학년도 설정'], ['time', '시간표 설정'], ['basic', '학년 기초 설정'], ['assign', '시간표 배정'], ['space', '공간 개방 설정'], ['budget', '예산 설정'], ['data', '비밀번호/데이터 관리']];
   let tab = 'year';
   const TABS_KEYS = TABS.map((t) => t[0]);
   // 예산 페이지에서 비밀번호를 확인하고 넘어온 경우에는 다시 묻지 않습니다.
@@ -72,7 +72,7 @@
     $('gate').classList.add('hidden'); $('app').classList.remove('hidden');
     $('tabs').innerHTML = TABS.map(([k, l]) => '<button data-t="' + k + '" class="px-4 py-2 text-sm font-semibold rounded-t-lg border-b-2 ' + (k === tab ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800') + '">' + l + '</button>').join('');
     $('tabs').querySelectorAll('button').forEach((b) => b.onclick = () => { tab = b.dataset.t; start(); });
-    const go = ({ year: () => renderBasic('year'), time: renderTime, basic: () => renderBasic('basic'), space: renderSpace, budget: renderBudget, data: renderData })[tab];
+    const go = ({ year: () => renderBasic('year'), time: renderTime, basic: () => renderBasic('basic'), assign: () => window.GPAssign.render(view, { toast, esc, BTN, BTN_P, BTN_G, INP, CARD }), space: renderSpace, budget: renderBudget, data: renderData })[tab];
     const fail = (e) => { console.error(e); view.innerHTML = '<div class="' + CARD + ' border-red-200"><p class="text-red-700 font-semibold">불러오지 못했습니다.</p><p class="text-sm text-slate-500 break-all">' + esc(String((e && e.message) || e).slice(0, 300)) + '</p><button id="retry" class="' + BTN_P + '">다시 시도</button></div>'; $('retry').onclick = () => { GP.fresh(); start(); }; };
     let done = false; Promise.resolve().then(go).then(() => { done = true; }, (e) => { done = true; fail(e); });
     setTimeout(() => { if (!done && /불러오는 중/.test(view.textContent)) { const m = document.createElement('p'); m.className = 'text-xs text-amber-600 mt-2'; m.innerHTML = '오래 걸리고 있습니다. 인터넷 연결을 확인하거나 <button class="underline" id="slowRetry">다시 시도</button>를 눌러 주세요.'; view.appendChild(m); $('slowRetry').onclick = () => { GP.fresh(); start(); }; } }, 8000);
