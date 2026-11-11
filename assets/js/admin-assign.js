@@ -13,7 +13,7 @@
   const split = (v) => String(v == null ? '' : v).split(/[,，、]+/).map((x) => x.trim()).filter(Boolean);
 
   // 화면을 다시 그려도 입력하던 내용이 남도록 (페이지를 새로 열면 비워짐)
-  const S = window.__asg = window.__asg || { name: '', days: [0, 1, 2, 3, 4], pers: null, hours: '', gym: false, date: '', grid: {}, notes: {} };
+  const S = window.__asg = window.__asg || { name: '', days: [0, 1, 2, 3, 4], pers: null, hours: '', gym: false, block: false, date: '', grid: {}, notes: {} };
 
   async function render(view, h) {
     const { toast, esc, BTN, BTN_P, BTN_G, INP, CARD } = h;
@@ -78,7 +78,7 @@
         '<label class="font-semibold">날짜<input id="aDate" type="date" class="' + INP + ' w-full mt-1" value="' + esc(S.date) + '"></label></div>' +
         '<div><div class="font-semibold mb-1">요일</div>' + DAYS.map((d, i) => chk('aday', i, S.days.indexOf(i) >= 0, d)).join('') + '</div>' +
         '<div><div class="font-semibold mb-1">교시</div>' + periods.map((p) => chk('aper', p, S.pers.indexOf(p) >= 0, p)).join('') + '</div>' +
-        '<div>' + chk('agym', 1, S.gym, '체육 고려 (체육 공간 일정과 겹쳐도 괜찮음)') + '</div></div></div>';
+        '<div>' + chk('agym', 1, S.gym, '체육 고려 (체육 공간 일정과 겹쳐도 괜찮음)') + chk('ablock', 1, S.block, '연차시 (자동 배치 때 한 반을 2차시 연달아)') + '</div></div></div>';
       // 월간 일정 (5주, 첫 주만 보이고 스크롤)
       const evCell = (cls, d, p) => {
         const list = (idx.get(key(d, p)) || []).filter((e) => e.cls.some((c) => c === cls || ALL_TOKENS.test(c)));
@@ -141,6 +141,7 @@
       view.querySelectorAll('[data-aday]').forEach((el) => el.onchange = () => { const i = +el.dataset.aday; S.days = el.checked ? S.days.concat([i]).sort() : S.days.filter((x) => x !== i); draw(); });
       view.querySelectorAll('[data-aper]').forEach((el) => el.onchange = () => { const p = el.dataset.aper; S.pers = periods.filter((x) => (x === p ? el.checked : S.pers.indexOf(x) >= 0)); draw(); });
       view.querySelectorAll('[data-agym]').forEach((el) => el.onchange = () => { S.gym = el.checked; draw(); });
+      view.querySelectorAll('[data-ablock]').forEach((el) => el.onchange = () => { S.block = el.checked; });
       view.querySelectorAll('input[data-k]').forEach((inp) => {
         inp.oninput = () => { const v = inp.value.replace(/[^\d\s가-힣a-zA-Z,]/g, ''); S.grid[inp.dataset.k] = v; paintWeek(+inp.dataset.w); const c = $('aCount'); if (c) c.innerHTML = countHtml(counts(), parseInt(S.hours, 10) || 0); };
         inp.onchange = () => { const m = $('aMonth'), top = m ? m.scrollTop : 0, focusK = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.k : null; setTimeout(() => { const f = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.k : focusK; draw(); const m2 = $('aMonth'); if (m2) m2.scrollTop = top; const n = f && view.querySelector('input[data-k="' + f + '"]'); if (n) n.focus(); }, 0); };   // 칸을 벗어나면 월간 일정에도 '배정 중' 표시 (다음 칸 입력은 이어서)   // 칸을 벗어나면 월간 일정에도 '배정 중' 표시
@@ -163,6 +164,23 @@
       const slots = []; weeks().forEach((wk, w) => wk.forEach((d, i) => { if (S.days.indexOf(i) < 0 || hol.get(GP.ymd(d))) return; S.pers.forEach((p) => slots.push({ w, d, p })); }));
       const usedDay = {}; Object.keys(S.grid).forEach((k) => parse(S.grid[k]).cls.forEach((c) => { usedDay[c + '|' + k.split('|')[0]] = true; }));
       let added = 0;
+      if (S.block) {   // 연차시: 고른 교시를 앞에서부터 2개씩 짝지어(예: 2·3교시, 4·5교시) 한 반을 연달아 배치
+        const sel = periods.filter((p) => S.pers.indexOf(p) >= 0); if (sel.length < 2) return toast('연차시는 교시를 2개 이상 골라야 합니다.', true);
+        const fixed = []; for (let i = 0; i + 1 < sel.length; i += 2) fixed.push([sel[i], sel[i + 1]]);
+        const slide = []; for (let i = 1; i + 1 < sel.length; i += 2) slide.push([sel[i], sel[i + 1]]);   // 짝이 모자랄 때만 한 칸 밀린 짝(3·4교시 등)도 사용
+        const days = []; weeks().forEach((wk) => wk.forEach((d, i) => { if (S.days.indexOf(i) >= 0 && !hol.get(GP.ymd(d))) days.push(d); }));
+        for (const [pairs, pass] of [[fixed, 1], [fixed, 2], [slide, 2]]) {
+          for (const d of days) for (const [a, b] of pairs) {
+            const ka = key(d, a), kb = key(d, b); if ((S.grid[ka] || '').trim() || (S.grid[kb] || '').trim()) continue;
+            const day = GP.ymd(d);
+            const cand = classes.filter((c) => need[c] >= 2 && !hits(c, d, a).length && !hits(c, d, b).length && (pass === 2 || !usedDay[c + '|' + day]))
+              .sort((x, y) => need[y] - need[x] || classes.indexOf(x) - classes.indexOf(y));
+            if (!cand.length) continue;
+            const c = cand[0], n = String(classes.indexOf(c) + 1); S.grid[ka] = n; S.grid[kb] = n; need[c] -= 2; usedDay[c + '|' + day] = true; added += 2;
+          }
+          if (!classes.some((c) => need[c] >= 2)) break;
+        }
+      } else
       for (const pass of [1, 2]) {
         for (const s of slots) {
           const k = key(s.d, s.p); if ((S.grid[k] || '').trim()) continue;
@@ -175,7 +193,8 @@
         if (!classes.some((c) => need[c] > 0)) break;
       }
       const short = classes.filter((c) => need[c] > 0).map((c) => c + ' ' + need[c] + '차시');
-      S.notes = { 0: (added ? '자동 배치로 ' + added + '칸을 채웠습니다.' : '새로 채울 칸이 없습니다.') + (short.length ? ' <b class="text-amber-700">배정하지 못한 시수: ' + short.join(', ') + '</b> (요일·교시 조건을 넓히거나 날짜를 바꿔 보세요)' : '') };
+      const odd = S.block && classes.some((c) => need[c] === 1) ? ' (연차시는 2차시씩만 넣으므로 홀수로 남은 1차시는 직접 넣어 주세요)' : '';
+      S.notes = { 0: (added ? '자동 배치로 ' + added + '칸을 채웠습니다.' : '새로 채울 칸이 없습니다.') + (short.length ? ' <b class="text-amber-700">배정하지 못한 시수: ' + short.join(', ') + '</b> (요일·교시 조건을 넓히거나 날짜를 바꿔 보세요)' + odd : '') };
       draw(); toast(added ? '자동 배치를 마쳤습니다. 확인한 뒤 [일정 반영하기]를 누르세요.' : '새로 채울 칸이 없습니다.', !added);
     }
 
