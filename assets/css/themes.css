@@ -17,7 +17,7 @@
    ===================================================================== */
 html[data-gp-theme="flat"] body,
 html[data-gp-theme="flat"] .bg-slate-50:not(td):not(th),
-html[data-gp-theme="flat"] .bg-gray-50:not(td):not(th) { background-color: #eef1f6; }
+html[data-gp-theme="flat"] .bg-gray-50:not(td):not(th) { background-color: #f8fafc; }
 html[data-gp-theme="flat"] *:not([class*="dnd-"]) { box-shadow: none !important; text-shadow: none !important; }
 html[data-gp-theme="flat"] .rounded-xl, html[data-gp-theme="flat"] .rounded-2xl, html[data-gp-theme="flat"] .rounded-lg { border-radius: 6px; }
 html[data-gp-theme="flat"] .bg-white.rounded-xl, html[data-gp-theme="flat"] .bg-white.rounded-2xl, html[data-gp-theme="flat"] .bg-white.shadow-sm { border-color: #d7dde8; }
@@ -43,12 +43,12 @@ html[data-gp-theme="flat"] #themeSel button.on { background: #fff; color: #1d4ed
 html[data-gp-theme="flat"] #drawer { border-right: 2px solid #d7dde8; }
 html[data-gp-theme="flat"] .nav-item { border-radius: 4px; }
 html[data-gp-theme="flat"] .nav-item.active { background: #2563eb; color: #fff; }
-html[data-gp-theme="flat"] #frame { background: #eef1f6; }
+html[data-gp-theme="flat"] #frame { background: #f8fafc; }
 
 /* =====================================================================
    2) 뉴(뉴모피즘) — 바탕과 같은 색의 면이 부드러운 빛·그림자로 솟아오르거나 눌려 보임
    ===================================================================== */
-html[data-gp-theme="neu"] { --neu: #ffffff; --neu-d: #cfd7e3; --neu-l: #ffffff; --neu-in: #f3f6fa; }
+html[data-gp-theme="neu"] { --neu: #f8fafc; --neu-d: #cfd7e3; --neu-l: #ffffff; --neu-in: #f3f6fa; }
 html[data-gp-theme="neu"] body,
 html[data-gp-theme="neu"] .bg-slate-50:not(td):not(th),
 html[data-gp-theme="neu"] .bg-gray-50:not(td):not(th) { background-color: var(--neu); }
@@ -102,11 +102,10 @@ html[data-gp-theme="neu"] #frame, html[data-gp-theme="neu"] body { background: v
 /* =====================================================================
    3) 클레이(클레이모피즘) — 파스텔 바탕 위에 말랑하게 부푼 둥근 면, 안쪽 하이라이트
    ===================================================================== */
-html[data-gp-theme="clay"] { --clay-bg: #f3efff; --clay-sh: rgba(108, 84, 196, .28); }
+html[data-gp-theme="clay"] { --clay-bg: #f8fafc; --clay-sh: rgba(108, 84, 196, .28); }
 html[data-gp-theme="clay"] body,
 html[data-gp-theme="clay"] .bg-slate-50:not(td):not(th),
 html[data-gp-theme="clay"] .bg-gray-50:not(td):not(th) { background-color: var(--clay-bg); }
-html[data-gp-theme="clay"] body { background-image: radial-gradient(circle at 10% 0%, #ffe9f3 0, transparent 40%), radial-gradient(circle at 95% 10%, #e3f2ff 0, transparent 40%); background-attachment: fixed; }
 /* 카드: 부푼 찰흙 면 */
 html[data-gp-theme="clay"] .bg-white.rounded-xl, html[data-gp-theme="clay"] .bg-white.rounded-2xl,
 html[data-gp-theme="clay"] .bg-white.shadow-sm, html[data-gp-theme="clay"] .bg-white.shadow, html[data-gp-theme="clay"] .bg-white.shadow-md,
@@ -178,16 +177,16 @@ html[data-gp-theme="flat"] #themeSel button { color: #475569; }
 html[data-gp-theme="flat"] #themeSel button.on { background: #2563eb; color: #fff; }
 /* 뉴: 흰 바탕 위에 아래로 부드러운 그림자만 */
 html[data-gp-theme="neu"] header.bg-white, html[data-gp-theme="neu"] nav.bg-white, html[data-gp-theme="neu"] .bg-white.sticky:not(.rounded-xl), html[data-gp-theme="neu"] .bg-white.border-b:not(td):not(th):not(tr) {
-  background-color: #fff; border-radius: 0; border-color: transparent; box-shadow: 0 8px 14px -10px var(--neu-d);
+  background-color: var(--neu); border-radius: 0; border-color: transparent; box-shadow: 0 8px 14px -10px var(--neu-d);
 }
-html[data-gp-theme="neu"] #bar { background: #fff; box-shadow: 0 8px 14px -10px var(--neu-d); }
+html[data-gp-theme="neu"] #bar { background: var(--neu); box-shadow: 0 8px 14px -10px var(--neu-d); }
 html[data-gp-theme="neu"] td.bg-white, html[data-gp-theme="neu"] th.bg-white, html[data-gp-theme="neu"] tr.bg-white { background-color: #fff; }
-html[data-gp-theme="neu"] .bg-slate-50:not(td):not(th), html[data-gp-theme="neu"] .bg-gray-50:not(td):not(th) { background-color: #fff; }
+html[data-gp-theme="neu"] .bg-slate-50:not(td):not(th), html[data-gp-theme="neu"] .bg-gray-50:not(td):not(th) { background-color: var(--neu); }
 /* 클레이: 반투명 파스텔 + 흐림 효과, 아래쪽 둥근 모서리 */
 html[data-gp-theme="clay"] header.bg-white, html[data-gp-theme="clay"] nav.bg-white, html[data-gp-theme="clay"] .bg-white.sticky:not(.rounded-xl), html[data-gp-theme="clay"] .bg-white.border-b:not(td):not(th):not(tr) {
-  background-color: rgba(251, 249, 255, .82); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  background-color: rgba(248, 250, 252, .85); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   border-color: transparent; border-radius: 0 0 22px 22px; box-shadow: 0 10px 22px -16px var(--clay-sh), inset 0 -2px 4px rgba(120, 96, 210, .08);
 }
-html[data-gp-theme="clay"] #bar { background: rgba(251, 249, 255, .9); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 0 0 22px 22px; }
-html[data-gp-theme="clay"] #frame { background: transparent; }
+html[data-gp-theme="clay"] #bar { background: rgba(248, 250, 252, .92); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 0 0 22px 22px; }
+html[data-gp-theme="clay"] #frame { background: var(--clay-bg); }
 html[data-gp-theme="clay"] body { background-color: var(--clay-bg); }
