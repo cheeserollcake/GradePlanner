@@ -1,3 +1,6 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+/* 글꼴: 모든 디자인에서 프리텐다드 (크기는 그대로). 아이콘 글꼴(Font Awesome 등)은 건드리지 않음 */
+html body, html body *:not([class*="fa-"]):not(.fa):not(svg):not(svg *) { font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif !important; }
 /* =====================================================================
    디자인 보기(테마): 기본 / 플랫 / 뉴(뉴모피즘) / 클레이(클레이모피즘)
    - 상단 바의 버튼이 <html data-gp-theme="flat|neu|clay"> 를 바꿉니다. (기본 = 속성 없음)
@@ -154,8 +157,8 @@ html[data-gp-theme="clay"] #frame { background: var(--clay-bg); }
    플랫 = 꽉 찬 단색(Fill) · 뉴 = 가늘고 부드러운 선(Light) · 클레이 = 두 톤(Duotone)
    ===================================================================== */
 svg .gp-alt { display: none; }
-html[data-gp-theme="flat"] svg.gp-has-alt > :not(.gp-alt), html[data-gp-theme="neu"] svg.gp-has-alt > :not(.gp-alt), html[data-gp-theme="clay"] svg.gp-has-alt > :not(.gp-alt) { display: none; }
-html[data-gp-theme="flat"] svg.gp-has-alt > .gp-alt-f, html[data-gp-theme="neu"] svg.gp-has-alt > .gp-alt-l, html[data-gp-theme="clay"] svg.gp-has-alt > .gp-alt-d { display: inline; }
+html[data-gp-theme="flat"] svg.gp-has-alt > :not(.gp-alt), html[data-gp-theme="neu"] svg.gp-has-alt > :not(.gp-alt), html[data-gp-theme="clay"] svg.gp-has-alt > :not(.gp-alt), html[data-gp-theme="glass"] svg.gp-has-alt > :not(.gp-alt) { display: none; }
+html[data-gp-theme="flat"] svg.gp-has-alt > .gp-alt-f, html[data-gp-theme="neu"] svg.gp-has-alt > .gp-alt-l, html[data-gp-theme="clay"] svg.gp-has-alt > .gp-alt-d, html[data-gp-theme="glass"] svg.gp-has-alt > .gp-alt-g { display: inline; }
 html[data-gp-theme="clay"] .text-white svg.gp-has-alt > .gp-alt-d, html[data-gp-theme="clay"] button.bg-indigo-600 svg.gp-has-alt > .gp-alt-d, html[data-gp-theme="clay"] .bg-red-500 svg.gp-has-alt > .gp-alt-d { color: inherit; }
 
 /* =====================================================================
@@ -188,3 +191,44 @@ html[data-gp-theme="clay"] header.bg-white, html[data-gp-theme="clay"] nav.bg-wh
 html[data-gp-theme="clay"] #bar { background: rgba(248, 250, 252, .92); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 0 0 22px 22px; }
 html[data-gp-theme="clay"] #frame { background: var(--clay-bg); }
 html[data-gp-theme="clay"] body { background-color: var(--clay-bg); }
+
+/* =====================================================================
+   5) 글래스(글래스모피즘) — 바탕은 기본과 같은 색, 반투명 유리 면 + 흐림 + 밝은 테두리
+   ===================================================================== */
+html[data-gp-theme="glass"] { --gl: rgba(255, 255, 255, .55); --gl-b: rgba(255, 255, 255, .75); --gl-line: rgba(148, 163, 184, .28); --gl-sh: 0 8px 28px rgba(15, 23, 42, .08); }
+html[data-gp-theme="glass"] .bg-white.rounded-xl, html[data-gp-theme="glass"] .bg-white.rounded-2xl,
+html[data-gp-theme="glass"] .bg-white.shadow-sm, html[data-gp-theme="glass"] .bg-white.shadow, html[data-gp-theme="glass"] .bg-white.shadow-md,
+html[data-gp-theme="glass"] .bg-white.shadow-xl, html[data-gp-theme="glass"] .bg-white.shadow-2xl {
+  background-color: var(--gl); -webkit-backdrop-filter: blur(16px) saturate(160%); backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid var(--gl-b); outline: 1px solid var(--gl-line); outline-offset: -1px; border-radius: 18px; box-shadow: var(--gl-sh), inset 0 1px 0 rgba(255, 255, 255, .9);
+}
+html[data-gp-theme="glass"] .rounded-xl.shadow-sm:not(.bg-white), html[data-gp-theme="glass"] .rounded-lg.shadow-sm:not(.bg-white), html[data-gp-theme="glass"] .gpcard {
+  border: 1px solid rgba(255, 255, 255, .8); border-radius: 18px; box-shadow: var(--gl-sh), inset 0 1px 0 rgba(255, 255, 255, .85), inset 0 -1px 0 rgba(15, 23, 42, .04);
+}
+html[data-gp-theme="glass"] td, html[data-gp-theme="glass"] th { border-color: rgba(148, 163, 184, .3); }
+html[data-gp-theme="glass"] td.bg-white, html[data-gp-theme="glass"] th.bg-white { background-color: rgba(255, 255, 255, .6); }
+/* 버튼: 유리 알약 */
+html[data-gp-theme="glass"] button.bg-indigo-600, html[data-gp-theme="glass"] .bg-indigo-600.rounded-lg, html[data-gp-theme="glass"] button.bg-blue-600 {
+  background-color: rgba(79, 70, 229, .82); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, .35); box-shadow: 0 6px 18px rgba(79, 70, 229, .25), inset 0 1px 0 rgba(255, 255, 255, .35);
+}
+html[data-gp-theme="glass"] button.bg-slate-100, html[data-gp-theme="glass"] label.bg-slate-100, html[data-gp-theme="glass"] .bg-slate-100.rounded-lg, html[data-gp-theme="glass"] .bg-slate-100.rounded-full {
+  background-color: rgba(255, 255, 255, .55); border: 1px solid rgba(148, 163, 184, .3); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9);
+}
+html[data-gp-theme="glass"] button.bg-slate-100:hover, html[data-gp-theme="glass"] label.bg-slate-100:hover { background-color: rgba(255, 255, 255, .8); }
+/* 입력칸 */
+html[data-gp-theme="glass"] input:not([type=checkbox]):not([type=radio]):not([type=color]), html[data-gp-theme="glass"] select, html[data-gp-theme="glass"] textarea {
+  background-color: rgba(255, 255, 255, .6); border-color: rgba(148, 163, 184, .35); border-radius: 12px; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+html[data-gp-theme="glass"] td input:not([type=checkbox]):not([type=radio]):not([type=color]), html[data-gp-theme="glass"] td select { background-color: transparent; border-radius: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* 위쪽 제목줄·상단 바·메뉴 */
+html[data-gp-theme="glass"] header.bg-white, html[data-gp-theme="glass"] nav.bg-white, html[data-gp-theme="glass"] .bg-white.sticky:not(.rounded-xl), html[data-gp-theme="glass"] .bg-white.border-b:not(td):not(th):not(tr) {
+  background-color: rgba(255, 255, 255, .6); -webkit-backdrop-filter: blur(16px) saturate(160%); backdrop-filter: blur(16px) saturate(160%); border-radius: 0; border-color: rgba(148, 163, 184, .25); box-shadow: 0 6px 20px -12px rgba(15, 23, 42, .15);
+}
+html[data-gp-theme="glass"] #bar { background: rgba(255, 255, 255, .65); -webkit-backdrop-filter: blur(16px) saturate(160%); backdrop-filter: blur(16px) saturate(160%); border-bottom: 1px solid rgba(148, 163, 184, .25); }
+html[data-gp-theme="glass"] #burger { border: 1px solid rgba(148, 163, 184, .3); background: rgba(255, 255, 255, .5); }
+html[data-gp-theme="glass"] #themeSel { background: rgba(255, 255, 255, .5); border: 1px solid rgba(148, 163, 184, .3); }
+html[data-gp-theme="glass"] #themeSel button.on { background: rgba(255, 255, 255, .9); box-shadow: 0 2px 8px rgba(15, 23, 42, .1); }
+html[data-gp-theme="glass"] #drawer { background: rgba(255, 255, 255, .75); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+html[data-gp-theme="glass"] .nav-item { border-radius: 12px; }
+html[data-gp-theme="glass"] .nav-item.active { background: rgba(79, 70, 229, .12); box-shadow: inset 0 0 0 1px rgba(79, 70, 229, .2); }
+html[data-gp-theme="glass"] svg[stroke]:not(.gp-has-alt):not(.gp-alt) { stroke-width: 1.6; }

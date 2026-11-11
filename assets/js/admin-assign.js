@@ -18,11 +18,12 @@
   // 켜기/끄기 스위치 모양 (한 번만 넣음)
   function toggleCss() {
     if (document.getElementById('gp-tg-css')) return; const st = document.createElement('style'); st.id = 'gp-tg-css';
-    st.textContent = '.gp-tg{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none}.gp-tg input{position:absolute;opacity:0;width:0;height:0}' +
-      '.gp-tg-sw{position:relative;width:44px;height:24px;border-radius:999px;background:#cbd5e1;transition:background .2s;flex-shrink:0}' +
-      '.gp-tg-sw::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s}' +
-      '.gp-tg input:checked+.gp-tg-sw{background:#4f46e5}.gp-tg input:checked+.gp-tg-sw::after{transform:translateX(20px)}.gp-tg input:focus-visible+.gp-tg-sw{outline:2px solid #818cf8;outline-offset:2px}' +
-      '.gp-tg-txt{font-size:12px;font-weight:700;color:#94a3b8;min-width:2em}.gp-tg-txt::after{content:"OFF"}.gp-tg input:checked~.gp-tg-txt{color:#4f46e5}.gp-tg input:checked~.gp-tg-txt::after{content:"ON"}' +
+    st.textContent = '.gp-tg{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}.gp-tg input{position:absolute;opacity:0;width:0;height:0}' +
+      '.gp-tg-sw{position:relative;width:30px;height:17px;border-radius:999px;background:#cbd5e1;transition:background .2s;flex-shrink:0}' +
+      '.gp-tg-sw::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s}' +
+      '.gp-tg input:checked+.gp-tg-sw{background:#4f46e5}.gp-tg input:checked+.gp-tg-sw::after{transform:translateX(13px)}.gp-tg input:focus-visible+.gp-tg-sw{outline:2px solid #818cf8;outline-offset:2px}' +
+      '.gp-tg-txt{font-size:11px;font-weight:700;color:#94a3b8;min-width:2em}.gp-tg-txt::after{content:"OFF"}.gp-tg input:checked~.gp-tg-txt{color:#4f46e5}.gp-tg input:checked~.gp-tg-txt::after{content:"ON"}' +
+      '.asg-cond input[type=checkbox]{width:15px;height:15px;accent-color:#4f46e5;vertical-align:-2px}' +
       '.asg-side{display:none}.asg-top{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:8px 0}' +
       '@media (min-width:1024px){.asg-side{display:flex}.asg-top{display:none}}@media (max-width:420px){.asg-top{grid-template-columns:minmax(0,1fr)}}';
     document.head.appendChild(st);
@@ -92,7 +93,7 @@
         '<label class="font-semibold">날짜<input id="aDate" type="date" class="' + INP + ' w-full mt-1" value="' + esc(S.date) + '"></label></div>' +
         '</div>' +
         // 조건: 요일 · 교시 · 체육 고려 · 연차시
-        '<div class="border rounded-lg bg-slate-50 p-3 space-y-2 text-sm mt-3"><div class="font-bold">조건</div>' +
+        '<div class="asg-cond border rounded-lg bg-slate-50 p-3 space-y-2 text-sm mt-3"><div class="font-bold">조건</div>' +
         '<div class="flex flex-wrap items-center gap-y-1"><span class="font-semibold w-14 shrink-0">요일</span>' + DAYS.map((d, i) => chk('aday', i, S.days.indexOf(i) >= 0, d)).join('') + '</div>' +
         '<div class="flex flex-wrap items-center gap-y-1"><span class="font-semibold w-14 shrink-0">교시</span>' + periods.map((p) => chk('aper', p, S.pers.indexOf(p) >= 0, p)).join('') + '</div>' +
         '<div class="flex flex-wrap items-center gap-x-8 gap-y-2 pt-1">' + tog('agym', S.gym, '체육 고려') + tog('ablock', S.block, '연차시') + '</div></div></div>';

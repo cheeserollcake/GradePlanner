@@ -191,6 +191,9 @@
       '.gpt{font-size:13px;font-weight:600;margin-bottom:6px}.gpd{font-size:22px;font-weight:800;letter-spacing:-.3px}' +
       '.gpp{display:inline-block;margin-top:8px;padding:2px 12px;border-radius:999px;background:rgba(255,255,255,.8);font-size:12px;font-weight:700}' +
       '.gptime{margin-top:6px;font-size:14px;font-weight:700}' +
+      // 좁은 화면: 세 카드를 한 줄에 두고 글자·여백을 줄임 (아주 좁으면 한 줄에 하나씩)
+      '@media (max-width:640px){.gpgrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.gpcard{padding:12px 4px;border-radius:14px}.gpt{font-size:11px;margin-bottom:4px}.gpd{font-size:clamp(12px,3.8vw,18px);letter-spacing:-.4px;line-height:1.25;word-break:keep-all}.gpp{margin-top:6px;padding:1px 7px;font-size:10.5px}.gptime{font-size:11.5px;margin-top:4px}}' +
+      '@media (max-width:300px){.gpgrid{grid-template-columns:minmax(0,1fr)}.gpd{font-size:18px}}' +
       '.gpc1{background:linear-gradient(135deg,#ecfdf5,#ccfbf1);color:#134e4a}.gpc1 .gpt{color:#3f6f6a}' +
       '.gpc2{background:linear-gradient(135deg,#fff7ed,#fef3c7);color:#7c2d12}.gpc2 .gpt{color:#9a5b3a}' +
       '.gpc3{background:linear-gradient(135deg,#eff6ff,#e0e7ff);color:#312e81}.gpc3 .gpt{color:#5b5fa8}</style>' +

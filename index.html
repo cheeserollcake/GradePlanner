@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>학년 통합 관리 시스템</title>
   <style>
-    html, body { height: 100%; margin: 0; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background: #f8fafc; color: #1e293b; }
+    html, body { height: 100%; margin: 0; font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background: #f8fafc; color: #1e293b; }
     #bar { position: fixed; top: 0; left: 0; right: 0; height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 10px; background: #fff; border-bottom: 1px solid #e2e8f0; z-index: 30; }
     #burger { border: 0; background: transparent; font-size: 22px; line-height: 1; width: 36px; height: 36px; border-radius: 8px; cursor: pointer; color: #334155; }
     #burger:hover { background: #f1f5f9; }
@@ -22,7 +22,7 @@
     .nav-item.active { background: #e0e7ff; color: #3730a3; font-weight: 700; }
     .group { padding: 12px 12px 4px; font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: .04em; }
   </style>
-  <link rel="stylesheet" href="assets/css/themes.css?v=20261111l">
+  <link rel="stylesheet" href="assets/css/themes.css?v=20261111q">
 </head>
 <body>
   <header id="bar">
@@ -30,7 +30,7 @@
     <a id="title" href="#/home" title="홈으로" style="text-decoration:none;cursor:pointer"></a>
     <span id="pageName"></span>
     <div id="themeSel" role="group" aria-label="디자인 선택">
-      <button data-theme="" title="기본 디자인">기본</button><button data-theme="flat" title="플랫 디자인">플랫</button><button data-theme="neu" title="뉴모피즘 디자인">뉴</button><button data-theme="clay" title="클레이모피즘 디자인">클레이</button>
+      <button data-theme="" title="기본 디자인">기본</button><button data-theme="flat" title="플랫 디자인">플랫</button><button data-theme="neu" title="뉴모피즘 디자인">뉴</button><button data-theme="clay" title="클레이모피즘 디자인">클레이</button><button data-theme="glass" title="글래스모피즘 디자인">글래스</button>
     </div>
   </header>
   <div id="overlay"></div>
@@ -38,7 +38,7 @@
   <iframe id="frame" title="내용"></iframe>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="assets/js/firebase-config.js?v=20261111l"></script>
+<script src="assets/js/firebase-config.js?v=20261111q"></script>
 <script>
 (function () {
   // Firebase 도구는 여기서 한 번만 불러와 연결하고, 안쪽 페이지들이 그대로 가져다 씁니다(fb-boot.js).
@@ -96,8 +96,8 @@
       try {
         if (!d || !d.documentElement) return;
         if (THEME) d.documentElement.setAttribute('data-gp-theme', THEME); else d.documentElement.removeAttribute('data-gp-theme');
-        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261111l'; d.head.appendChild(l); }
-        if (d !== document && d.head && THEME && !d.getElementById('gp-theme-icons')) { var sc = d.createElement('script'); sc.id = 'gp-theme-icons'; sc.src = '../assets/js/theme-icons.js?v=20261111l'; d.head.appendChild(sc); }   // 디자인에 맞는 아이콘 그림 (기본 디자인일 때는 불러오지 않음)
+        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261111q'; d.head.appendChild(l); }
+        if (d !== document && d.head && THEME && !d.getElementById('gp-theme-icons')) { var sc = d.createElement('script'); sc.id = 'gp-theme-icons'; sc.src = '../assets/js/theme-icons.js?v=20261111q'; d.head.appendChild(sc); }   // 디자인에 맞는 아이콘 그림 (기본 디자인일 때는 불러오지 않음)
       } catch (e) {}
     });
     [].forEach.call(document.querySelectorAll('#themeSel button'), function (b) { b.classList.toggle('on', (b.getAttribute('data-theme') || '') === THEME); });
@@ -127,7 +127,7 @@
   function route() {
     var page = location.hash.replace('#/', '') || 'home';
     curPage = page;
-    frame.src = 'pages/' + page + '.html?v=20261111l';
+    frame.src = 'pages/' + page + '.html?v=20261111q';
     items.forEach(function (a) { a.classList.toggle('active', a.dataset.page === page); });
     setOpen(false); applyMeta();
   }
