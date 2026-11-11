@@ -13,9 +13,22 @@
   const split = (v) => String(v == null ? '' : v).split(/[,，、]+/).map((x) => x.trim()).filter(Boolean);
 
   // 화면을 다시 그려도 입력하던 내용이 남도록 (페이지를 새로 열면 비워짐)
-  const S = window.__asg = window.__asg || { name: '', days: [0, 1, 2, 3, 4], pers: null, hours: '', gym: false, block: false, date: '', grid: {}, notes: {} };
+  const S = window.__asg = window.__asg || { name: '', days: [0, 1, 2, 3, 4], pers: null, hours: '', gym: true, block: false, date: '', grid: {}, notes: {} };
 
+  // 켜기/끄기 스위치 모양 (한 번만 넣음)
+  function toggleCss() {
+    if (document.getElementById('gp-tg-css')) return; const st = document.createElement('style'); st.id = 'gp-tg-css';
+    st.textContent = '.gp-tg{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none}.gp-tg input{position:absolute;opacity:0;width:0;height:0}' +
+      '.gp-tg-sw{position:relative;width:44px;height:24px;border-radius:999px;background:#cbd5e1;transition:background .2s;flex-shrink:0}' +
+      '.gp-tg-sw::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s}' +
+      '.gp-tg input:checked+.gp-tg-sw{background:#4f46e5}.gp-tg input:checked+.gp-tg-sw::after{transform:translateX(20px)}.gp-tg input:focus-visible+.gp-tg-sw{outline:2px solid #818cf8;outline-offset:2px}' +
+      '.gp-tg-txt{font-size:12px;font-weight:700;color:#94a3b8;min-width:2em}.gp-tg-txt::after{content:"OFF"}.gp-tg input:checked~.gp-tg-txt{color:#4f46e5}.gp-tg input:checked~.gp-tg-txt::after{content:"ON"}' +
+      '.asg-side{display:none}.asg-top{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:8px 0}' +
+      '@media (min-width:1024px){.asg-side{display:flex}.asg-top{display:none}}@media (max-width:420px){.asg-top{grid-template-columns:minmax(0,1fr)}}';
+    document.head.appendChild(st);
+  }
   async function render(view, h) {
+    toggleCss();
     const { toast, esc, BTN, BTN_P, BTN_G, INP, CARD } = h;
     const GP = window.GP, APP = window.APP;
     view.innerHTML = '<p class="text-slate-400">불러오는 중...</p>';
@@ -70,15 +83,19 @@
     // ---------- 그리기 ----------
     function draw() {
       const W = weeks(), hours = parseInt(S.hours, 10) || 0;
+      const tog = (name, on, label) => '<label class="gp-tg"><span class="font-semibold">' + esc(label) + '</span><input type="checkbox" data-' + name + '="1" ' + (on ? 'checked' : '') + '><span class="gp-tg-sw" aria-hidden="true"></span><span class="gp-tg-txt"></span></label>';   // 휴대폰 설정 같은 켜기/끄기 스위치
       const chk = (name, val, on, label) => '<label class="inline-flex items-center gap-1 mr-2"><input type="checkbox" data-' + name + '="' + esc(val) + '" ' + (on ? 'checked' : '') + '>' + esc(label) + '</label>';
       const cond = '<div class="' + CARD + '"><h2 class="font-bold text-lg">시간표 배정 <span class="text-xs font-normal text-slate-400">전담·강좌·특별실 일정을 피해 빈 칸에 강좌를 배정합니다. [일정 반영하기]를 눌러야 저장됩니다.</span></h2>' +
         '<div class="grid md:grid-cols-2 gap-3 text-sm">' +
         '<label class="font-semibold">강좌명<input id="aName" class="' + INP + ' w-full mt-1" value="' + esc(S.name) + '" placeholder="예: 심폐소생술"></label>' +
-        '<div class="grid grid-cols-2 gap-3"><label class="font-semibold">시수 <span class="font-normal text-slate-400">(반마다)</span><input id="aHours" type="number" min="0" class="' + INP + ' w-full mt-1 text-right" value="' + esc(S.hours) + '"></label>' +
+        '<div class="grid grid-cols-2 gap-3"><label class="font-semibold">시수<input id="aHours" type="number" min="0" class="' + INP + ' w-full mt-1 text-right" value="' + esc(S.hours) + '"></label>' +
         '<label class="font-semibold">날짜<input id="aDate" type="date" class="' + INP + ' w-full mt-1" value="' + esc(S.date) + '"></label></div>' +
-        '<div><div class="font-semibold mb-1">요일</div>' + DAYS.map((d, i) => chk('aday', i, S.days.indexOf(i) >= 0, d)).join('') + '</div>' +
-        '<div><div class="font-semibold mb-1">교시</div>' + periods.map((p) => chk('aper', p, S.pers.indexOf(p) >= 0, p)).join('') + '</div>' +
-        '<div>' + chk('agym', 1, S.gym, '체육 고려 (체육 공간 일정과 겹쳐도 괜찮음)') + chk('ablock', 1, S.block, '연차시 (자동 배치 때 한 반을 2차시 연달아)') + '</div></div></div>';
+        '</div>' +
+        // 조건: 요일 · 교시 · 체육 고려 · 연차시
+        '<div class="border rounded-lg bg-slate-50 p-3 space-y-2 text-sm mt-3"><div class="font-bold">조건</div>' +
+        '<div class="flex flex-wrap items-center gap-y-1"><span class="font-semibold w-14 shrink-0">요일</span>' + DAYS.map((d, i) => chk('aday', i, S.days.indexOf(i) >= 0, d)).join('') + '</div>' +
+        '<div class="flex flex-wrap items-center gap-y-1"><span class="font-semibold w-14 shrink-0">교시</span>' + periods.map((p) => chk('aper', p, S.pers.indexOf(p) >= 0, p)).join('') + '</div>' +
+        '<div class="flex flex-wrap items-center gap-x-8 gap-y-2 pt-1">' + tog('agym', S.gym, '체육 고려') + tog('ablock', S.block, '연차시') + '</div></div></div>';
       // 월간 일정 (5주, 첫 주만 보이고 스크롤)
       const evCell = (cls, d, p) => {
         const list = (idx.get(key(d, p)) || []).filter((e) => e.cls.some((c) => c === cls || ALL_TOKENS.test(c)));
@@ -99,6 +116,8 @@
       const countBox = '<div class="' + CARD + '"><h3 class="font-bold">반별 배정 <span class="text-xs font-normal text-slate-400">' + (hours ? '시수 ' + hours + '차시 기준 · 맞음 = 흰색, 부족 = 연노랑, 넘침 = 분홍' : '시수를 넣으면 맞음·부족·넘침을 색으로 보여 줍니다') + '</span></h3>' +
         '<div id="aCount" class="flex flex-wrap gap-2">' + countHtml(cnt, hours) + '</div></div>';
       // 빈 시간표 5주 + 안내 + 버튼(첫 줄만)
+      // 버튼: 넓은 화면은 첫 주 옆, 좁은 화면은 [배정할 시간표] 제목 바로 아래 한 줄(더 좁으면 한 줄에 하나)
+      const btns = '<button data-act="save" class="' + BTN_P + ' whitespace-nowrap w-full">일정 반영하기</button><button data-act="reset" class="' + BTN_G + ' whitespace-nowrap w-full">배치 초기화</button><button data-act="auto" class="' + BTN + ' bg-emerald-600 text-white hover:bg-emerald-700 whitespace-nowrap w-full">자동 배치</button>';
       const grid = W.map((wk, w) => '<div class="flex flex-col lg:flex-row gap-3 items-stretch"><div class="min-w-0" style="flex:3 1 0"><div class="text-xs font-semibold text-slate-500 mb-1">' + (w + 1) + '주차 · ' + md(wk[0]) + ' ~ ' + md(wk[4]) + '</div>' +
         '<table class="border-collapse text-sm w-full" style="table-layout:fixed"><colgroup><col style="width:64px"></colgroup><thead><tr><th class="border bg-slate-100 text-xs"></th>' +
         wk.map((d, i) => { const hd = hol.get(GP.ymd(d)); return '<th class="border bg-slate-100 text-xs py-1" style="' + (S.days.indexOf(i) < 0 ? 'color:#94a3b8;' : '') + (hd ? 'color:#dc2626;' : '') + '">' + md(d) + '(' + DAYS[i] + ')' + (hd ? '<div class="font-normal" style="font-size:10px">' + esc(hd.name) + '</div>' : '') + '</th>'; }).join('') + '</tr></thead><tbody>' +
@@ -106,10 +125,10 @@
           const k = key(d, p), off = !!hol.get(GP.ymd(d)) || S.days.indexOf(i) < 0 || S.pers.indexOf(p) < 0;
           return '<td class="border p-0" style="' + (off ? 'background:#f1f5f9' : '') + '"><input data-k="' + esc(k) + '" data-w="' + w + '" value="' + esc(S.grid[k] || '') + '" class="w-full text-center bg-transparent outline-none" style="height:28px;font-size:13px" placeholder="' + (off ? '' : '') + '"></td>';
         }).join('') + '</tr>').join('') + '</tbody></table></div>' +
-        '<div class="min-w-0 border rounded-lg bg-white p-2 text-xs leading-relaxed overflow-y-auto" style="flex:2 1 0;max-height:' + (40 + periods.length * 29) + 'px" data-msg="' + w + '"></div>' +
-        '<div class="flex lg:flex-col gap-2 shrink-0" style="width:120px">' + (w === 0 ? '<button id="aSave" class="' + BTN_P + '">일정 반영하기</button><button id="aReset" class="' + BTN_G + '">배치 초기화</button><button id="aAuto" class="' + BTN + ' bg-emerald-600 text-white hover:bg-emerald-700">자동 배치</button>' : '') + '</div></div>').join('<div style="height:14px"></div>');
+        '<div class="min-w-0 border rounded-lg bg-white p-2 text-xs leading-relaxed overflow-y-auto" style="flex:2 1 0;min-height:5.5rem;max-height:' + (40 + periods.length * 29) + 'px" data-msg="' + w + '"></div>' +
+        '<div class="asg-side flex-col gap-2 shrink-0" style="width:9rem">' + (w === 0 ? btns : '') + '</div></div>').join('<div style="height:14px"></div>');
       const help = '<p class="text-xs text-slate-400">칸에 반 번호를 띄어 써서 입력합니다(예: <b>1 2 3</b> → 1반, 2반, 3반). 다른 일정과 겹치면 칸이 분홍색으로 바뀌고 오른쪽 안내 창에 무엇과 겹치는지 나옵니다. 회색 칸은 휴일이거나 조건에서 고르지 않은 요일·교시입니다(입력은 가능, 자동 배치는 건너뜀).</p>';
-      view.innerHTML = '<div class="space-y-5">' + cond + month + countBox + '<div class="' + CARD + '"><h3 class="font-bold">배정할 시간표 <span class="text-xs font-normal text-slate-400">5주</span></h3>' + help + grid + '</div></div>';
+      view.innerHTML = '<div class="space-y-5">' + cond + month + countBox + '<div class="' + CARD + '"><h3 class="font-bold">배정할 시간표 <span class="text-xs font-normal text-slate-400">5주</span></h3><div class="asg-top">' + btns + '</div>' + help + grid + '</div></div>';
       // 월간 일정: 첫 주 높이만큼만 보이게
       const m = document.getElementById('aMonth'), first = m.querySelector('.mw'); if (first) m.style.maxHeight = (first.offsetHeight + 12) + 'px';
       W.forEach((_, w) => paintWeek(w));
@@ -147,9 +166,10 @@
         inp.onchange = () => { const m = $('aMonth'), top = m ? m.scrollTop : 0, focusK = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.k : null; setTimeout(() => { const f = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.k : focusK; draw(); const m2 = $('aMonth'); if (m2) m2.scrollTop = top; const n = f && view.querySelector('input[data-k="' + f + '"]'); if (n) n.focus(); }, 0); };   // 칸을 벗어나면 월간 일정에도 '배정 중' 표시 (다음 칸 입력은 이어서)   // 칸을 벗어나면 월간 일정에도 '배정 중' 표시
         inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } };
       });
-      $('aReset').onclick = () => { if (!Object.values(S.grid).some((v) => v && v.trim())) return toast('지울 내용이 없습니다.'); if (!confirm('입력 중인 배정을 모두 지울까요? (저장된 일정은 그대로입니다)')) return; S.grid = {}; S.notes = {}; draw(); };
-      $('aAuto').onclick = autoFill;
-      $('aSave').onclick = save;
+      const reset = () => { if (!Object.values(S.grid).some((v) => v && v.trim())) return toast('지울 내용이 없습니다.'); if (!confirm('입력 중인 배정을 모두 지울까요? (저장된 일정은 그대로입니다)')) return; S.grid = {}; S.notes = {}; draw(); };
+      view.querySelectorAll('[data-act="reset"]').forEach((b) => { b.onclick = reset; });
+      view.querySelectorAll('[data-act="auto"]').forEach((b) => { b.onclick = autoFill; });
+      view.querySelectorAll('[data-act="save"]').forEach((b) => { b.onclick = save; });
     }
 
     // ---------- 자동 배치 ----------

@@ -540,6 +540,9 @@
   .gap-x-4 {
     column-gap: calc(var(--spacing) * 4);
   }
+  .gap-x-8 {
+    column-gap: calc(var(--spacing) * 8);
+  }
   :where(.space-x-1 > :not(:last-child)) {
     --tw-space-x-reverse: 0;
     margin-inline-start: calc(var(--spacing) * var(--tw-space-x-reverse));
@@ -547,6 +550,9 @@
   }
   .gap-y-1 {
     row-gap: var(--spacing);
+  }
+  .gap-y-2 {
+    row-gap: calc(var(--spacing) * 2);
   }
   :where(.divide-y > :not(:last-child)) {
     --tw-divide-y-reverse: 0;
@@ -1575,9 +1581,6 @@
     }
     .lg\:grid-cols-10 {
       grid-template-columns: repeat(10, minmax(0, 1fr));
-    }
-    .lg\:flex-col {
-      flex-direction: column;
     }
     .lg\:flex-row {
       flex-direction: row;
