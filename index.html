@@ -22,7 +22,7 @@
     .nav-item.active { background: #e0e7ff; color: #3730a3; font-weight: 700; }
     .group { padding: 12px 12px 4px; font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: .04em; }
   </style>
-  <link rel="stylesheet" href="assets/css/themes.css?v=20261111a">
+  <link rel="stylesheet" href="assets/css/themes.css?v=20261111c">
 </head>
 <body>
   <header id="bar">
@@ -38,7 +38,7 @@
   <iframe id="frame" title="내용"></iframe>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="assets/js/firebase-config.js?v=20261111a"></script>
+<script src="assets/js/firebase-config.js?v=20261111c"></script>
 <script>
 (function () {
   // Firebase 도구는 여기서 한 번만 불러와 연결하고, 안쪽 페이지들이 그대로 가져다 씁니다(fb-boot.js).
@@ -60,7 +60,11 @@
     ['관리', null],
     ['학년 관리자', 'admin']
   ];
-  var curPage = '', MAXW = { 'timetable-basic': 0, 'timetable-monthly': 0, 'timetable-special': 0, 'timetable-room': 0 }, SCROLLW = { 'timetable-basic': 1700, 'timetable-special': 1600, 'timetable-room': 1600 }, DEFW = 1230;
+  var curPage = '', MAXW = { 'timetable-basic': 0, 'timetable-monthly': 0, 'timetable-special': 0, 'timetable-room': 0, 'lookup-class': 0, 'lookup-course': 0, 'budget': 0, 'namelist': 0 },
+    // 위쪽 메뉴줄은 화면 끝까지, 본문만 폭 제한 (선택자 = 본문 상자)
+    INNER = { 'lookup-class': '.max-w-7xl', 'lookup-course': '.max-w-7xl', 'budget': '.max-w-7xl', 'namelist': '.page-section' },
+    // 화면 넓게 보기(↔ 버튼): 1단계 = 기본 폭, 2단계 = 넓게, 3단계 = 화면 전체
+    WIDE = { 'budget': 1, 'namelist': 1 }, WIDE_STEPS = [1230, 1600, 0], SCROLLW = { 'timetable-basic': 1700, 'timetable-special': 1600, 'timetable-room': 1600 }, DEFW = 1230;
   // 세로 스크롤은 브라우저 맨 오른쪽(iframe 가장자리)에 두고, 본문만 페이지별 최대 폭으로 가운데 정렬합니다.
   function applyWidth() {
     try {
@@ -74,9 +78,16 @@
         (curPage === 'timetable-room'
           ? '.scroll-container{' + pad(sw, '1rem') + '}.max-w-5xl.mx-auto.h-full,.max-w-6xl.mx-auto.h-full{max-width:none !important;' + pad(DEFW, '1.5rem') + '}'
           : '.flex-1.overflow-y-auto{' + pad(sw, '1rem') + '}');
+      var inner = INNER[curPage];
+      if (inner) { var iw = WIDE[curPage] ? WIDE_STEPS[wideStep(curPage)] : DEFW; st.textContent += inner + '{max-width:' + (iw ? iw + 'px' : 'none') + ' !important;margin-left:auto !important;margin-right:auto !important}'; }
+      try { if (frame.contentWindow.__gpWideChanged) frame.contentWindow.__gpWideChanged(wideStep(curPage)); } catch (e) {}
       b.style.maxWidth = w ? w + 'px' : 'none'; b.style.marginLeft = 'auto'; b.style.marginRight = 'auto'; b.style.boxSizing = 'border-box';
     } catch (e) {}
   }
+  function wideStep(pg) { var v = 0; try { v = parseInt(localStorage.getItem('gp_wide_' + pg), 10) || 0; } catch (e) {} return Math.max(0, Math.min(2, v)); }
+  // 안쪽 페이지의 ↔ 버튼이 부릅니다: 누를 때마다 기본 → 넓게 → 화면 전체 → 기본 …
+  window.__gpWiden = function () { if (!WIDE[curPage]) return 0; var n = (wideStep(curPage) + 1) % 3; try { localStorage.setItem('gp_wide_' + curPage, n); } catch (e) {} applyWidth(); return n; };
+  window.__gpWideStep = function () { return wideStep(curPage); };
   document.getElementById('frame').addEventListener('load', applyWidth);
   // 디자인 보기(기본/플랫/뉴/클레이): 색·그림자·모서리·아이콘 모양만 바꾸는 스타일을 바깥 화면과 안쪽 페이지에 함께 적용합니다.
   var THEME = ''; try { THEME = localStorage.getItem('gp_theme') || ''; } catch (e) {}
@@ -85,8 +96,8 @@
       try {
         if (!d || !d.documentElement) return;
         if (THEME) d.documentElement.setAttribute('data-gp-theme', THEME); else d.documentElement.removeAttribute('data-gp-theme');
-        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261111a'; d.head.appendChild(l); }
-        if (d !== document && d.head && THEME && !d.getElementById('gp-theme-icons')) { var sc = d.createElement('script'); sc.id = 'gp-theme-icons'; sc.src = '../assets/js/theme-icons.js?v=20261111a'; d.head.appendChild(sc); }   // 디자인에 맞는 아이콘 그림 (기본 디자인일 때는 불러오지 않음)
+        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261111c'; d.head.appendChild(l); }
+        if (d !== document && d.head && THEME && !d.getElementById('gp-theme-icons')) { var sc = d.createElement('script'); sc.id = 'gp-theme-icons'; sc.src = '../assets/js/theme-icons.js?v=20261111c'; d.head.appendChild(sc); }   // 디자인에 맞는 아이콘 그림 (기본 디자인일 때는 불러오지 않음)
       } catch (e) {}
     });
     [].forEach.call(document.querySelectorAll('#themeSel button'), function (b) { b.classList.toggle('on', (b.getAttribute('data-theme') || '') === THEME); });
@@ -116,7 +127,7 @@
   function route() {
     var page = location.hash.replace('#/', '') || 'home';
     curPage = page;
-    frame.src = 'pages/' + page + '.html?v=20261111a';
+    frame.src = 'pages/' + page + '.html?v=20261111c';
     items.forEach(function (a) { a.classList.toggle('active', a.dataset.page === page); });
     setOpen(false); applyMeta();
   }

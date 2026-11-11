@@ -2,11 +2,11 @@
 <html lang="ko">
 <head>
   <script>window.__GP_PAGE__ = 'p10';</script>
-  <script src="../assets/js/fb-boot.js?v=20261111a"></script>
+  <script src="../assets/js/fb-boot.js?v=20261111c"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261111a">
-  <script src="../assets/js/firebase-config.js?v=20261111a"></script>
-  <script src="../assets/js/gas-shim.js?v=20261111a"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261111c">
+  <script src="../assets/js/firebase-config.js?v=20261111c"></script>
+  <script src="../assets/js/gas-shim.js?v=20261111c"></script>
 
   
   <meta charset="UTF-8">
@@ -18,7 +18,7 @@
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     #zoom-zone { touch-action: none; }
   </style>
-<link rel="stylesheet" href="../assets/css/lock.css?v=20261111a"><script src="../assets/js/ext-viewer.js?v=20261109c"></script>  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109c">
+<link rel="stylesheet" href="../assets/css/lock.css?v=20261111c"><script src="../assets/js/ext-viewer.js?v=20261109c"></script>  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109c">
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center relative font-sans m-0 p-0 overflow-hidden">
 
@@ -46,12 +46,12 @@
     <div id="admin-panel-view" class="hidden">
       <h2 class="text-2xl font-bold mb-6 text-gray-800">관리자 설정</h2>
       
-      <!-- 1. 파일 교체 영역 (이미지, PDF, 엑셀 모두 대응) -->
+      <!-- 1. 파일 교체 영역 (이미지, PDF) -->
       <div class="text-left mb-6 pb-6 border-b border-gray-200">
         <label class="block text-sm font-semibold text-gray-700 mb-2">
           <i class="fa-solid fa-file-invoice mr-1"></i> 파일 등록/교체 (1개만 탑재)
         </label>
-        <p class="text-xs text-gray-500 mb-3">엑셀, 이미지, PDF 파일 중 딱 1개만 업로드할 수 있습니다. 새 파일 등록 시 기존에 사용하던 파일은 자동으로 완전히 삭제 교체됩니다.</p>
+        <p class="text-xs text-gray-500 mb-3">이미지 또는 PDF 파일 1개만 업로드할 수 있습니다. (엑셀은 PDF나 캡처 이미지로 저장해서 올려 주세요) 새 파일 등록 시 기존에 사용하던 파일은 자동으로 완전히 삭제 교체됩니다.</p>
         
         <div class="flex items-center justify-center w-full">
           <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
@@ -59,7 +59,7 @@
               <i id="upload-icon" class="fa-solid fa-cloud-arrow-up text-3xl text-gray-400 mb-2"></i>
               <p class="text-xs text-gray-500" id="file-display-name">파일 선택 (EXCEL, PDF, JPG, PNG)</p>
             </div>
-            <input type="file" id="file-uploader" accept=".xlsx, .pdf, image/*" class="hidden" onchange="displaySelectedFileName(this)">
+            <input type="file" id="file-uploader" accept=".pdf, application/pdf, image/*" class="hidden" onchange="displaySelectedFileName(this)">
           </label>
         </div>
         
@@ -423,8 +423,9 @@
         fileNameEl.innerText = file.name;
         
         const ext = file.name.split('.').pop().toLowerCase();
-        if (ext === 'xlsx' || ext === 'xls') {
-          iconEl.className = "fa-solid fa-file-excel text-3xl text-green-500 mb-2";
+        if (ext === 'xlsx' || ext === 'xls') {   // 엑셀은 올릴 수 없음
+          alert('엑셀 파일은 올릴 수 없습니다. 엑셀에서 PDF로 저장하거나 화면을 캡처한 이미지로 올려 주세요.');
+          input.value = ''; fileNameEl.innerText = ''; return;
         } else if (ext === 'pdf') {
           iconEl.className = "fa-solid fa-file-pdf text-3xl text-red-500 mb-2";
         } else {

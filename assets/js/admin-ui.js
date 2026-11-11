@@ -65,6 +65,8 @@
   const TABS_KEYS = TABS.map((t) => t[0]);
   // 예산 페이지에서 비밀번호를 확인하고 넘어온 경우에는 다시 묻지 않습니다.
   try { const jump = sessionStorage.getItem('gp_admin_open'); if (jump) { sessionStorage.removeItem('gp_admin_open'); if (TABS_KEYS.indexOf(jump) >= 0) tab = jump; setTimeout(() => start(), 0); } } catch (e) { /* 무시 */ }
+  // 다른 페이지에서 특정 부분으로 바로 가기 (예: 전담 시간표 페이지의 톱니 → 전담 시간표 일괄 업로드)
+  try { const to = sessionStorage.getItem('gp_admin_scroll'); if (to) { sessionStorage.removeItem('gp_admin_scroll'); let n = 0; const t = setInterval(() => { const el = document.getElementById(to); if (el || ++n > 50) { clearInterval(t); if (el) { const box = el.closest('.border.rounded-xl') || el; box.scrollIntoView({ behavior: 'smooth', block: 'center' }); box.style.transition = 'box-shadow .3s'; box.style.boxShadow = '0 0 0 3px #6366f1'; setTimeout(() => { box.style.boxShadow = ''; }, 2500); } } }, 100); } } catch (e) { /* 무시 */ }
   function start() {
     if (!window.__migTried) { window.__migTried = true; APP.migrateYearTags().then((ch) => { if (ch) toast('이전 학년도 데이터를 정리했습니다. 다른 페이지는 새로고침하면 반영됩니다.'); }).catch((e) => console.warn('학년도 표시 정리 보류', e)); }
     $('gate').classList.add('hidden'); $('app').classList.remove('hidden');
@@ -646,8 +648,9 @@
       root.querySelectorAll('[data-exadd]').forEach((b) => b.onclick = () => {
         const k = b.dataset.exadd; const date = root.querySelector('[data-exd="' + k + '"]').value; if (!date) return toast('날짜를 입력하세요.', true);
         const e = { date, period: root.querySelector('[data-exp="' + k + '"]').value, space: root.querySelector('[data-exs="' + k + '"]').value };
+        if ((cfg[k] || []).some((x) => x.date === e.date && String(x.period) === String(e.period) && x.space === e.space)) return toast('이미 같은 날짜·교시·공간이 ' + (k === 'exceptions' ? '[닫힌 곳 열기]' : '[열린 곳 닫기]') + '에 들어 있습니다.', true);   // 같은 내용 중복 입력 막기
         lastDate = date; cfg[k] = (cfg[k] || []).concat([e]); drawTables();   // 화면은 바로 고치고 저장은 뒤에서 진행(모바일에서 반응이 없어 보이던 문제)
-        mutateOpen((c) => { c[k] = (c[k] || []).concat([e]); }).then(() => toast('저장되었습니다.'));
+        mutateOpen((c) => { if (!(c[k] || []).some((x) => x.date === e.date && String(x.period) === String(e.period) && x.space === e.space)) c[k] = (c[k] || []).concat([e]); }).then(() => toast('저장되었습니다.'));
       });
       root.querySelectorAll('[data-exdel]').forEach((b) => b.onclick = () => { const k = b.dataset.exdel, i = +b.dataset.i; const e = cfg[k][i]; if (!e) return; cfg[k].splice(i, 1); drawTables();
         mutateOpen((c) => { c[k] = (c[k] || []).filter((x) => !(x.date === e.date && x.period === e.period && x.space === e.space)); }).then(() => toast('삭제되었습니다.')); });

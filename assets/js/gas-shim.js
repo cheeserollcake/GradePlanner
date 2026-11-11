@@ -1150,10 +1150,10 @@
     if (adminPwd !== pw.admin) return { success: false, message: '관리자 권한이 유효하지 않습니다.' };
     try {
       mime = str(mime); const lower = str(fileName).toLowerCase();
-      if (/\.xls$/.test(lower) || mime === 'application/vnd.ms-excel') return { success: false, message: '구형 엑셀(.xls)은 올릴 수 없습니다. 엑셀에서 .xlsx 로 다시 저장해서 올려 주세요.' };
+      if (/\.xlsx?$/.test(lower) || /spreadsheetml|ms-excel/.test(mime)) return { success: false, message: '엑셀 파일은 올릴 수 없습니다. PDF나 이미지(캡처)로 저장해서 올려 주세요.' };
       if (!mime) mime = /\.xlsx$/.test(lower) ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : /\.pdf$/.test(lower) ? 'application/pdf' : '';
       const isImg = mime.indexOf('image/') === 0, isPdf = mime === 'application/pdf', isXlsx = /spreadsheetml\.sheet$/.test(mime);
-      if (!isImg && !isPdf && !isXlsx) return { success: false, message: '엑셀(.xlsx), PDF, 이미지 파일만 올릴 수 있습니다.' };
+      if (!isImg && !isPdf) return { success: false, message: 'PDF나 이미지 파일만 올릴 수 있습니다.' };
       if (isImg) { base64 = await shrinkImage(base64, mime); mime = 'image/jpeg'; }
       if (base64.length > 6000000) return { success: false, message: '파일이 너무 큽니다. (약 4.5MB 이하로 올려 주세요)' };
       const old = await getCfg('ext_file', null); const stamp = Date.now(), CH = 450000, ids = [], ops = [];

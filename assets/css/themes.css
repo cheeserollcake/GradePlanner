@@ -63,7 +63,6 @@ html[data-gp-theme="neu"] .bg-white.shadow-xl, html[data-gp-theme="neu"] .bg-whi
 html[data-gp-theme="neu"] .rounded-xl.shadow-sm:not(.bg-white), html[data-gp-theme="neu"] .rounded-lg.shadow-sm:not(.bg-white), html[data-gp-theme="neu"] .gpcard {
   border-color: transparent; border-radius: 18px; box-shadow: 6px 6px 12px var(--neu-d), -6px -6px 12px var(--neu-l);
 }
-html[data-gp-theme="neu"] .gpcard { background-image: none; background-color: var(--neu); }
 html[data-gp-theme="neu"] header.bg-white, html[data-gp-theme="neu"] nav.bg-white { background-color: var(--neu); box-shadow: 0 6px 12px -6px var(--neu-d); }
 /* 표: 칸은 살짝 밝게, 선은 옅게 (색을 직접 정한 칸은 그대로) */
 html[data-gp-theme="neu"] table { background-color: transparent; }

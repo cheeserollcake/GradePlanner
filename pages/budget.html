@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>예산</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261111a">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261111c">
   <script>window.__GP_PAGE__ = 'budget';</script>
-  <script src="../assets/js/fb-boot.js?v=20261111a"></script>
-  <script src="../assets/js/firebase-config.js?v=20261111a"></script>
-  <script src="../assets/js/gas-shim.js?v=20261111a"></script>
-  <script src="../assets/js/app-data.js?v=20261111a"></script>
-  <script src="../assets/js/dnd.js?v=20261111a"></script>
-  <script src="../assets/js/xlsx-lite.js?v=20261111a"></script>
-  <script src="../assets/js/gsheet-export.js?v=20261111a"></script>
+  <script src="../assets/js/fb-boot.js?v=20261111c"></script>
+  <script src="../assets/js/firebase-config.js?v=20261111c"></script>
+  <script src="../assets/js/gas-shim.js?v=20261111c"></script>
+  <script src="../assets/js/app-data.js?v=20261111c"></script>
+  <script src="../assets/js/dnd.js?v=20261111c"></script>
+  <script src="../assets/js/xlsx-lite.js?v=20261111c"></script>
+  <script src="../assets/js/gsheet-export.js?v=20261111c"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     /* ---- 구글 스프레드시트 느낌의 표 ---- */
@@ -84,12 +84,12 @@
     .colx { position:absolute; right:2px; top:1px; font-size:11px; color:#9aa0a6; display:none; line-height:1; }
     .sheet th:hover .colx { display:block; } .colx:hover { color:#b91c1c; }
   </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261111a">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261111c">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
   <div class="max-w-7xl mx-auto space-y-4">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <h1 class="text-2xl font-bold">예산</h1>
+      <div class="flex items-center gap-2"><h1 class="text-2xl font-bold">예산</h1><button id="wideBtn" type="button" title="화면 넓게 보기 (누를 때마다 기본 → 넓게 → 화면 전체)" aria-label="화면 넓게 보기" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200"><svg class="w-4 h-4" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 8 22 12 18 16"></polyline><polyline points="6 8 2 12 6 16"></polyline><line x1="2" y1="12" x2="22" y2="12"></line></svg><span id="wideLbl">기본</span></button></div>
       <div class="flex flex-wrap items-center gap-2 justify-end" id="tabs"></div>
     </div>
     <div class="flex flex-wrap items-center gap-2">
@@ -1028,6 +1028,16 @@ $('btn-refresh').onclick = async () => { if (pendingN) return; try { await load(
   catch (e) { console.error(e); $('gridWrap').innerHTML = '<p class="p-6 text-center text-red-600 text-sm">데이터를 불러오지 못했습니다: ' + esc(e.message) + '</p>'; return; }
   renderAll(); startWatch();
 })();
+</script>
+<script>
+  // ↔ 화면 넓게 보기: 폭은 바깥 화면(index.html)이 정합니다. 누를 때마다 기본 → 넓게 → 화면 전체 → 기본
+  (function () {
+    var b = document.getElementById('wideBtn'); if (!b) return; var L = ['기본', '넓게', '전체'];
+    function show(n) { document.getElementById('wideLbl').textContent = L[n] || L[0]; }
+    window.__gpWideChanged = show;
+    try { if (!parent.__gpWiden || parent === window) { b.style.display = 'none'; return; } show(parent.__gpWideStep()); } catch (e) { b.style.display = 'none'; return; }
+    b.onclick = function () { try { show(parent.__gpWiden()); } catch (e) {} };
+  })();
 </script>
 </body>
 </html>
