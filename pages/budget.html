@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>예산</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261112i">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261112j">
   <script>window.__GP_PAGE__ = 'budget';</script>
-  <script src="../assets/js/fb-boot.js?v=20261112i"></script>
-  <script src="../assets/js/firebase-config.js?v=20261112i"></script>
-  <script src="../assets/js/gas-shim.js?v=20261112i"></script>
-  <script src="../assets/js/app-data.js?v=20261112i"></script>
-  <script src="../assets/js/dnd.js?v=20261112i"></script>
-  <script src="../assets/js/xlsx-lite.js?v=20261112i"></script>
-  <script src="../assets/js/gsheet-export.js?v=20261112i"></script>
+  <script src="../assets/js/fb-boot.js?v=20261112j"></script>
+  <script src="../assets/js/firebase-config.js?v=20261112j"></script>
+  <script src="../assets/js/gas-shim.js?v=20261112j"></script>
+  <script src="../assets/js/app-data.js?v=20261112j"></script>
+  <script src="../assets/js/dnd.js?v=20261112j"></script>
+  <script src="../assets/js/xlsx-lite.js?v=20261112j"></script>
+  <script src="../assets/js/gsheet-export.js?v=20261112j"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     /* ---- 구글 스프레드시트 느낌의 표 ---- */
@@ -84,7 +84,7 @@
     .colx { position:absolute; right:2px; top:1px; font-size:11px; color:#9aa0a6; display:none; line-height:1; }
     .sheet th:hover .colx { display:block; } .colx:hover { color:#b91c1c; }
   </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261112i">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261112j">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
   <div class="max-w-7xl mx-auto space-y-4">
@@ -171,7 +171,7 @@ const supText = (r, withTotal) => { const t = parseSup(r).map((x) => x.c + ' ' +
 const CARD_PALETTE = ['#CFE2F3', '#FCE5CD', '#D9EAD3', '#FFFEB5', '#E4D7F5'];   // 예산 카드 기본 색 (관리자 > 예산 설정과 같은 순서)
 const cardColor = (name) => { name = str(name).trim(); if (!name) return ''; const bs = (lists && lists.budgets) || []; const i = bs.findIndex((b) => b.name === name || b.name.split('/')[0] === name); return i < 0 ? '' : (bs[i].color || CARD_PALETTE[i % CARD_PALETTE.length]); };   // 예산종류에 해당하는 카드 색
 // 줄 색: 직접 정한 색 > 학년공통 준비물(노랑) > 예산종류의 카드 색
-const rowBg = (kind, r) => (r && r.row_color ? String(r.row_color) : (r && kind.sem && hasClass(r, '학년공통') ? '#fff3a0' : (r && kind.F && kind.F.name ? cardColor(r[kind.F.name]) : '')));   // 화면과 같은 줄 색깔
+const rowBg = (kind, r) => (r && r.row_color ? String(r.row_color) : (r && kind.sem && hasClass(r, '학년공통') ? '#e0f2fe' : (r && kind.F && kind.F.name ? cardColor(r[kind.F.name]) : '')));   // 화면과 같은 줄 색깔
 const budgetOpts = () => [...new Set(((lists && lists.budgets) || []).filter((b) => (b.pages || ['budget']).indexOf(mode) >= 0).map((b) => b.name))];   // 지금 보는 예산 페이지에 배정된 예산종류만
 
 // 머리글 이름으로 열 종류를 정함 (학년 예산과 추가한 예산 페이지가 같은 방식으로 동작)

@@ -12,10 +12,15 @@
   const st = document.createElement('style');
   st.textContent = '::highlight(gp-cls){background-color:' + MARK + ';color:inherit;text-shadow:.35px 0 0 currentColor,-.35px 0 0 currentColor}' +
     '.gp-cf-hit{font-weight:800 !important;background-image:linear-gradient(' + MARK + ',' + MARK + ') !important}' +
+    '.gp-cf-box,.gp-cf-box *{font-weight:800 !important}.gp-cf-box{outline:2px solid #4f46e5 !important;outline-offset:-2px;position:relative;z-index:1}' +
     '.gp-cf-row>td,.gp-cf-row>th{font-weight:800 !important;background-image:linear-gradient(' + MARK + ',' + MARK + ') !important}.gp-cf-row td *,.gp-cf-row input,.gp-cf-row select{font-weight:800 !important}';
   document.head.appendChild(st);
   const WORD = /[0-9A-Za-z가-힣]+/g;
   const page = (location.pathname.split('/').pop() || '').replace(/\.html$/, '');
+  // 페이지마다 강조 방법: hl = 형광펜+굵게(기본), box = 굵게+칸 테두리(형광펜 없음), both = 형광펜+굵게+칸 테두리
+  const MODE = { 'timetable-special': 'box', 'timetable-room': 'box', 'lookup-course': 'both' }[page] || 'hl';
+  const SKIP_HEAD = page === 'timetable-basic';   // 기초 시간표: 표 머리글(N반, 월~금)은 강조하지 않음
+  const cellOf = (el) => el && el.closest('td,th,.grid-col');
   const HL = typeof CSS !== 'undefined' && CSS.highlights && typeof Highlight === 'function';
   let busy = false, timer = 0;
   const tokens = (t) => String(t || '').match(WORD) || [];
@@ -26,6 +31,7 @@
     try {
       document.querySelectorAll('.gp-cf-hit').forEach((e) => e.classList.remove('gp-cf-hit'));
       document.querySelectorAll('.gp-cf-row').forEach((e) => e.classList.remove('gp-cf-row'));
+      document.querySelectorAll('.gp-cf-box').forEach((e) => e.classList.remove('gp-cf-box'));
       if (HL) CSS.highlights.delete('gp-cls');
       const sel = window.__gpSel; if (!sel || !sel.name) return;
       const name = String(sel.name), num = /^\d+반$/.test(name) ? String(parseInt(name, 10)) : null;
@@ -35,6 +41,7 @@
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, { acceptNode: (n) => {
         const p = n.parentElement; if (!p || !n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
         if (p.closest('script,style,option,svg,textarea,#gp-none')) return NodeFilter.FILTER_REJECT;
+        if (SKIP_HEAD && p.closest('thead')) return NodeFilter.FILTER_REJECT;
         return n.nodeValue.indexOf(name) >= 0 ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
       } });
       for (let n = walker.nextNode(); n; n = walker.nextNode()) {
@@ -42,6 +49,8 @@
         text.split('\n').forEach((line) => {
           const start = pos; pos += line.length + 1;
           if (!has(line, false)) return;
+          if (MODE !== 'hl') { const c = cellOf(n.parentElement); if (c) c.classList.add('gp-cf-box'); }
+          if (MODE === 'box') return;   // 형광펜 없이 칸 테두리+굵게만
           const add = (a, b) => { if (HL) { const r = new Range(); r.setStart(n, a); r.setEnd(n, b); ranges.push(r); } };
           if (onlyClasses(line)) {   // 학급 이름 목록이면 그 이름만
             let m; const re = new RegExp('(^|[^0-9A-Za-z가-힣])(' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')(?![0-9A-Za-z가-힣])', 'g');
@@ -52,14 +61,15 @@
           }
           if (!HL && n.parentElement && n.parentElement.childElementCount === 0 && n.parentElement.textContent.trim().split('\n').length === 1) n.parentElement.classList.add('gp-cf-hit');   // 하이라이트를 못 쓰는 오래된 브라우저
           const cell = n.parentElement.closest('td,th'); const tr = cell && cell.parentElement;
-          if (tr && tr.tagName === 'TR' && tr.firstElementChild === cell && cell.textContent.trim() === name) tr.classList.add('gp-cf-row');   // 줄 머리가 학급 이름 → 그 줄 전체
+          if (tr && tr.tagName === 'TR' && !tr.closest('thead') && tr.querySelector('td') && tr.firstElementChild === cell && cell.textContent.trim() === name) tr.classList.add('gp-cf-row');   // 줄 머리가 학급 이름 → 그 줄 전체 (머리글 줄은 제외)
         });
       }
       if (HL && ranges.length) CSS.highlights.set('gp-cls', new Highlight(...ranges));
       // 2) 입력칸·선택칸 값 (전담 시간표의 선택칸은 번호도 인정)
       document.querySelectorAll('input:not([type=checkbox]):not([type=radio]):not([type=color]),select').forEach((el) => {
         if (el.closest('#clsSel')) return;
-        if (has(el.value, el.tagName === 'SELECT' && page === 'timetable-special')) el.classList.add('gp-cf-hit');
+        if (!has(el.value, el.tagName === 'SELECT' && page === 'timetable-special')) return;
+        if (MODE === 'hl') el.classList.add('gp-cf-hit'); else { const c = cellOf(el); (c || el).classList.add('gp-cf-box'); if (MODE === 'both') el.classList.add('gp-cf-hit'); }
       });
       // 3) 예산 학급별 수량 등 data-raw → 그 줄 전체
       document.querySelectorAll('[data-raw]').forEach((el) => { if (has(el.getAttribute('data-raw'), false)) { const tr = el.closest('tr'); if (tr) tr.classList.add('gp-cf-row'); else el.classList.add('gp-cf-hit'); } });
