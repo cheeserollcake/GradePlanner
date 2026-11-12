@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261112c">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261112e">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>학년 개요</title>
-  <script src="../assets/js/fb-boot.js?v=20261112c"></script>
-  <script src="../assets/js/firebase-config.js?v=20261112c"></script>
-  <script src="../assets/js/gas-shim.js?v=20261112c"></script>
-  <script src="../assets/js/app-data.js?v=20261112c"></script>
+  <script src="../assets/js/fb-boot.js?v=20261112e"></script>
+  <script src="../assets/js/firebase-config.js?v=20261112e"></script>
+  <script src="../assets/js/gas-shim.js?v=20261112e"></script>
+  <script src="../assets/js/app-data.js?v=20261112e"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     .cell { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
@@ -30,22 +30,22 @@
     .row-today td:first-child { box-shadow: inset 3px 0 0 #2563eb, inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
     .row-today td:last-child { box-shadow: inset -3px 0 0 #2563eb, inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
   </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261112c">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261112e">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
 <div class="max-w-7xl mx-auto space-y-6">
   <h1 class="text-2xl font-bold"><span id="gradeLabel">6</span>학년 개요 <span id="yearLabel" class="text-base font-medium text-slate-400"></span></h1>
 
   <section class="space-y-2">
-    <h2 class="font-bold text-lg">학년 개요</h2>
-    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto"><table class="w-full text-sm text-center" id="info"></table></div>
+    <div class="flex items-center gap-2"><h2 class="font-bold text-lg">학년 개요</h2><button type="button" class="ov-fold inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200" data-fold="ovInfo" aria-expanded="false"><span class="ov-ic">▸</span><span class="ov-lb">펼치기</span></button></div>
+    <div id="ovInfo" style="display:none" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto"><table class="w-full text-sm text-center" id="info"></table></div>
   </section>
 
   <section id="dayCards"></section>
 
   <section class="space-y-2">
-    <h2 class="font-bold text-lg">학년 예산</h2>
-    <div id="cards" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"></div>
+    <div class="flex items-center gap-2"><h2 class="font-bold text-lg">학년 예산</h2><button type="button" class="ov-fold inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200" data-fold="ovCards" aria-expanded="false"><span class="ov-ic">▸</span><span class="ov-lb">펼치기</span></button></div>
+    <div id="ovCards" style="display:none"><div id="cards" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"></div></div>
   </section>
 
   <section class="space-y-2">
@@ -121,7 +121,7 @@ async function renderInfo() {
       t.classList.remove('narrow'); t.style.maxWidth = tot + 'em'; t.style.setProperty('--ph', (wh / tot * 100).toFixed(3) + '%'); t.style.setProperty('--pc', (wc / tot * 100).toFixed(3) + '%'); t.style.setProperty('--ps', (ws / tot * 100).toFixed(3) + '%');
     }
   };
-  window.addEventListener('resize', fitInfo);
+  window.addEventListener('resize', fitInfo); window.__fitInfo = fitInfo;   // 접힌 표를 펼칠 때 다시 맞춤
   document.getElementById('info').innerHTML = '<colgroup><col class="ovh">' + names.map(() => '<col class="ovc">').join('') + '<col class="ovs"></colgroup><thead><tr><th class="' + th + '">구분</th>' + names.map((c) => '<th class="' + th + '">' + esc(c) + '</th>').join('') + '<th class="' + th + '">계</th></tr></thead><tbody>' +
     numRow('학생수', all) + numRow('남', m) + numRow('여', f) + memoRow() + homeRow() + '</tbody>';
   fitInfo();
@@ -211,6 +211,17 @@ document.getElementById('mSave').onclick = async () => {
 };
 document.querySelectorAll('#filters button').forEach((b) => b.onclick = () => applyFilter(b.dataset.f));
 load(false, false).catch((e) => { console.error(e); alert('데이터를 불러오지 못했습니다: ' + e.message); });
+</script>
+<script>
+  // 학년 개요·학년 예산 접기/펼치기 (처음에는 접힘)
+  document.querySelectorAll('.ov-fold').forEach(function (b) {
+    b.onclick = function () {
+      var box = document.getElementById(b.dataset.fold), open = box.style.display === 'none';
+      box.style.display = open ? '' : 'none'; b.setAttribute('aria-expanded', open ? 'true' : 'false');
+      b.querySelector('.ov-ic').textContent = open ? '▾' : '▸'; b.querySelector('.ov-lb').textContent = open ? '접기' : '펼치기';
+      if (open && window.__fitInfo) try { window.__fitInfo(); } catch (e) {}
+    };
+  });
 </script>
 </body>
 </html>
