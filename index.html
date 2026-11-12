@@ -23,14 +23,23 @@
     .nav-item:hover { background: #eef2ff; }
     .nav-item.active { background: #e0e7ff; color: #3730a3; font-weight: 700; }
     .group { padding: 12px 12px 4px; font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: .04em; }
+    /* 학급 선택 버튼줄: 제목줄 가운데 */
+    #clsSel { flex: 1 1 auto; min-width: 0; display: flex; justify-content: center; gap: 3px; overflow-x: auto; scrollbar-width: none; padding: 0 6px; }
+    #clsSel::-webkit-scrollbar { display: none; }
+    #clsSel button { flex-shrink: 0; border: 1px solid #e2e8f0; background: #fff; color: #475569; font: inherit; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+    #clsSel button:hover { background: #eef2ff; color: #3730a3; }
+    #clsSel button.on { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+    #clsSel .lbl { flex-shrink: 0; align-self: center; font-size: 11px; color: #94a3b8; margin-right: 2px; }
+    @media (max-width: 900px) { #pageName { display: none; } #clsSel { justify-content: flex-start; } }
   </style>
-  <link rel="stylesheet" href="assets/css/themes.css?v=20261112f">
+  <link rel="stylesheet" href="assets/css/themes.css?v=20261112g">
 </head>
 <body>
   <header id="bar">
     <button id="burger" aria-label="메뉴 열기">☰</button>
     <a id="title" href="#/home" title="홈으로" style="text-decoration:none;cursor:pointer"></a>
     <span id="pageName"></span>
+    <div id="clsSel" role="group" aria-label="학급 선택"></div>
     <div id="themeSel" role="group" aria-label="디자인 선택">
       <button data-theme="" title="기본 디자인">기본</button><button data-theme="flat" title="플랫 디자인">플랫</button><button data-theme="neu" title="뉴모피즘 디자인">뉴</button><button data-theme="clay" title="클레이모피즘 디자인">클레이</button><button data-theme="glass" title="글래스모피즘 디자인">글래스</button>
     </div>
@@ -40,7 +49,7 @@
   <iframe id="frame" title="내용"></iframe>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="assets/js/firebase-config.js?v=20261112f"></script>
+<script src="assets/js/firebase-config.js?v=20261112g"></script>
 <script>
 (function () {
   // Firebase 도구는 여기서 한 번만 불러와 연결하고, 안쪽 페이지들이 그대로 가져다 씁니다(fb-boot.js).
@@ -98,8 +107,8 @@
       try {
         if (!d || !d.documentElement) return;
         if (THEME) d.documentElement.setAttribute('data-gp-theme', THEME); else d.documentElement.removeAttribute('data-gp-theme');
-        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261112f'; d.head.appendChild(l); }
-        if (d !== document && d.head && THEME && !d.getElementById('gp-theme-icons')) { var sc = d.createElement('script'); sc.id = 'gp-theme-icons'; sc.src = '../assets/js/theme-icons.js?v=20261112f'; d.head.appendChild(sc); }   // 디자인에 맞는 아이콘 그림 (기본 디자인일 때는 불러오지 않음)
+        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261112g'; d.head.appendChild(l); }
+        if (d !== document && d.head && THEME && !d.getElementById('gp-theme-icons')) { var sc = d.createElement('script'); sc.id = 'gp-theme-icons'; sc.src = '../assets/js/theme-icons.js?v=20261112g'; d.head.appendChild(sc); }   // 디자인에 맞는 아이콘 그림 (기본 디자인일 때는 불러오지 않음)
       } catch (e) {}
     });
     [].forEach.call(document.querySelectorAll('#themeSel button'), function (b) { b.classList.toggle('on', (b.getAttribute('data-theme') || '') === THEME); });
@@ -108,6 +117,26 @@
     b.addEventListener('click', function () { THEME = b.getAttribute('data-theme') || ''; try { localStorage.setItem('gp_theme', THEME); } catch (e) {} applyTheme(); });
   });
   document.getElementById('frame').addEventListener('load', applyTheme);
+  // 학급 선택: 고른 학급(번호)을 브라우저에 기억하고, 안쪽 페이지에 알려 그 학급 내용을 굵게 보여 줍니다(관리자 페이지 제외).
+  var CLASSES = []; try { CLASSES = JSON.parse(localStorage.getItem('gp_classes') || '[]') || []; } catch (e) {}
+  function selClass() { var v = 0; try { v = parseInt(localStorage.getItem('gp_cls'), 10) || 0; } catch (e) {} return v >= 1 && v <= CLASSES.length ? v : 0; }
+  function drawClassSel() {
+    var box = document.getElementById('clsSel'), cur = selClass(); if (!box) return;
+    box.innerHTML = '<span class="lbl">학급</span>' + CLASSES.map(function (c, i) { return '<button type="button" data-cls="' + (i + 1) + '" class="' + (cur === i + 1 ? 'on' : '') + '" title="' + c + ' 내용 굵게 보기 (다시 누르면 해제)">' + c.replace(/[<>&"]/g, '') + '</button>'; }).join('');
+    [].forEach.call(box.querySelectorAll('[data-cls]'), function (b) {
+      b.onclick = function () { var n = +b.getAttribute('data-cls'); try { localStorage.setItem('gp_cls', selClass() === n ? '' : String(n)); } catch (e) {} drawClassSel(); applyClass(); };
+    });
+  }
+  function applyClass() {
+    var fr = document.getElementById('frame'), w, d; try { w = fr.contentWindow; d = fr.contentDocument; } catch (e) { return; }
+    if (!w || !d || !d.head) return;
+    var n = selClass(); w.__gpSel = n ? { n: n, name: CLASSES[n - 1] } : null;
+    if (curPage === 'admin') { w.__gpSel = null; if (w.__gpClassFocus) w.__gpClassFocus.apply(); return; }
+    if (w.__gpClassFocus) { w.__gpClassFocus.apply(); return; }
+    if (!d.getElementById('gp-class-focus')) { var sc = d.createElement('script'); sc.id = 'gp-class-focus'; sc.src = '../assets/js/class-focus.js?v=20261112g'; d.head.appendChild(sc); }
+  }
+  drawClassSel();
+  document.getElementById('frame').addEventListener('load', applyClass);
   applyTheme();
   var drawer = document.getElementById('drawer'), overlay = document.getElementById('overlay'), frame = document.getElementById('frame');
   var items = [];
@@ -129,7 +158,7 @@
   function route() {
     var page = location.hash.replace('#/', '') || 'home';
     curPage = page;
-    frame.src = 'pages/' + page + '.html?v=20261112f';
+    frame.src = 'pages/' + page + '.html?v=20261112g';
     items.forEach(function (a) { a.classList.toggle('active', a.dataset.page === page); });
     setOpen(false); applyMeta();
   }
@@ -142,6 +171,7 @@
     getDb().then(function (db) { return db.collection('app_config').doc('general').get(); }).then(function (snap) {
       var g = snap.exists && snap.data() && snap.data().json ? JSON.parse(snap.data().json) : {};
       var next = { year: g.year || meta.year, grade: g.grade || 6 };
+      var n = Math.max(1, parseInt(g.classCount, 10) || 10); CLASSES = Array.from({ length: n }, function (_, i) { return (g.classNames && g.classNames[i]) || (i + 1) + '반'; }); try { localStorage.setItem('gp_classes', JSON.stringify(CLASSES)); } catch (e) {} drawClassSel(); applyClass();
       if (next.year !== meta.year || next.grade !== meta.grade) { meta = next; applyMeta(); }
       try { localStorage.setItem('gp_meta', JSON.stringify(meta)); } catch (e) {}
     }).catch(function (e) { console.warn('title load failed', e); });
@@ -153,7 +183,7 @@
 <script>
   // 새 버전 자동 확인: 브라우저가 예전 index.html 을 기억하고 있으면 version.json(캐시 없이 읽음)과 비교해 한 번 새로고침합니다.
   (function () {
-    var MINE = '20261112f';
+    var MINE = '20261112g';
     try {
       fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
         if (!j || !j.v || j.v === MINE) return;
