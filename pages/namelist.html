@@ -3,17 +3,17 @@
   <head>
   <meta charset="UTF-8">
   <script>window.__GP_PAGE__ = 'p03';</script>
-  <script src="../assets/js/fb-boot.js?v=20261111q"></script>
+  <script src="../assets/js/fb-boot.js?v=20261112b"></script>
   
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261111q">
-  <script src="../assets/js/firebase-config.js?v=20261111q"></script>
-  <script src="../assets/js/gas-shim.js?v=20261111q"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261112b">
+  <script src="../assets/js/firebase-config.js?v=20261112b"></script>
+  <script src="../assets/js/gas-shim.js?v=20261112b"></script>
 
     
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- React 및 라이브러리 (unpkg 차단 및 Babel 호환성 문제로 cdnjs 및 Babel 7로 변경) -->
-  <script src="../assets/js/react.min.js?v=20261111q"></script>
+  <script src="../assets/js/react.min.js?v=20261112b"></script>
     
     <!-- 스타일 정의 -->
     <style>
@@ -134,7 +134,7 @@
       .xl-step { width:2rem; height:2rem; border:1px solid #cbd5e1; border-radius:.4rem; background:#fff; font-weight:700; }
       .xl-bar button:disabled { opacity:.5; cursor:wait; }
     </style>
-  <link rel="stylesheet" href="../assets/css/lock.css?v=20261111q">  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109c">
+  <link rel="stylesheet" href="../assets/css/lock.css?v=20261112b">  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109c">
 </head>
   <body>
 
@@ -151,7 +151,7 @@
     
     <!-- (A) 학년 전체 명렬표 섹션 -->
     <div id="grade-section" class="page-section">
-      <div class="xl-bar"><button class="xl" id="xl-open">⬇ 내보내기 (엑셀·스프레드시트)</button><button class="up" id="xl-up">⬆ 엑셀 업로드</button><button id="xl-sample">예시 파일 받기</button><input type="file" id="xl-file" accept=".xlsx" style="display:none"><span id="xl-msg" style="font-size:.8rem;color:#64748b"></span></div>
+      <div class="xl-bar"><button class="xl" id="xl-open">⬇ 내보내기 (엑셀·스프레드시트)</button><button class="up" id="xl-up">⬆ 엑셀 업로드</button><button id="xl-sample">업로드 양식 받기</button><input type="file" id="xl-file" accept=".xlsx" style="display:none"><span id="xl-msg" style="font-size:.8rem;color:#64748b"></span></div>
       <div id="xl-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:3000;align-items:center;justify-content:center;padding:1rem">
         <div style="background:#fff;border-radius:1rem;padding:1.25rem;width:100%;max-width:26rem;max-height:92vh;overflow:auto" class="xl-box">
           <h3 style="font-weight:700;font-size:1.1rem;margin-bottom:.75rem">명렬표 내보내기</h3>
@@ -172,8 +172,8 @@
       <div id="root-class"></div>
     </div>
 
-    <script src="../assets/js/xlsx-lite.js?v=20261111q"></script>
-    <script src="../assets/js/gsheet-export.js?v=20261111q"></script>
+    <script src="../assets/js/xlsx-lite.js?v=20261112b"></script>
+    <script src="../assets/js/gsheet-export.js?v=20261112b"></script>
     <script>
       (function () {
         const $ = (id) => document.getElementById(id);
@@ -315,6 +315,7 @@
         function parseRoster(sheets) {   // 시트(이름 또는 제목에 'n반') + 머리글(번호/이름/성별/기타/생년월일[/반])
           const out = [], notes = [];
           sheets.forEach((sh) => {
+            if (String(sh.name).trim() === '작성 예시') return;   // 예시 시트는 읽지 않음
             let cls = (String(sh.name).match(/(\d+)\s*반/) || [])[1];
             { const ci = (window.__CN || []).indexOf(String(sh.name).trim()); if (ci >= 0) cls = String(ci + 1); }   // 시트 이름이 학급 이름(예: 사과반)이면 그 반
             if (!cls) for (let i = 0; i < Math.min(3, sh.rows.length) && !cls; i++) cls = ((sh.rows[i] || []).map(String).join(' ').match(/(\d+)\s*반\s*명렬표/) || [])[1];
@@ -341,19 +342,19 @@
             const bad = rows.filter((r) => r.cls < 1 || r.cls > CC); const ok = rows.filter((r) => r.cls >= 1 && r.cls <= CC);
             if (!ok.length) return alert('올릴 명단을 찾지 못했습니다. 예시 파일의 형식(시트 이름 ‘1반’, 머리글 번호·이름·성별·기타·생년월일)을 확인해 주세요.' + (notes.length ? '\n\n' + notes.slice(0, 5).join('\n') : ''));
             const classes = [...new Set(ok.map((r) => r.cls))].sort((a, b) => a - b);
-            const msg = classes.map((c) => window.__cn(c) + ' ' + ok.filter((r) => r.cls === c).length + '명').join(', ') + '\n\n위 반의 기존 명단은 파일 내용으로 바뀝니다(파일에 없는 번호는 비워집니다). 계속할까요?' + (bad.length ? '\n\n※ 학급 수(' + CC + '개) 밖의 반 ' + bad.length + '명은 제외됩니다.' : '') + (notes.length ? '\n\n' + notes.slice(0, 5).join('\n') : '');
+            const msg = classes.map((c) => window.__cn(c) + ' ' + ok.filter((r) => r.cls === c).length + '명').join(', ') + '\n\n내용이 있는 시트만 반영합니다. 같은 번호의 학생은 바뀐 칸만 고치고, 똑같은 내용은 건너뛰며, 새 번호는 추가합니다. 기존 명단은 지우지 않습니다. 계속할까요?' + (bad.length ? '\n\n※ 학급 수(' + CC + '개) 밖의 반 ' + bad.length + '명은 제외됩니다.' : '') + (notes.length ? '\n\n' + notes.slice(0, 5).join('\n') : '');
             if (!confirm(msg)) return;
             $('xl-msg').textContent = '업로드 중…';
             const res = JSON.parse(await call('importStudents', ok)); if (!res.success) throw new Error(res.error);
-            $('xl-msg').textContent = ok.length + '명을 올렸습니다.';
+            $('xl-msg').textContent = '추가 ' + (res.added || 0) + '명, 수정 ' + (res.updated || 0) + '명, 같은 내용이라 건너뜀 ' + (res.same || 0) + '명';
             if (window.__gpReloadGrade) window.__gpReloadGrade(); if (window.__gpReloadClass) window.__gpReloadClass();
           } catch (e) { $('xl-msg').textContent = ''; alert('엑셀을 읽지 못했습니다: ' + (e.message || e)); }
         };
         // ------------------------------------------------------------ 예시 파일
         $('xl-sample').onclick = () => {
           const sample = [['김하나', '여성', '', '2014.03.02.'], ['이둘', '남성', '', '2014.05.17.'], ['박셋', '남성', '전학생', '2014.11.30.']];
-          const mk = (n) => ({ name: n + '반', widths: [8, 14, 8, 20, 18], freezeRow: 2, rows: [[cell(n + '반 명렬표', 'title')], ['번호', '이름', '성별', '기타', '생년월일'].map((v) => cell(v, 'totalLabel'))].concat(Array.from({ length: 30 }, (_, i) => { const s = n === 1 && sample[i] ? sample[i] : ['', '', '', '']; const st = GENDER[s[1]] || 'center'; return [cell(i + 1, st), cell(s[0], st), cell(s[1], st), cell(s[2], st), cell(s[3], st)]; })) });
-          save([mk(1), mk(2)], '명렬표_업로드_예시');
+          const mk = (n, ex) => ({ name: ex ? '작성 예시' : String(window.__cn(n)).replace(/[\[\]:*?\/\\]/g, ' ').slice(0, 31), widths: [8, 14, 8, 20, 18], freezeRow: 2, rows: [[cell(ex ? '작성 예시 — 이 시트는 올릴 때 읽지 않습니다. 각 반 시트에 이렇게 적어 주세요.' : window.__cn(n) + ' 명렬표', 'title')], ['번호', '이름', '성별', '기타', '생년월일'].map((v) => cell(v, 'totalLabel'))].concat(Array.from({ length: 30 }, (_, i) => { const s = ex && sample[i] ? sample[i] : ['', '', '', '']; const st = GENDER[s[1]] || 'center'; return [cell(i + 1, st), cell(s[0], st), cell(s[1], st), cell(s[2], st), cell(s[3], st)]; })) });
+          save(Array.from({ length: CC || 1 }, (_, i) => mk(i + 1)).concat([mk(1, true)]), '명렬표_업로드_양식');   // 관리자에서 정한 학급 수만큼 빈 시트(이름 = 학급 이름) + 작성 예시   // 관리자에서 정한 학급 수만큼 시트 (이름 = 학급 이름)
         };
       })();
     </script>

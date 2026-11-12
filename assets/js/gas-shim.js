@@ -677,13 +677,18 @@
   SERVER.importStudents = (rows) => inStuQ(async function () {
     try {
       const classes = [...new Set(rows.map((r) => Number(r.cls)))]; const all = await getCol('data_student'); const ops = []; const used = new Set();
+      // 덮어쓰지 않고 합치기: 같은 반·번호가 있으면 바뀐 칸만 고치고(내용이 같으면 건너뜀), 없으면 추가. 파일에 없는 학생은 지우지 않음.
+      let added = 0, updated = 0, same = 0; void classes;
       rows.forEach((r) => {
         const data = { student_class: Number(r.cls), student_num: Number(r.no), student_name: str(r.name).trim(), student_gender: gNorm(r.gender), student_memo: str(r.memo).trim(), student_birth: str(r.birth).trim() };
         const cur = all.find((x) => num(x.student_class) === data.student_class && num(x.student_num) === data.student_num && !used.has(x._id));
-        if (cur) { used.add(cur._id); ops.push({ type: 'update', col: 'data_student', id: cur._id, data }); } else ops.push({ type: 'set', col: 'data_student', id: newId('data_student'), data });
+        if (cur) {
+          used.add(cur._id); const diff = {};
+          ['student_name', 'student_gender', 'student_memo', 'student_birth'].forEach((k) => { if (data[k] !== '' && str(cur[k]).trim() !== data[k]) diff[k] = data[k]; });   // 파일에서 빈 칸은 기존 값을 그대로 둠
+          if (Object.keys(diff).length) { ops.push({ type: 'update', col: 'data_student', id: cur._id, data: diff }); updated++; } else same++;
+        } else { ops.push({ type: 'set', col: 'data_student', id: newId('data_student'), data }); added++; }
       });
-      all.forEach((x) => { if (classes.indexOf(num(x.student_class)) >= 0 && !used.has(x._id)) ops.push({ type: 'delete', col: 'data_student', id: x._id }); });
-      await commit(ops); return JSON.stringify({ success: true, count: rows.length });
+      await commit(ops); return JSON.stringify({ success: true, count: rows.length, added, updated, same });
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
   });
   SERVER.verifyPassword = async function (a, b) {
