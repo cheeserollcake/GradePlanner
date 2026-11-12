@@ -38,9 +38,17 @@
       const has = (t, allowNum) => { const k = tokens(t); return k.indexOf(name) >= 0 || (allowNum && num && k.indexOf(num) >= 0); };
       // 1) 글자: 줄 단위로 찾아 하이라이트
       const ranges = [];
+      // 0) 반·교시·내용을 나눠 그린 일정 한 줄(.gp-ln) → 그 학급이 들어 있으면 줄 전체 (data-cls 에 "1반,4반"처럼 모든 학급 이름이 있음)
+      document.querySelectorAll('.gp-ln').forEach((ln) => {
+        const cl = (ln.getAttribute('data-cls') || '').split(',').map((x) => x.trim());
+        if (cl.indexOf(name) < 0 && !has(ln.textContent, false)) return;
+        if (MODE !== 'hl') { const c = cellOf(ln); if (c) c.classList.add('gp-cf-box'); }
+        if (MODE === 'box') return;
+        if (HL) { const r = new Range(); r.selectNodeContents(ln); ranges.push(r); } else ln.classList.add('gp-cf-hit');
+      });
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, { acceptNode: (n) => {
         const p = n.parentElement; if (!p || !n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-        if (p.closest('script,style,option,svg,textarea,#gp-none')) return NodeFilter.FILTER_REJECT;
+        if (p.closest('script,style,option,svg,textarea,#gp-none,.gp-ln')) return NodeFilter.FILTER_REJECT;
         if (SKIP_HEAD && p.closest('thead')) return NodeFilter.FILTER_REJECT;
         return n.nodeValue.indexOf(name) >= 0 ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
       } });

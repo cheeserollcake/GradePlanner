@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261112l">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261112m">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>학년 개요</title>
-  <script src="../assets/js/fb-boot.js?v=20261112l"></script>
-  <script src="../assets/js/firebase-config.js?v=20261112l"></script>
-  <script src="../assets/js/gas-shim.js?v=20261112l"></script>
-  <script src="../assets/js/app-data.js?v=20261112l"></script>
+  <script src="../assets/js/fb-boot.js?v=20261112m"></script>
+  <script src="../assets/js/firebase-config.js?v=20261112m"></script>
+  <script src="../assets/js/gas-shim.js?v=20261112m"></script>
+  <script src="../assets/js/app-data.js?v=20261112m"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     .cell { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
@@ -30,7 +30,7 @@
     .row-today td:first-child { box-shadow: inset 3px 0 0 #2563eb, inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
     .row-today td:last-child { box-shadow: inset -3px 0 0 #2563eb, inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
   </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261112l">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261112m">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
 <div class="max-w-7xl mx-auto space-y-6">
@@ -145,7 +145,7 @@ function renderRows() {
     return '<tr data-key="' + r.key + '" class="border-b last:border-0 align-top ' + cls + (r.key === t ? ' row-today' : '') + '">' +
       '<td class="p-2 font-bold whitespace-nowrap">' + r.date.getFullYear().toString().slice(2) + '.' + (r.date.getMonth() + 1) + '.' + r.date.getDate() + ' (' + DAYN[r.dow] + ') ' +
       '<button type="button" class="edit ml-1 align-middle opacity-70 hover:opacity-100" title="수정" data-key="' + r.key + '">✏️</button></td>' +
-      '<td class="p-2 cell">' + esc(r.school) + '</td><td class="p-2 cell">' + esc(r.lecturer) + '</td><td class="p-2 cell">' + esc(r.memo) + '</td></tr>';
+      '<td class="p-2 cell">' + esc(r.school) + '</td><td class="p-2 cell">' + (r.lecturerHtml || esc(r.lecturer)) + '</td><td class="p-2 cell">' + esc(r.memo) + '</td></tr>';
   }).join('');
 }
 // 수정(연필) 버튼: 표가 다시 그려져도 동작하도록 위임 방식으로 처리 (모바일 터치 포함)

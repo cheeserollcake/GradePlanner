@@ -96,11 +96,22 @@
       groups.forEach((g) => {
         g.cls.sort((a, b) => num(a) - num(b) || natural(a, b));
         const clsText = g.cls.filter(Boolean).map((c, i, arr) => (i < arr.length - 1 ? c.replace(/반$/, '') : c)).join(', ');
-        items.push({ p: g.ts.length ? num(g.ts[0]) : 9999, c: g.cls.length ? num(g.cls[0]) : 9999, text: [clsText, g.ts.join(', '), name].filter(Boolean).join(' ') });
+        const tsText = g.ts.join(', ');
+        // 화면용: [반] [교시] [내용]을 따로 묶어, 좁은 화면에서 줄이 바뀌어도 교시·내용이 반 이름 오른쪽 칸에 맞춰 내려가게 함
+        const html = '<div class="gp-ln lec-ln" data-cls="' + hesc(g.cls.filter(Boolean).join(',')) + '">' + (clsText ? '<span class="lec-c">' + hesc(clsText) + '</span>' : '') +
+          '<span class="lec-r">' + (tsText ? '<span class="lec-t">' + hesc(tsText) + '</span> ' : '') + (name ? '<span class="lec-n">' + hesc(name) + '</span>' : '') + '</span></div>';
+        items.push({ p: g.ts.length ? num(g.ts[0]) : 9999, c: g.cls.length ? num(g.cls[0]) : 9999, text: [clsText, tsText, name].filter(Boolean).join(' '), html });
       });
     });
-    return items.sort((a, b) => a.p - b.p || a.c - b.c || natural(a.text, b.text)).map((x) => x.text).join('\n');
+    items.sort((a, b) => a.p - b.p || a.c - b.c || natural(a.text, b.text));
+    return { text: items.map((x) => x.text).join('\n'), html: items.map((x) => x.html).join('') };
   }
+  const hesc = (v) => str(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // 강사 일정 칸 모양 (홈·개요 표에서 사용)
+  const LEC_CSS = '.lec-ln{display:flex;align-items:flex-start;gap:.3em;white-space:normal;word-break:keep-all}' +
+    '.lec-c{flex:0 1 auto;max-width:45%;white-space:normal}.lec-r{flex:1 1 0;min-width:0}' +
+    '.lec-t,.lec-n{display:inline-block;max-width:100%;vertical-align:top;white-space:normal;word-break:keep-all;overflow-wrap:anywhere}';
+  if (typeof document !== 'undefined' && !document.getElementById('gp-lec-css')) { const st = document.createElement('style'); st.id = 'gp-lec-css'; st.textContent = LEC_CSS; (document.head || document.documentElement).appendChild(st); }
 
   // from~to 사이의 모든 날짜를 순서대로 돌려줍니다. (해당 일정이 없어도 날짜는 항상 나옵니다.)
   async function buildSchedule(from, to) {
@@ -119,7 +130,7 @@
       const k = ymd(d); const h = hol.get(k);
       const lines = []; if (h) lines.push(h.name);
       (ev[k] || []).forEach((t) => { if (!h || t.trim() !== h.name.trim()) lines.push(t); });
-      out.push({ date: d, key: k, dow: d.getDay(), holiday: h ? h.name : '', isHoliday: !!h, school: lines.join('\n'), lecturer: lecturerText(lec[k] || []), memo: (memo[k] || []).join('\n') });
+      out.push({ date: d, key: k, dow: d.getDay(), holiday: h ? h.name : '', isHoliday: !!h, school: lines.join('\n'), ...(() => { const L = lecturerText(lec[k] || []); return { lecturer: L.text, lecturerHtml: L.html }; })(), memo: (memo[k] || []).join('\n') });
     }
     return out;
   }
