@@ -50,8 +50,13 @@
     const wb = xml(wbText); const relText = await read('xl/_rels/workbook.xml.rels'); const rels = xml(relText || '<r/>');
     const relMap = {}; kids(rels, 'Relationship').forEach((r) => { relMap[r.getAttribute('Id')] = r.getAttribute('Target'); });
     const relOf = (sh) => sh.getAttribute('r:id') || ([...sh.attributes].find((a) => a.localName === 'id') || {}).value;
-    const sstXml = await read('xl/sharedStrings.xml'); const sst = [];
-    if (sstXml) kids(xml(sstXml), 'si').forEach((si) => { let t = ''; [...si.childNodes].forEach((c) => { if (c.nodeName === 't') t += c.textContent; else if (c.nodeName === 'r') kids(c, 't').forEach((x) => { t += x.textContent; }); }); sst.push(t); });
+    // 공유 문자열(한글 등 글자 칸): 위치는 workbook 관계 파일에서 찾고(이름이 다를 수 있음), 태그 앞에 접두사(x: 등)가 붙어도 읽음
+    const typeRel = kids(rels, 'Relationship').find((r) => /\/sharedStrings$/i.test(r.getAttribute('Type') || ''));
+    let sstPath = typeRel ? typeRel.getAttribute('Target') : ''; if (sstPath) sstPath = sstPath.charAt(0) === '/' ? sstPath.slice(1) : sstPath.replace(/^\.\.\//, '').replace(/^(?!xl\/)/, 'xl/');
+    let sstXml = (sstPath && await read(sstPath)) || await read('xl/sharedStrings.xml');
+    if (!sstXml) { const nm = read.names.find((k) => /sharedstrings[^/]*\.xml$/i.test(k)); if (nm) sstXml = await read(nm); }
+    const sst = [];
+    if (sstXml) kids(xml(sstXml), 'si').forEach((si) => { let t = ''; [...si.childNodes].forEach((c) => { const ln = c.localName || c.nodeName; if (ln === 't') t += c.textContent; else if (ln === 'r') kids(c, 't').forEach((x) => { t += x.textContent; }); }); sst.push(t); });
     // 서식(배경색·굵게·정렬·날짜)
     const st = { xfs: [], fills: [], fonts: [], fmts: {} };
     const stXml = await read('xl/styles.xml');
