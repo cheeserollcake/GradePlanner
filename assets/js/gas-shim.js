@@ -479,7 +479,7 @@
 
 
   // ---------------------------------------------------------------- 공통 비밀번호 (관리자 페이지에서 변경)
-  const getPw = async () => Object.assign({ access: '0000', admin: '0000' }, await getCfg('passwords', {}));
+  const getPw = async () => Object.assign({ access: '000000', admin: '000000' }, await getCfg('passwords', {}));
   const setPw = (pw) => setCfg('passwords', pw);
 
   // ================================================================ 보안 (비밀번호 페이지)
@@ -565,7 +565,6 @@
     newAccess = String(newAccess || '').trim(); newAdmin = String(newAdmin || '').trim();
     if (!newAccess && !newAdmin) return { success: false, message: '새 비밀번호를 입력해 주세요.' };
     if ((newAccess && newAccess.length < 6) || (newAdmin && newAdmin.length < 6)) return { success: false, message: '새 비밀번호는 6자 이상으로 정해 주세요. (숫자·영문을 섞으면 더 안전합니다)' };
-    if (newAccess && newAdmin && newAccess === newAdmin) return { success: false, message: '페이지 접근 비밀번호와 관리자 비밀번호는 서로 달라야 합니다.' };
     if (!(await secured())) {
       const cur = await getPw();
       if (adminPw ? adminPw !== cur.admin : !hasLevel('admin')) return { success: false, message: '관리자 비밀번호가 일치하지 않습니다.' };
