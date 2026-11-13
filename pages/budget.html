@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>예산</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261113b">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261113f">
   <script>window.__GP_PAGE__ = 'budget';</script>
-  <script src="../assets/js/fb-boot.js?v=20261113b"></script>
-  <script src="../assets/js/firebase-config.js?v=20261113b"></script>
-  <script src="../assets/js/gas-shim.js?v=20261113b"></script>
-  <script src="../assets/js/app-data.js?v=20261113b"></script>
-  <script src="../assets/js/dnd.js?v=20261113b"></script>
-  <script src="../assets/js/xlsx-lite.js?v=20261113b"></script>
-  <script src="../assets/js/gsheet-export.js?v=20261113b"></script>
+  <script src="../assets/js/fb-boot.js?v=20261113f"></script>
+  <script src="../assets/js/firebase-config.js?v=20261113f"></script>
+  <script src="../assets/js/gas-shim.js?v=20261113f"></script>
+  <script src="../assets/js/app-data.js?v=20261113f"></script>
+  <script src="../assets/js/dnd.js?v=20261113f"></script>
+  <script src="../assets/js/xlsx-lite.js?v=20261113f"></script>
+  <script src="../assets/js/gsheet-export.js?v=20261113f"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     /* ---- 구글 스프레드시트 느낌의 표 ---- */
@@ -84,7 +84,7 @@
     .colx { position:absolute; right:2px; top:1px; font-size:11px; color:#9aa0a6; display:none; line-height:1; }
     .sheet th:hover .colx { display:block; } .colx:hover { color:#b91c1c; }
   </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261113b">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261113f">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
   <div class="max-w-7xl mx-auto space-y-4">
@@ -120,6 +120,8 @@
       <div><label class="text-sm font-semibold block mb-1">추가할 열 <span class="font-normal text-slate-400">(누르면 열 순서 맨 끝에 들어가고, 끌어서 원하는 자리에 넣을 수도 있어요)</span></label>
         <div id="aExtra" class="flex flex-wrap gap-1.5 min-h-[34px]"></div>
         <div class="flex gap-2 mt-2"><input id="aNew" class="flex-1 border rounded-lg px-3 py-1.5 text-sm" placeholder="새 열 이름 (예: 구입처)"><button id="aNewAdd" type="button" class="px-3 py-1.5 rounded-lg bg-slate-100 text-sm font-semibold hover:bg-slate-200">+ 열 추가</button></div></div>
+      <div><label class="text-sm font-semibold block mb-1">필터 기준 <span class="font-normal text-slate-400">(표 위에 이 열로 골라 보는 칸이 생겨요. 여러 개 고를 수 있어요)</span></label>
+        <div id="aFilt" class="flex flex-wrap gap-x-4 gap-y-1 text-sm"></div></div>
       <p id="aErr" class="text-sm font-semibold text-red-600 hidden"></p>
       <div class="flex justify-end gap-2 pt-1">
         <button id="aCancel" class="px-4 py-2 rounded-lg bg-slate-100 text-sm font-semibold">취소</button>
@@ -237,9 +239,11 @@ const rawKind = (m) => {
   if (m === 'budget') return budgetKind();
   if (m === 'fee') return feeKind();
   if (m === 'supply1' || m === 'supply2') return supplyKind(m === 'supply1' ? 1 : 2);
-  const sh = sheets.find((x) => 'sheet:' + x.id === m); if (!sh) return budgetKind();
+  const sh = shownSheets().find((x) => 'sheet:' + x.id === m); if (!sh) return budgetKind();
   const { cols, F } = colsFor(sh.cols.map((c) => ({ name: c.name, k: 'f_' + c.id, cid: c.id })));
-  return { id: 'sheet:' + sh.id, name: sh.name, col: SHEET_COL, custom: sh, cols, F, filters: [] };
+  // 추가한 예산 페이지의 필터: 페이지를 만들 때 고른 열(sh.filters = 열 id 목록)
+  const flt = (Array.isArray(sh.filters) ? sh.filters : sh.cols.filter((c) => c.name === '예산종류').map((c) => c.id)).map((id) => sh.cols.find((c) => c.id === id)).filter(Boolean).map((c) => [c.name, 'f_' + c.id]);
+  return { id: 'sheet:' + sh.id, name: sh.name, col: SHEET_COL, custom: sh, cols, F, filters: flt };
 };
 const ord = (r) => (typeof r.row_order === 'number' ? r.row_order : Number(r.row_order) || 0);
 const byOrder = (a, b) => ord(a) - ord(b) || (a._id < b._id ? -1 : a._id > b._id ? 1 : 0);
@@ -284,12 +288,27 @@ const storeVal = (c, v) => (c.t === 'num' ? String(v).replace(/,/g, '').trim() :
 // ======================= 화면 =======================
 function renderTabs() {
   const tab = (id, name, on) => '<button data-m="' + esc(id) + '" class="px-4 py-1.5 rounded-full text-sm font-bold ' + (on || mode === id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">' + esc(name) + '</button>';
-  $('tabs').innerHTML = tab('budget', '학년 예산') + tab('fee', '학년회비') + tab(/^supply/.test(mode) ? mode : (new Date().getMonth() >= 7 || new Date().getMonth() <= 1 ? 'supply2' : 'supply1'), '학습준비물', /^supply/.test(mode)) + sheets.map((s) => tab('sheet:' + s.id, s.name)).join('') +
+  $('tabs').innerHTML = tab('budget', '학년 예산') + tab('fee', '학년회비') + tab(/^supply/.test(mode) ? mode : (new Date().getMonth() >= 7 || new Date().getMonth() <= 1 ? 'supply2' : 'supply1'), '학습준비물', /^supply/.test(mode)) + shownSheets().map((s) => tab('sheet:' + s.id, s.name)).join('') +
     '<button id="tabAdd" title="예산 페이지 추가" aria-label="예산 페이지 추가" class="px-4 py-1.5 rounded-full text-sm font-bold bg-slate-100 text-slate-600 hover:bg-slate-200" style="min-width:5.25rem"><span style="font-size:1.15em;line-height:1">+</span></button>';
   $('tabs').querySelectorAll('[data-m]').forEach((b) => b.onclick = () => { if (/^supply/.test(b.dataset.m) && /^supply/.test(mode)) return; setMode(b.dataset.m); });
   $('tabAdd').onclick = () => openAdd('new');
 }
-function setMode(m) { mode = m; filters = {}; blankN = 1; renderAll(); }
+function setMode(m) { mode = m; filters = {}; blankN = 1; classFilter(); renderAll(); }
+// 상단에서 학급을 골라 두면: 예산종류로 거르는 추가 예산 페이지(예: 학급운영비)는 그 반의 예산종류만 보여 줌
+function selClassName() {
+  try { if (window.__gpSel && window.__gpSel.name) return String(window.__gpSel.name); } catch (e) { /* 무시 */ }
+  try { const n = parseInt(localStorage.getItem('gp_cls'), 10); if (n > 0) return (lists && lists.classes && lists.classes[n - 1]) || (window.__cn ? window.__cn(n) : n + '반'); } catch (e) { /* 무시 */ }
+  return '';
+}
+function classFilter(cls) {
+  const kind = rawKind(mode); if (!kind.custom || !kind.F.name || !kind.filters.some(([, k]) => k === kind.F.name)) return false;
+  const c = cls === undefined ? selClassName() : cls; const k = kind.F.name;
+  if (!c) { if (cls !== undefined) delete filters[k]; return true; }
+  const hit = budgetOpts().find((o) => o === c || o.indexOf(c + ' ') === 0);
+  if (hit) filters[k] = hit; else if (cls !== undefined) delete filters[k];
+  return true;
+}
+window.__gpClassChanged = (sel) => { if (classFilter(sel && sel.name ? String(sel.name) : '')) { renderFilters(); renderGrid(); } };
 function renderAll() { renderTabs(); renderCards(); renderSupplyBox(); renderFilters(); renderTools(); renderGrid(); }
 
 async function renderCards() {
@@ -314,21 +333,21 @@ function renderFilters() {
   const uniq = (k) => [...new Set(allRows(kind).map((r) => str(r[k]).trim()).filter(Boolean))].sort(natural);
   f.style.display = kind.filters.length ? '' : 'none';
   f.innerHTML = kind.filters.map(([label, k]) => '<select data-k="' + k + '" class="border rounded-lg px-3 py-1.5 bg-white text-sm"><option value="">' + label + ' 전체</option>' +
-    (k === 'supply_class' ? ['학년공통'].concat(classNames()) : uniq(k)).map((v) => '<option ' + (filters[k] === v ? 'selected' : '') + ' value="' + esc(v) + '">' + esc(v) + '</option>').join('') + '</select>').join('');
+    (k === 'supply_class' ? ['학년공통'].concat(classNames()) : (kind.custom && k === kind.F.name) ? [...new Set(budgetOpts().concat(uniq(k)))] : uniq(k)).map((v) => '<option ' + (filters[k] === v ? 'selected' : '') + ' value="' + esc(v) + '">' + esc(v) + '</option>').join('') + '</select>').join('');
   f.querySelectorAll('select').forEach((s) => s.onchange = () => { filters[s.dataset.k] = s.value; renderGrid(); });
 }
 function renderTools() {
   const kind = kindOf(mode), t = $('sheetTools'); t.style.display = kind.custom ? '' : 'none'; t.classList.toggle('hidden', !kind.custom); if (!kind.custom) return;
   t.innerHTML = '<button id="tAddCol" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white border border-slate-300 hover:bg-slate-50">+ 열 추가 · 순서</button>' +
     '<button id="tRename" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white border border-slate-300 hover:bg-slate-50">✏️ 예산명 변경</button>' +
-    '<button id="tDel" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white border border-red-200 text-red-600 hover:bg-red-50">🗑 이 페이지 삭제</button>';
+    (kind.custom.id === 'classfee' ? '' : '<button id="tDel" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white border border-red-200 text-red-600 hover:bg-red-50">🗑 이 페이지 삭제</button>');   // 기본 페이지(학급운영비)는 삭제 불가
   $('tAddCol').onclick = () => openAdd('cols');
   $('tRename').onclick = async () => {
     const v = (prompt('예산명을 입력하세요.', kind.custom.name) || '').trim(); if (!v || v === kind.custom.name) return;
     const err = nameError(v, kind.custom.id); if (err) return alert(err);
     kind.custom.name = v; await enqueue(saveSheets); renderTabs();
   };
-  $('tDel').onclick = async () => {
+  if ($('tDel')) $('tDel').onclick = async () => {
     const s = kind.custom, n = allRows(kind).length;
     if (!confirm('[' + s.name + '] 페이지를 삭제할까요?' + (n ? '\n입력된 ' + n + '줄도 함께 삭제됩니다.' : ''))) return;
     const ids = allRows(kind).map((r) => r._id);
@@ -338,9 +357,11 @@ function renderTools() {
   };
 }
 const nextColId = (s) => { let n = 1; const used = new Set(s.cols.map((c) => c.id)); while (used.has('c' + n)) n++; return 'c' + n; };
-const saveSheets = () => commit([{ type: 'set', col: 'app_config', id: 'budget_sheets', data: { json: JSON.stringify({ sheets }), updatedAt: new Date().toISOString() } }]);
+const shownSheets = () => sheets.filter((x) => x.id === 'classfee' || !num(x.year) || num(x.year) === curYear);   // 지금 학년도에 보이는 추가 페이지
+let sheetSeed = {};   // 기본 페이지·카드를 이미 만들었다는 표시(지운 뒤 다시 만들지 않도록 유지)
+const saveSheets = () => commit([{ type: 'set', col: 'app_config', id: 'budget_sheets', data: { json: JSON.stringify({ sheets, seed: sheetSeed }), updatedAt: new Date().toISOString() } }]);
 function nameError(v, exceptId) {
-  if (['학년 예산', '학습준비물', '학습준비물 1학기', '학습준비물 2학기', '예산 내역'].indexOf(v) >= 0 || sheets.some((s) => s.id !== exceptId && s.name === v)) return '같은 이름의 예산 페이지가 이미 있습니다.';
+  if (['학년 예산', '학습준비물', '학습준비물 1학기', '학습준비물 2학기', '예산 내역'].indexOf(v) >= 0 || shownSheets().some((s) => s.id !== exceptId && s.name === v)) return '같은 이름의 예산 페이지가 이미 있습니다.';
   return '';
 }
 
@@ -378,7 +399,7 @@ function renderGrid() {
       ? '<th data-hd="' + ci + '"><input class="hcell" data-h="' + ci + '" value="' + esc(c.label) + '">' + (kind.cols.length > 1 ? '<button class="colx" data-colx="' + ci + '" title="열 삭제">✕</button>' : '') + '</th>'
       : '<th class="dnd-handle" data-hd="' + ci + '" title="끌어서 열 위치 이동">' + esc(c.label) + '</th>').join('') + '</tr>';
   const sum = calcIdx >= 0 ? rows.reduce((a, r) => a + kind.cols[calcIdx].calc(r), 0) : 0;
-  const addRow = '<tr class="addrow"><td colspan="' + (kind.cols.length + 1) + '"><div class="addin"><button data-addrows class="w-9 h-9 rounded-full bg-white border border-slate-300 text-xl font-bold text-slate-600 hover:bg-indigo-50 leading-none" title="빈 줄 5개 더 추가">+</button></div></td></tr>';
+  const addRow = '<tr class="addrow"><td colspan="' + (kind.cols.length + 1) + '"><div class="addin"><button data-addrows style="min-width:5.25rem" class="h-9 px-4 rounded-full bg-white border border-slate-300 text-xl font-bold text-slate-600 hover:bg-indigo-50 leading-none" title="빈 줄 5개 더 추가">+</button></div></td></tr>';
   const foot = calcIdx >= 0 ? '<tfoot><tr><th class="rn"></th>' + kind.cols.map((c, ci) => ci === 0 ? '<td colspan="' + calcIdx + '" style="text-align:right">합계</td>' : ci < calcIdx ? '' : ci === calcIdx ? '<td id="sumCell" style="text-align:right">' + fmt(sum) + '</td>' : '<td></td>').join('') + '</tr></tfoot>' : '';
   $('gridWrap').innerHTML = dl + '<table class="sheet"><colgroup><col style="width:' + RN + 'px">' + kind.cols.map((c, ci) => '<col data-ci="' + ci + '">').join('') + '</colgroup>' +
     '<thead>' + head + '</thead><tbody>' + rows.map((r, i) => rowHtml(kind, r, i, listIds)).join('') + Array.from({ length: blankN }, (_, j) => rowHtml(kind, null, rows.length + j, listIds)).join('') + addRow + '</tbody>' + foot + '</table>';
@@ -820,7 +841,13 @@ function openAdminGate() {
 const DEFAULT_HEADS = ['예산종류', '품명', '규격', '수량', '단가', '금액(합)', '링크', '비고'];
 const HIDDEN_HEADS = ['수량(합)', '희망학급'];   // 더 이상 고를 수 없는 열 이름 (학급별 수량은 '학급별수량' 열을 씁니다)
 const SUP_HEAD = '학급별수량';
-let aList = [], typedHeads = [], aMode = 'new';   // aList: 열 순서
+let aList = [], typedHeads = [], aMode = 'new', aFilt = [];   // aList: 열 순서, aFilt: 필터로 쓸 열 이름
+const NO_FILTER = ['금액(합)', '금액', '수량', '단가', '링크', '비고', '학급별수량', '완료상태'];   // 걸러 보기에 맞지 않는 열
+function drawFilt() {
+  const can = aList.filter((h) => NO_FILTER.indexOf(h) < 0); aFilt = aFilt.filter((h) => can.indexOf(h) >= 0);
+  $('aFilt').innerHTML = can.length ? can.map((h) => '<label class="inline-flex items-center gap-1.5"><input type="checkbox" class="aF w-4 h-4" value="' + esc(h) + '" ' + (aFilt.indexOf(h) >= 0 ? 'checked' : '') + '>' + esc(h) + '</label>').join('') : '<span class="text-xs text-slate-400">고를 수 있는 열이 없습니다.</span>';
+  $('aFilt').querySelectorAll('.aF').forEach((c) => c.onchange = () => { aFilt = [...$('aFilt').querySelectorAll('.aF')].filter((x) => x.checked).map((x) => x.value); });
+}
 function aPool() {
   const saved = ((lists && lists.budgetHeaders) || []).filter((h) => HIDDEN_HEADS.indexOf(h) < 0);
   return [...new Set(DEFAULT_HEADS.concat([SUP_HEAD], saved, typedHeads))].filter((h) => aList.indexOf(h) < 0);
@@ -832,6 +859,7 @@ function drawOrder() {
   $('aExtra').innerHTML = pool.length ? pool.map((h) => '<span class="' + chip + 'bg-slate-100 text-slate-600 cursor-pointer hover:bg-indigo-50" data-n="' + esc(h) + '" data-src="pool">+ ' + esc(h) + '</span>').join('') : '<span class="text-xs text-slate-400">더 추가할 열이 없습니다. 아래에서 새로 만들 수 있습니다.</span>';
   $('aOrder').querySelectorAll('[data-x]').forEach((b) => b.onclick = () => { aList = aList.filter((x) => x !== b.dataset.x); drawOrder(); });
   $('aExtra').querySelectorAll('[data-src="pool"]').forEach((c) => c.onclick = () => { aList.push(c.dataset.n); drawOrder(); });
+  drawFilt();
 }
 DnD.bind($('addModal'), { handle: '.dchip', item: '.dchip', drop: '#aOrder .dchip', zone: '#aOrder, #aExtra', axis: 'x', onDrop: (el, tgt, after, zone) => {
   const n = el.dataset.n; if (el.dataset.src === 'order') aList = aList.filter((x) => x !== n);
@@ -841,8 +869,8 @@ DnD.bind($('addModal'), { handle: '.dchip', item: '.dchip', drop: '#aOrder .dchi
 function openAdd(m) {
   aMode = m === 'cols' ? 'cols' : 'new'; $('aErr').classList.add('hidden'); typedHeads = []; $('aNew').value = '';
   const kind = kindOf(mode);
-  if (aMode === 'cols') { aList = kind.custom.cols.map((c) => c.name); $('aTitle').textContent = '열 추가 · 순서 변경 (' + kind.custom.name + ')'; $('aNameBox').style.display = 'none'; $('aOk').textContent = '적용'; }
-  else { aList = DEFAULT_HEADS.slice(); $('aName').value = ''; $('aTitle').textContent = '예산 페이지 추가'; $('aNameBox').style.display = ''; $('aOk').textContent = '추가'; }
+  if (aMode === 'cols') { aList = kind.custom.cols.map((c) => c.name); aFilt = kind.filters.map((f) => f[0]); void (kind.custom.filters || []).map((id) => (kind.custom.cols.find((c) => c.id === id) || {}).name).filter(Boolean); $('aTitle').textContent = '열 추가 · 순서 변경 (' + kind.custom.name + ')'; $('aNameBox').style.display = 'none'; $('aOk').textContent = '적용'; }
+  else { aList = DEFAULT_HEADS.slice(); aFilt = ['예산종류']; $('aName').value = ''; $('aTitle').textContent = '예산 페이지 추가'; $('aNameBox').style.display = ''; $('aOk').textContent = '추가'; }
   drawOrder(); $('addModal').classList.remove('hidden'); $('addModal').classList.add('flex'); (aMode === 'new' ? $('aName') : $('aNew')).focus();
 }
 function closeAdd() { $('addModal').classList.add('hidden'); $('addModal').classList.remove('flex'); }
@@ -869,11 +897,12 @@ $('aOk').onclick = async () => {
     if (gone.length && !confirm('[' + gone.map((c) => c.name).join(', ') + '] 열을 뺍니다. 이 열에 입력한 내용은 화면에서 사라집니다. 계속할까요?')) return;
     const used = new Set(old.map((c) => c.id)); const newId = () => { let k = 1; while (used.has('c' + k)) k++; used.add('c' + k); return 'c' + k; };
     const next = aList.map((n) => old.find((c) => c.name === n) || { id: newId(), name: n });
-    s.cols = next; closeAdd(); await enqueue(saveSheets); await saveTyped(); renderGrid(); return;
+    s.cols = next; s.filters = aFilt.map((n) => (next.find((c) => c.name === n) || {}).id).filter(Boolean); filters = {}; classFilter(); closeAdd(); await enqueue(saveSheets); await saveTyped(); renderGrid(); return;
   }
   const name = $('aName').value.trim(); const err = !name ? '예산명을 입력하세요.' : nameError(name); if (err) return fail(err);
   let n = 1; while (sheets.some((s) => s.id === 's' + n)) n++;
-  const sh = { id: 's' + Date.now().toString(36) + n, name, cols: aList.map((h, i) => ({ id: 'c' + (i + 1), name: h })) };
+  const cols = aList.map((h, i) => ({ id: 'c' + (i + 1), name: h }));
+  const sh = { id: 's' + Date.now().toString(36) + n, name, year: curYear, cols, filters: aFilt.map((f) => (cols.find((c) => c.name === f) || {}).id).filter(Boolean) };
   sheets.push(sh); closeAdd(); await enqueue(saveSheets); await saveTyped();
   setMode('sheet:' + sh.id);
 };
@@ -1019,15 +1048,51 @@ async function load(fresh) {
   const [b, s, sr, cfg, ls, gen, tot] = await Promise.all([getCol('data_budget'), getCol('data_supply'), getCol(SHEET_COL), GP.getCfg('budget_sheets', { sheets: [] }), GP.getLists(), APP.getGeneral(), GP.getCfg('supply_totals', {})]);
   if (gen && num(gen.year)) curYear = num(gen.year); supplyTotals = (tot && typeof tot === 'object') ? tot : {};
   data = { budget: b.map((r) => Object.assign({}, r)), supply: s.map((r) => Object.assign({}, r)), sheetRows: sr.map((r) => Object.assign({}, r)) };
-  sheets = Array.isArray(cfg.sheets) ? cfg.sheets : []; lists = ls; colWidths = (await GP.getCfg('budget_cols', {})) || {};
-  if (mode !== 'budget' && mode !== 'fee' && mode !== 'supply1' && mode !== 'supply2' && !sheets.some((x) => 'sheet:' + x.id === mode)) mode = 'budget';
+  sheets = Array.isArray(cfg.sheets) ? cfg.sheets : []; sheetSeed = (cfg && cfg.seed) || {}; lists = ls; colWidths = (await GP.getCfg('budget_cols', {})) || {};
+  // 추가한 예산 페이지는 만든 학년도에만 보임(학급운영비는 기본 페이지라 항상). 학년도 표시가 없던 예전 페이지는 만든 날짜(또는 입력한 줄의 학년도)로 정해 저장
+  const noYear = sheets.filter((x) => x.id !== 'classfee' && !num(x.year));
+  if (noYear.length) {
+    let tagged = []; try { tagged = await GP.getColAll(SHEET_COL); } catch (e) { /* 무시 */ }
+    noYear.forEach((x) => {
+      const ms = parseInt(String(x.id).slice(1, 9), 36), d = ms > 1.5e12 && ms < 4.1e12 ? new Date(ms) : null;
+      const ys = tagged.filter((r) => r.sheet === x.id && num(r._year)).map((r) => num(r._year));
+      x.year = d ? APP.yearOf(d) : ys.length ? Math.min.apply(null, ys) : curYear;
+    });
+    try { await saveSheets(); } catch (e) { console.warn('예산 페이지 학년도 표시 저장 보류', e); }
+  }
+  if (mode !== 'budget' && mode !== 'fee' && mode !== 'supply1' && mode !== 'supply2' && !shownSheets().some((x) => 'sheet:' + x.id === mode)) mode = 'budget';
 }
 $('btn-refresh').onclick = async () => { if (pendingN) return; try { await load(true); renderAll(); } catch (e) { setState('error', e.message); } };
 (async function init() {
   try { await load(false); }
   catch (e) { console.error(e); $('gridWrap').innerHTML = '<p class="p-6 text-center text-red-600 text-sm">데이터를 불러오지 못했습니다: ' + esc(e.message) + '</p>'; return; }
-  renderAll(); startWatch();
+  try { await seedClassFee(); } catch (e) { console.warn('학급운영비 기본 페이지 만들기 보류', e); }
+  classFilter(); renderAll(); startWatch();
 })();
+// 기본 예산 페이지 '학급운영비'(학습준비물 다음): 처음 한 번 만들고, 학년도마다 학급별 카드(기본 10만원)를 한 번 넣어 둠.
+//  지우거나 고친 뒤에는 다시 만들지 않습니다(budget_sheets.seed 표시).
+const CF_COLORS = ['#CFE2F3', '#FCE5CD', '#D9EAD3', '#FFF2CC', '#E4D7F5', '#F4CCCC', '#D0E0E3', '#EAD1DC', '#FFE0B2', '#C8E6C9'];
+async function seedClassFee() {
+  const cfg = (await GP.getCfg('budget_sheets', { sheets: [] })) || {}; const seed = Object.assign({}, cfg.seed || {}); let changed = false;
+  if (!seed.classfee) {
+    if (!sheets.some((x) => x.id === 'classfee')) {
+      const cols = DEFAULT_HEADS.map((h, i) => ({ id: 'c' + (i + 1), name: h }));
+      sheets.unshift({ id: 'classfee', name: '학급운영비', cols, filters: ['c1'] });
+    }
+    seed.classfee = true; changed = true;
+  }
+  const yk = 'cards' + curYear;
+  if (!seed[yk] && sheets.some((x) => x.id === 'classfee')) {
+    const cur = await GP.readList('list_budget'); const names = new Set(cur.map((i) => String(i.value).trim()));
+    const add = classNames().filter((c) => !names.has(c)).map((c, i) => ({ value: c, extra: { list_budget_amount: 100000, list_budget_color: CF_COLORS[i % CF_COLORS.length], list_budget_pages: 'sheet:classfee', list_budget_kind: '', list_budget_classes: '', list_budget_common: '' } }));
+    if (add.length) {
+      const keep = cur.map((i) => { const r = i.row || {}; const ex = {}; Object.keys(r).forEach((k) => { if (/^list_budget_/.test(k) && k !== 'list_budget_year' && k !== 'list_budget_order') ex[k] = r[k]; }); return { value: i.value, extra: ex }; });
+      await GP.writeList('list_budget', keep.concat(add)); lists = await GP.getLists();
+    }
+    seed[yk] = true; changed = true;
+  }
+  if (changed) { sheetSeed = seed; await saveSheets(); }
+}
 </script>
 <script>
   // ↔ 화면 넓게 보기: 누를 때마다 기본(1230px) → 넓게(1600px) → 화면 전체 → 기본. 이 페이지가 스스로 폭을 바꾸고, 고른 단계는 브라우저에 기억합니다.

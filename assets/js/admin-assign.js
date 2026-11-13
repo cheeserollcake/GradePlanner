@@ -36,10 +36,14 @@
 
     // ---------- 기본 자료 ----------
     let periods = (await GP.readList('list_time')).map((i) => i.value).filter(Boolean); if (!periods.length) periods = [1, 2, 3, 4, 5, 6].map((n) => n + '교시');
-    const classes = (await APP.getGeneral()).classNames.slice();
+    const gen = await APP.getGeneral(); const classes = gen.classNames.slice();
     if (!S.pers) S.pers = periods.filter((p) => !/점심/.test(p));
     S.pers = S.pers.filter((p) => periods.indexOf(p) >= 0);
-    if (!S.date) S.date = GP.ymd(new Date());
+    { const yr = APP.yearRange(Number(gen.year)), cur = GP.toDate(S.date);   // 날짜가 비었거나 지금 학년도 밖이면: 오늘(학년도 안일 때) 또는 학년도 첫날
+      if (!cur || (gen.year && (cur < yr.start || cur > yr.end))) { S.date = GP.ymd(APP.baseDate(gen.year)); S.notes = {}; } }
+    // 날짜 글자 해석: 20270302 / 2027-3-2 / 2027.3.2 / 2027/03/02 / 27.3.2
+    const parseDay = (t) => { const v = String(t || '').trim(); let m = v.match(/^(\d{4})(\d{2})(\d{2})$/) || v.match(/^(\d{2,4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})\s*일?$/); if (!m) return null;
+      let y = +m[1]; if (y < 100) y += 2000; const d = new Date(y, +m[2] - 1, +m[3]); return d.getFullYear() === y && d.getMonth() === +m[2] - 1 && d.getDate() === +m[3] ? d : null; };
     let hol = new Map(), idx = new Map();
     async function loadEvents() {
       GP.invalidate('data_sub_timetable'); GP.invalidate('data_add_timetable'); GP.invalidate('data_gym_timetable'); GP.invalidate('data_room_timetable');
@@ -90,7 +94,8 @@
         '<div class="grid md:grid-cols-2 gap-3 text-sm">' +
         '<label class="font-semibold">강좌명<input id="aName" class="' + INP + ' w-full mt-1" value="' + esc(S.name) + '" placeholder="예: 심폐소생술"></label>' +
         '<div class="grid grid-cols-2 gap-3"><label class="font-semibold">시수<input id="aHours" type="number" min="0" class="' + INP + ' w-full mt-1 text-right" value="' + esc(S.hours) + '"></label>' +
-        '<label class="font-semibold">날짜<input id="aDate" type="date" class="' + INP + ' w-full mt-1" value="' + esc(S.date) + '"></label></div>' +
+        '<label class="font-semibold">날짜<span class="flex gap-1 mt-1 relative"><input id="aDate" type="text" inputmode="numeric" autocomplete="off" placeholder="20270302" title="숫자 8자리(예: 20270302) 또는 2027-03-02 형식으로 입력하고 Enter" class="' + INP + ' w-full min-w-0" value="' + esc(S.date) + '">' +
+          '<button id="aDateBtn" type="button" class="' + BTN_G + ' !px-2 shrink-0" title="달력에서 고르기">📅</button><input id="aDatePick" type="date" tabindex="-1" aria-hidden="true" style="position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none" value="' + esc(S.date) + '"></span></label></div>' +
         '</div>' +
         // 조건: 요일 · 교시 · 체육 고려 · 연차시
         '<div class="asg-cond border rounded-lg bg-slate-50 p-3 space-y-2 text-sm mt-3"><div class="font-bold">조건</div>' +
@@ -157,7 +162,14 @@
       const $ = (id) => document.getElementById(id);
       $('aName').onchange = () => { S.name = $('aName').value.trim(); setTimeout(draw, 0); };
       $('aHours').onchange = () => { S.hours = $('aHours').value; const c = $('aCount'); if (c) c.innerHTML = countHtml(counts(), parseInt(S.hours, 10) || 0); };
-      $('aDate').onchange = () => { if ($('aDate').value) { S.date = $('aDate').value; S.notes = {}; setTimeout(draw, 0); } };
+      // 날짜: 입력하는 동안에는 다시 그리지 않고, Enter 를 누르거나 칸을 벗어날 때 한 번만 적용(숫자패드 입력 가능)
+      const setDay = (d) => { const v = GP.ymd(d); if (v === S.date) { $('aDate').value = v; return; } S.date = v; S.notes = {}; setTimeout(draw, 0); };
+      const commitDay = () => { const el = $('aDate'); if (!el) return; const raw = el.value.trim(); if (!raw) { el.value = S.date; return; } const d = parseDay(raw);
+        if (!d) { el.style.boxShadow = '0 0 0 2px #f87171'; toast('날짜를 20270302 처럼 숫자 8자리로 입력해 주세요.', true); return; } el.style.boxShadow = ''; setDay(d); };
+      $('aDate').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); commitDay(); } else if (e.key === 'Escape') { $('aDate').value = S.date; $('aDate').blur(); } };
+      $('aDate').onblur = commitDay;
+      $('aDateBtn').onclick = () => { const pk = $('aDatePick'); pk.value = S.date; try { pk.showPicker(); } catch (e) { pk.style.pointerEvents = 'auto'; pk.focus(); pk.click(); } };
+      $('aDatePick').onchange = () => { const d = GP.toDate($('aDatePick').value); if (d) setDay(d); };
       view.querySelectorAll('[data-aday]').forEach((el) => el.onchange = () => { const i = +el.dataset.aday; S.days = el.checked ? S.days.concat([i]).sort() : S.days.filter((x) => x !== i); draw(); });
       view.querySelectorAll('[data-aper]').forEach((el) => el.onchange = () => { const p = el.dataset.aper; S.pers = periods.filter((x) => (x === p ? el.checked : S.pers.indexOf(x) >= 0)); draw(); });
       view.querySelectorAll('[data-agym]').forEach((el) => el.onchange = () => { S.gym = el.checked; draw(); });

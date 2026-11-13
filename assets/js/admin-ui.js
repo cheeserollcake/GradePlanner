@@ -703,7 +703,8 @@
     try { const j = sessionStorage.getItem('gp_admin_budget_page'); if (j) { sessionStorage.removeItem('gp_admin_budget_page'); bdSel = j; } } catch (e) { /* 무시 */ }
     const rowsB = await GP.getCol('data_budget'); const lines = await GP.budgetLines();
     const sheetCfg = await GP.getCfg('budget_sheets', { sheets: [] });
-    const PAGES = [['budget', '학년 예산'], ['fee', '학년회비']].concat((Array.isArray(sheetCfg.sheets) ? sheetCfg.sheets : []).map((x) => ['sheet:' + x.id, x.name]));
+    const curY = Number((await APP.getGeneral()).year);
+    const PAGES = [['budget', '학년 예산'], ['fee', '학년회비']].concat((Array.isArray(sheetCfg.sheets) ? sheetCfg.sheets : []).filter((x) => x.id === 'classfee' || !Number(x.year) || Number(x.year) === curY).map((x) => ['sheet:' + x.id, x.name]));   // 추가한 예산 페이지는 만든 학년도에만
     if (bdSel !== 'all' && !PAGES.some((x) => x[0] === bdSel)) bdSel = 'all';
     const pageName = (id) => (PAGES.find((x) => x[0] === id) || [id, id])[1];
     let layout = await GP.getCfg('budget_layout', {}); if (!layout || typeof layout !== 'object') layout = {};

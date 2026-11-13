@@ -4,11 +4,11 @@
   <script>
 window.__escA = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 window.__GP_PAGE__ = 'p08';</script>
-  <script src="../assets/js/fb-boot.js?v=20261113b"></script>
+  <script src="../assets/js/fb-boot.js?v=20261113f"></script>
   
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261113b">
-  <script src="../assets/js/firebase-config.js?v=20261113b"></script>
-  <script src="../assets/js/gas-shim.js?v=20261113b"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261113f">
+  <script src="../assets/js/firebase-config.js?v=20261113f"></script>
+  <script src="../assets/js/gas-shim.js?v=20261113f"></script>
 
     <meta charset="UTF-8">
     <title>반별 일정 조회</title>
@@ -49,7 +49,7 @@ window.__GP_PAGE__ = 'p08';</script>
             display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; 
         }
     </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261113b">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261113f">
 </head>
 <body class="text-gray-800 pb-10">
 
@@ -197,7 +197,8 @@ window.__GP_PAGE__ = 'p08';</script>
         let globalHolidays = [];
         let currentSelectedOldData = null; 
 
-        window.onload = () => {
+        window.onload = async () => {
+            try { currentMonth = await GP.baseMonth(); } catch (e) { /* 이번 달 */ }   // 오늘이 지금 학년도 밖이면 학년도 첫 달(3월)
             // 현재 월이 표시할 목록(3,4...12,1)에 없다면 3월로 초기화 (예: 2월인 경우)
             if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2].includes(currentMonth)) {
                 currentMonth = 3;

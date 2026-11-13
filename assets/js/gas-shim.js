@@ -1413,6 +1413,11 @@
   window.google = { script: { run: runner(null, null), host: { close() {}, setHeight() {} } } };
 
   // 직접 Firestore를 쓰는 새 페이지(예산/바로가기/교실배치도)를 위한 공용 도구
-  window.GP = { login, logout, authLevel, hasLevel, changePw, secured, securityStatus, studentStats, refreshStudentStats, SEC_EMAIL: EMAIL, periodTomb, parkPeriod: (n, prev) => renamePeriodData(n, periodTomb(n, prev)), restorePeriod: (n, prev) => renamePeriodData(periodTomb(n, prev), n), classroomGet, classroomPut, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
+  // 처음 보여 줄 달: 오늘이 지금 학년도(2/1~다음 해 2월 말일) 안이면 이번 달, 아니면 그 학년도의 첫 달(3월)
+  async function baseMonth() {
+    const y = Number((await loadGeneral()).year) || new Date().getFullYear(); const t = new Date(), d = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+    return d >= new Date(y, 1, 1) && d <= new Date(y + 1, 2, 0) ? d.getMonth() + 1 : 3;
+  }
+  window.GP = { baseMonth, login, logout, authLevel, hasLevel, changePw, secured, securityStatus, studentStats, refreshStudentStats, SEC_EMAIL: EMAIL, periodTomb, parkPeriod: (n, prev) => renamePeriodData(n, periodTomb(n, prev)), restorePeriod: (n, prev) => renamePeriodData(periodTomb(n, prev), n), classroomGet, classroomPut, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
     readList, writeList, spaceOrphans, countSpaceData, purgeSpaceData, renameSpaceData, listSpaceData, deleteSpaceRows, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
 })();

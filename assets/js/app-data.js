@@ -10,6 +10,8 @@
 
   // ------------------------------------------------------------ 학년도 / 일반 설정
   const yearRange = (y) => ({ start: new Date(y, 1, 1), end: new Date(y + 1, 2, 0) }); // 2/1 ~ 다음해 2월 말일
+  // 기준 날짜: 오늘이 그 학년도(2/1 ~ 다음 해 2월 말일) 안이면 오늘, 아니면 그 학년도의 첫날(2월 1일)
+  const baseDate = (y) => { const t = new Date(), d = new Date(t.getFullYear(), t.getMonth(), t.getDate()); if (!y) return d; const r = yearRange(Number(y)); return d >= r.start && d <= r.end ? d : r.start; };
   const yearOf = (d) => (d.getMonth() >= 1 ? d.getFullYear() : d.getFullYear() - 1);
   const inRange = (d, r) => d && d >= r.start && d <= r.end;
 
@@ -360,6 +362,6 @@
     return summary;
   }
 
-  window.APP = { dday, fmtDate, setYear, getVacations, renderDayCards, yearRange, yearOf, inRange, getGeneral, saveGeneral, holidayMap, buildSchedule, getDayState, saveDay, SEM_NAMES, getSemesterRows, saveSemesters,
+  window.APP = { baseDate, dday, fmtDate, setYear, getVacations, renderDayCards, yearRange, yearOf, inRange, getGeneral, saveGeneral, holidayMap, buildSchedule, getDayState, saveDay, SEM_NAMES, getSemesterRows, saveSemesters,
     listBaseItems, addBaseItems, updateBaseItem, deleteBaseItem, clearSemester, entryApplies, homeroomFor, syncTeachers, teacherNames, setTeacherNames, ensureTeachers, detectYears, deleteYear, previewDelete, migrateYearTags };
 })();
