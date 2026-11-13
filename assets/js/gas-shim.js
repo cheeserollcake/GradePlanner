@@ -91,7 +91,18 @@
     MEM[name] = raw;
     if (LS) { try { LS.setItem(lsKey(name), raw); } catch (e) { /* 용량 초과: 메모리 사본만 사용 */ } }
   };
-  const fetchCol = (name) => db.collection(name).get().then((snap) => snap.docs.map((d) => Object.assign({ _id: d.id }, d.data())).sort(idcmp));
+  // 화면에 HTML(스크립트)이 끼어들지 못하도록 글자 속 꺾쇠 < > 를 모양이 비슷한 전각 ＜ ＞ 로 바꿔서 읽고 저장합니다.
+  //  (공개 페이지 데이터는 누구나 고칠 수 있으므로, 누군가 일정 이름 등에 스크립트를 넣어 비밀번호 페이지의 자료를 빼내는 것을 막음)
+  const SAFE_RE = /[<>]/g, SAFE_MAP = { '<': '＜', '>': '＞' };
+  function safeVal(v) {
+    if (typeof v === 'string') return (v.indexOf('<') >= 0 || v.indexOf('>') >= 0) ? v.replace(SAFE_RE, (c) => SAFE_MAP[c]) : v;
+    if (Array.isArray(v)) return v.map(safeVal);
+    if (!v || typeof v !== 'object' || v === DELETE || Object.prototype.toString.call(v) !== '[object Object]') return v;
+    const pr = Object.getPrototypeOf(v);
+    if (pr === null || (pr.constructor && pr.constructor.name === 'Object')) { const o = {}; for (const k in v) if (Object.prototype.hasOwnProperty.call(v, k)) o[k] = safeVal(v[k]); return o; }
+    return v;
+  }
+  const fetchCol = (name) => db.collection(name).get().then((snap) => snap.docs.map((d) => safeVal(Object.assign({ _id: d.id }, d.data()))).sort(idcmp));
   const getVersions = () => versions || (versions = db.collection('app_meta').doc('version').get().then((s) => (s.exists ? s.data() : {})).catch((e) => { console.warn('version read failed', e); return null; }));
   // 다른 사람이 바꿨는지 다시 확인하고 싶을 때(1건 읽기). 바뀐 컬렉션만 새로 받습니다.
   function fresh() { versions = null; Object.keys(cache).forEach((k) => delete cache[k]); Object.keys(loadedVer).forEach((k) => delete loadedVer[k]); }
@@ -99,6 +110,7 @@
 
   // 학년도별로 나뉘는 컬렉션: 문서에 _year(학년도) 표시가 있으면 그 학년도에서만 보이고, 표시가 없으면 '지금 학년도' 것으로 봅니다.
   //  학년도를 바꿀 때(app-data setYear) 표시 없는 문서에 이전 학년도 표시를 붙여 둡니다. (데이터는 지우지 않고 감춥니다)
+  const PRIVATE = new Set(['data_student', 'data_mall']);   // 보호 자료(로그인 뒤에만 읽고, 기기에 사본을 남기지 않음)
   const YEARED = new Set(['data_student', 'data_basic_timetable', 'data_budget', 'data_sheet_rows']);
   function getCol(name, force) {
     const p = rawCol(name, force); if (!YEARED.has(name)) return p;
@@ -107,11 +119,12 @@
   const yearSpan = (y) => ({ start: new Date(y, 1, 1), end: new Date(y + 1, 2, 0, 23, 59, 59) });   // 학년도: 2월 1일 ~ 다음 해 2월 말일
   function rawCol(name, force) {
     if (!force && cache[name]) return cache[name];
+    if (PRIVATE.has(name)) return (cache[name] = gate.then(() => fetchCol(name)).catch((e) => { delete cache[name]; throw e; }));   // 보호 자료: 로그인 뒤에만, 기기에 사본을 남기지 않음
     cache[name] = (async () => {
       const vers = force ? null : await getVersions();
       const want = vers ? Number(vers[name] || 0) : null;
       if (vers) {
-        const loc = readLocal(name); if (loc && Number(loc.v) === want && Date.now() - loc.t < CACHE_TTL) { loadedVer[name] = want; return loc.rows; }
+        const loc = readLocal(name); if (loc && Number(loc.v) === want && Date.now() - loc.t < CACHE_TTL) { loadedVer[name] = want; return safeVal(loc.rows); }
       }
       const rows = await fetchCol(name);
       loadedVer[name] = want; if (want !== null) saveLocal(name, want, rows);
@@ -151,6 +164,7 @@
       const batch = db.batch(); const last = i + 400 >= ops.length;
       if (last) batch.set(verRef, inc, { merge: true });   // 변경 번호는 같은 묶음(1회 통신)으로 올림 — 모바일에서 저장이 느리던 원인 중 하나(통신 3번 → 2번)
       ops.slice(i, i + 400).forEach((o) => {
+        if (o.data) o.data = safeVal(o.data);
         const ref = db.collection(o.col).doc(o.id);
         if (o.type === 'delete') batch.delete(ref);
         else if (o.type === 'update') batch.update(ref, o.data);
@@ -171,9 +185,10 @@
       // 우리가 알던 번호 바로 다음 번호면 그 사이 다른 사람의 저장이 없었던 것 → 사본을 직접 고침. 아니면 다음에 새로 받음.
       if (after && cache[c] && loadedVer[c] !== undefined && loadedVer[c] !== null && Number(after[c] || 0) === loadedVer[c] + 1) {
         const rows = applyOps(await cache[c], ops.filter((o) => o.col === c));
-        cache[c] = Promise.resolve(rows); loadedVer[c] = Number(after[c]); saveLocal(c, loadedVer[c], rows);
+        cache[c] = Promise.resolve(rows); loadedVer[c] = Number(after[c]); if (!PRIVATE.has(c)) saveLocal(c, loadedVer[c], rows);
       } else { delete cache[c]; delete loadedVer[c]; }
     }
+    if (cols.indexOf('data_student') >= 0) { try { await refreshStudentStats(); } catch (e) { console.warn('학생 수 갱신 실패', e); } }
   }
   const newId = (col) => db.collection(col).doc().id;
   const ALL_COLS = ['app_config', 'data_basic', 'data_task_school', 'data_task_memo', 'data_student', 'data_sub_timetable', 'data_add_timetable', 'data_gym_timetable', 'data_room_timetable', 'data_budget', 'data_supply', 'data_overview', 'data_basic_timetable', 'data_mall', 'data_links', 'data_sheet_rows'];
@@ -374,14 +389,11 @@
   }
 
   async function buildInfo() {
-    const students = await getCol('data_student');
+    const stats = await studentStats();   // 학생 이름 없이 반별 숫자만(공개 페이지)
     const ov = await getCol('data_overview');
     const ovMap = {}; ov.forEach((r) => { ovMap[r._id] = r; });
     const cnt = { all: Array(10).fill(0), m: Array(10).fill(0), f: Array(10).fill(0) };
-    students.forEach((s) => {
-      const c = num(s.student_class); if (c < 1 || c > 10 || !str(s.student_name).trim()) return;
-      cnt.all[c - 1]++; if (str(s.student_gender) === '남성') cnt.m[c - 1]++; if (str(s.student_gender) === '여성') cnt.f[c - 1]++;
-    });
+    Object.keys(stats).forEach((k) => { const c = Number(k); if (c < 1 || c > 10) return; cnt.all[c - 1] = stats[k].all || 0; cnt.m[c - 1] = stats[k].m || 0; cnt.f[c - 1] = stats[k].f || 0; });
     const row = (id, label, arr, editable) => {
       const o = { id, label, total: arr.reduce((a, b) => a + (Number(b) || 0), 0), isEditable: editable };
       arr.forEach((v, i) => { o['c' + (i + 1)] = v; });
@@ -469,6 +481,153 @@
   // ---------------------------------------------------------------- 공통 비밀번호 (관리자 페이지에서 변경)
   const getPw = async () => Object.assign({ access: '0000', admin: '0000' }, await getCfg('passwords', {}));
   const setPw = (pw) => setCfg('passwords', pw);
+
+  // ================================================================ 보안 (비밀번호 페이지)
+  // 비밀번호는 더 이상 누구나 읽을 수 있는 app_config 에 두지 않습니다.
+  //  - 페이지 접근 비밀번호 / 관리자 비밀번호 = Firebase 로그인 계정 2개(gp-access, gp-admin)의 비밀번호
+  //    → 비밀번호 확인은 Firebase 서버가 하고(여러 번 틀리면 서버가 잠시 막음), 맞으면 로그인 상태가 됩니다.
+  //  - 학생 명렬표(data_student), 쇼핑몰 ID(data_mall), 내선번호 파일(data_files/ext_*), 특별실 비밀번호(gp_private)는
+  //    보안 규칙(firestore.rules)으로 '로그인한 사람만' 읽고 쓸 수 있습니다.
+  //  - 관리자만 보는 비밀번호 사본(gp_secret/passwords): 관리자가 페이지 접근 비밀번호를 바꿀 때 필요.
+  //  - 로그인은 이 창(탭)의 메모리에만 남고, 다른 메뉴로 옮기거나 새로고침하거나 20분 동안 아무 조작이 없으면 풀립니다.
+  //  - 처음 한 번: 관리자가 (예전 비밀번호로) 관리자 페이지에 들어오면 자동으로 로그인 계정을 만들고 옮깁니다(보안 전환).
+  const PROJECT = (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.authDomain) || 'gradeplanner-d5499.firebaseapp.com';
+  const EMAIL = { access: 'gp-access@' + PROJECT, admin: 'gp-admin@' + PROJECT };
+  const authPw = (p) => 'gp#' + String(p);   // Firebase 비밀번호는 6자 이상이어야 해서 앞에 고정 글자를 붙임(예전 4자리 비밀번호도 그대로 사용)
+  const AUTH = (() => { try { return firebase.auth ? firebase.auth() : null; } catch (e) { return null; } })();
+  if (AUTH && !window.__GP_SHARED_FB) { try { AUTH.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) { /* 무시 */ } }
+  const levelOf = (u) => (!u ? null : u.email === EMAIL.admin ? 'admin' : u.email === EMAIL.access ? 'access' : null);
+  const authLevel = () => (AUTH ? levelOf(AUTH.currentUser) : null);
+  let legacyOk = null;   // 보안 전환 전: 이 화면에서 예전 방식으로 통과한 단계
+  let secOn = false;
+  const secured = async () => { const s = await getCfg('security', null); return (secOn = !!(s && s.on)); };
+  let gateOpen; const gate = new Promise((r) => { gateOpen = r; });
+  // 보호된 자료는 로그인(보안 전환 전에는 예전 비밀번호 통과) 뒤에만 읽습니다.
+  secured().then((on) => { if (!on) return gateOpen(); if (AUTH) AUTH.onAuthStateChanged((u) => { if (levelOf(u)) gateOpen(); }); }).catch(() => { /* 무시 */ });
+  // 예전에 이 기기에 남겨 둔 사본 지우기(학생 명렬표·쇼핑몰 ID·비밀번호가 들어 있던 설정 사본)
+  try { if (LS && !LS.getItem('gp_sec_purged_1')) { ['data_student', 'data_mall', 'app_config'].forEach((n) => { LS.removeItem(lsKey(n)); delete MEM[n]; }); LS.setItem('gp_sec_purged_1', '1'); } } catch (e) { /* 무시 */ }
+  ['data_student', 'data_mall'].forEach((n) => { try { if (LS) LS.removeItem(lsKey(n)); delete MEM[n]; } catch (e) { /* 무시 */ } });
+
+  const auxApp = (name) => { const f = firebase; const a = (f.apps || []).find((x) => x.name === name); return a || f.initializeApp(window.FIREBASE_CONFIG, name); };
+  const auxAuth = () => { const a = auxApp('gpaux').auth(); try { a.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) { /* 무시 */ } return a; };
+  const authErr = (e) => {
+    const c = String((e && e.code) || '');
+    if (/too-many-requests/.test(c)) return '비밀번호를 여러 번 틀려 잠시 막혔습니다. 몇 분 뒤 다시 시도해 주세요.';
+    if (/network/.test(c)) return '인터넷 연결을 확인해 주세요.';
+    if (/operation-not-allowed|configuration-not-found/.test(c)) return 'Firebase 콘솔에서 이메일/비밀번호 로그인을 켜야 합니다. (Authentication > 로그인 방법 > 이메일/비밀번호 사용 설정)';
+    return '';
+  };
+  // 비밀번호 확인 + 로그인. level: 'access'(페이지 접근) | 'admin'(관리자). 관리자 로그인은 접근 권한도 포함합니다.
+  async function login(level, pw) {
+    pw = String(pw === undefined || pw === null ? '' : pw);
+    if (!pw) return { success: false, message: '비밀번호를 입력해 주세요.' };
+    if (await secured()) {
+      if (!AUTH) return { success: false, message: '로그인 도구를 불러오지 못했습니다. 새로고침해 주세요.' };
+      try { await AUTH.signInWithEmailAndPassword(EMAIL[level], authPw(pw)); gateOpen(); if (level === 'admin') refreshStudentStats().catch(() => {}); return { success: true }; }
+      catch (e) { return { success: false, message: authErr(e) || (level === 'admin' ? '관리자 비밀번호가 일치하지 않습니다.' : '비밀번호가 일치하지 않습니다.') }; }
+    }
+    // 보안 전환 전(예전 방식)
+    const cur = await getPw();
+    if (pw !== cur[level]) return { success: false, message: level === 'admin' ? '관리자 비밀번호가 일치하지 않습니다.' : '비밀번호가 일치하지 않습니다.' };
+    legacyOk = level === 'admin' || legacyOk === 'admin' ? 'admin' : 'access'; gateOpen();
+    if (level === 'admin' && AUTH) { try { await enableSecurity(cur); } catch (e) { console.warn('보안 전환 보류', e); window.__gpSecErr = authErr(e) || String(e && (e.message || e)); } }
+    // 아직 예전 방식이면: 예산·전담 → 관리자 페이지로 넘어갈 때 다시 묻지 않도록(1분). 보안 전환 뒤에는 Firebase 로그인 상태로 판단.
+    if (level === 'admin' && !authLevel()) { try { if (window.parent !== window) window.parent.__gpLegacyAdmin = Date.now(); } catch (e) { /* 무시 */ } }
+    return { success: true };
+  }
+  async function logout() { legacyOk = null; if (AUTH && AUTH.currentUser) { try { await AUTH.signOut(); } catch (e) { /* 무시 */ } } }
+  // 지금 이 화면이 해당 단계로 열려 있는지(관리자는 접근 단계 포함)
+  const hasLevel = (level) => {
+    let l = authLevel() || legacyOk;
+    if (!l && !secOn) { try { const t = window.parent !== window && window.parent.__gpLegacyAdmin; if (t && Date.now() - t < 60000) { window.parent.__gpLegacyAdmin = 0; l = legacyOk = 'admin'; } } catch (e) { /* 무시 */ } }
+    return l === 'admin' || (l === level && !!l);
+  };
+
+  // 보안 전환(한 번만): 로그인 계정 2개 만들기 → 비밀번호 사본·특별실 비밀번호를 보호 위치로 옮기기 → 공개 설정에서 지우기
+  async function enableSecurity(cur) {
+    const mk = async (auth, email, pw) => {
+      try { await auth.createUserWithEmailAndPassword(email, authPw(pw)); }
+      catch (e) { if (/email-already-in-use/.test(String(e && e.code))) await auth.signInWithEmailAndPassword(email, authPw(pw)); else throw e; }
+    };
+    const ax = auxAuth(); await mk(ax, EMAIL.access, cur.access); await ax.signOut();
+    await mk(AUTH, EMAIL.admin, cur.admin);
+    await db.collection('gp_secret').doc('passwords').set({ access: cur.access, admin: cur.admin, updatedAt: new Date().toISOString() });
+    const room = await getCfg('room_passwords', null);
+    if (room) await db.collection('gp_private').doc('room_passwords').set({ json: JSON.stringify(room), updatedAt: new Date().toISOString() });
+    await refreshStudentStats();
+    const ops = [{ type: 'set', col: 'app_config', id: 'security', data: { json: JSON.stringify({ on: true, at: new Date().toISOString() }), updatedAt: new Date().toISOString() } }];
+    const cfg = await getCol('app_config');
+    ['passwords', 'room_passwords'].forEach((id) => { if (cfg.some((r) => r._id === id)) ops.push({ type: 'delete', col: 'app_config', id }); });
+    await commit(ops); gateOpen();
+  }
+  // 비밀번호 바꾸기. adminPw: 지금 관리자 비밀번호(이미 관리자로 로그인했다면 생략 가능). 새 비밀번호는 6자 이상.
+  async function changePw(adminPw, newAccess, newAdmin) {
+    newAccess = String(newAccess || '').trim(); newAdmin = String(newAdmin || '').trim();
+    if (!newAccess && !newAdmin) return { success: false, message: '새 비밀번호를 입력해 주세요.' };
+    if ((newAccess && newAccess.length < 6) || (newAdmin && newAdmin.length < 6)) return { success: false, message: '새 비밀번호는 6자 이상으로 정해 주세요. (숫자·영문을 섞으면 더 안전합니다)' };
+    if (newAccess && newAdmin && newAccess === newAdmin) return { success: false, message: '페이지 접근 비밀번호와 관리자 비밀번호는 서로 달라야 합니다.' };
+    if (!(await secured())) {
+      const cur = await getPw();
+      if (adminPw ? adminPw !== cur.admin : !hasLevel('admin')) return { success: false, message: '관리자 비밀번호가 일치하지 않습니다.' };
+      if (newAccess) cur.access = newAccess; if (newAdmin) cur.admin = newAdmin; await setPw(cur);
+      return { success: true, message: '비밀번호가 변경되었습니다.' };
+    }
+    try {
+      if (adminPw) { const r = await login('admin', adminPw); if (!r.success) return r; }
+      else if (authLevel() !== 'admin') return { success: false, message: '관리자 비밀번호를 입력해 주세요.' };
+      const ref = db.collection('gp_secret').doc('passwords'); const snap = await ref.get(); const cur = snap.exists ? snap.data() : {};
+      if (newAccess && newAccess !== cur.access) {
+        const ax = auxAuth();
+        try { await ax.signInWithEmailAndPassword(EMAIL.access, authPw(cur.access)); }
+        catch (e) { throw new Error('지금 페이지 접근 비밀번호를 확인하지 못했습니다. (' + (e.code || e.message) + ')'); }
+        await ax.currentUser.updatePassword(authPw(newAccess)); await ax.signOut();
+      }
+      if (newAdmin && newAdmin !== cur.admin) {
+        try { await AUTH.currentUser.updatePassword(authPw(newAdmin)); }
+        catch (e) { if (/requires-recent-login/.test(String(e.code))) return { success: false, message: '보안을 위해 지금 관리자 비밀번호를 함께 입력해 주세요.' }; throw e; }
+      }
+      await ref.set({ access: newAccess || cur.access, admin: newAdmin || cur.admin, updatedAt: new Date().toISOString() });
+      return { success: true, message: '비밀번호가 변경되었습니다.' };
+    } catch (e) { return { success: false, message: authErr(e) || ('비밀번호를 바꾸지 못했습니다: ' + (e.message || e)) }; }
+  }
+  // 학년 개요의 학생 수(반별 전체·남·여)는 이름 없이 숫자만 공개 설정(student_stats)에 둡니다. 명렬표가 바뀔 때마다 다시 셈.
+  const isMale = (s) => /^(남|남자|남성|m|male)$/i.test(str(s.student_gender).trim()), isFemale = (s) => /^(여|여자|여성|f|female)$/i.test(str(s.student_gender).trim());
+  async function refreshStudentStats() {
+    const y = (await loadGeneral()).year; const rows = await getCol('data_student', true);
+    const c = countStudents(rows);
+    const all = await getCfg('student_stats', {}); if (JSON.stringify(all[y] || null) === JSON.stringify(c)) return c;
+    all[y] = c; await setCfg('student_stats', all); return c;
+  }
+  function countStudents(rows) { const c = {}; rows.forEach((s) => { const n = num(s.student_class); if (!n || !str(s.student_name).trim()) return; const o = c[n] || (c[n] = { all: 0, m: 0, f: 0 }); o.all++; if (isMale(s)) o.m++; if (isFemale(s)) o.f++; }); return c; }
+  async function studentStats() {
+    const y = (await loadGeneral()).year; const all = await getCfg('student_stats', {});
+    if (all[y]) return all[y];
+    if (!(await secured())) { try { return countStudents(await getCol('data_student')); } catch (e) { /* 무시 */ } }   // 보안 전환 전: 예전처럼 직접 셈
+    return {};
+  }
+  // 보호된 설정 문서(특별실 비밀번호 등): 로그인 뒤에만 읽고 씀. 예전 위치(app_config)에 남아 있으면 그것을 읽음.
+  async function privGet(id, def) {
+    await gate;
+    try { const s = await db.collection('gp_private').doc(id).get(); if (s.exists && s.data().json) return JSON.parse(s.data().json); } catch (e) { console.warn('보호 자료 읽기 실패', id, e); }
+    return getCfg(id, def);
+  }
+  async function privSet(id, obj) {
+    await db.collection('gp_private').doc(id).set({ json: JSON.stringify(obj), updatedAt: new Date().toISOString() });
+    if ((await getCol('app_config')).some((r) => r._id === id)) await delCfg(id);
+  }
+  // 보안 상태(관리자 화면 표시용): 로그인 계정 사용 여부, 보안 규칙이 적용됐는지(로그인 안 한 상태로 보호 자료를 읽어 봄)
+  async function securityStatus() {
+    const on = await secured(); let rules = null;
+    try { await auxApp('gpprobe').firestore().collection('gp_secret').doc('passwords').get(); rules = false; }
+    catch (e) { rules = /permission/i.test(String(e && (e.code || e.message))) ? true : null; }
+    return { on, rules, authLib: !!AUTH, err: window.__gpSecErr || '' };
+  }
+  // 20분 동안 조작이 없으면 로그인을 풀고 화면을 다시 잠급니다(공용 컴퓨터 대비).
+  (function idleLock() {
+    let last = Date.now(); const bump = () => { last = Date.now(); };
+    ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach((ev) => document.addEventListener(ev, bump, true));
+    setInterval(() => { if ((authLevel() || legacyOk) && Date.now() - last > 20 * 60 * 1000) { logout().then(() => location.reload()); } }, 30000);
+  })();
 
   // ---------------------------------------------------------------- data_basic 목록 읽기/쓰기
   // data_basic 은 한 문서가 한 행이고 문서 ID 가 무작위라서, 순서를 보존하려고 <필드>_order 를 함께 저장합니다.
@@ -692,21 +851,11 @@
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
   });
   SERVER.verifyPassword = async function (a, b) {
-    const pw = await getPw();
-    if ((window.__GP_PAGE__ || '') === 'p10') return a === 'user' ? b === pw.access : a === 'admin' ? b === pw.admin : false; // (type, pwd)
-    return a === pw.access ? { success: true } : { success: false, message: '비밀번호가 일치하지 않습니다.' };
+    if ((window.__GP_PAGE__ || '') === 'p10') { const r = await login(a === 'admin' ? 'admin' : 'access', b); return r.success; }   // (type, pwd) → true/false
+    return login('access', a);
   };
-  SERVER.verifyAdminPassword = async function (a) {
-    const pw = await getPw();
-    return a === pw.admin ? { success: true } : { success: false, message: '관리자 비밀번호가 일치하지 않습니다.' };
-  };
-  SERVER.changePasswords = async function (adminPw, newAccess, newAdmin) {
-    const pw = await getPw();
-    if (adminPw !== pw.admin) return { success: false, message: '관리자 비밀번호가 일치하지 않습니다.' };
-    if (newAccess) pw.access = newAccess; if (newAdmin) pw.admin = newAdmin;
-    await setPw(pw);
-    return { success: true, message: '비밀번호가 성공적으로 변경되었습니다.' };
-  };
+  SERVER.verifyAdminPassword = (a) => login('admin', a);
+  SERVER.changePasswords = (adminPw, newAccess, newAdmin) => changePw(adminPw, newAccess, newAdmin);
 
   // ===== Page 04 : 기초 시간표 =====
   //  - 교시 수/이름은 관리자 > 시간표 설정 > 교시 설정, 학급 수는 학년 기초 설정의 값을 따릅니다.
@@ -979,12 +1128,11 @@
   SERVER.getInitialData07 = async function () {
     try {
       const [hol, gym, room, settings, pw] = await Promise.all([getHolidayMap(), getCol('data_gym_timetable'), getCol('data_room_timetable'),
-        specialSettingsForPage07(), getCfg('room_passwords', [])]);
+        specialSettingsForPage07(), Promise.resolve(null)]);
       const schedule = [];
       gym.forEach((r) => { const d = toDate(r.gym_date); if (d && str(r.gym_class)) schedule.push({ date: appDate(d), className: str(r.gym_class), period: str(r.gym_time).trim(), space: str(r.gym_place).trim() }); });
       room.forEach((r) => { const d = toDate(r.room_date); if (d && str(r.room_class)) schedule.push({ date: appDate(d), className: str(r.room_class), period: str(r.room_time).trim(), space: str(r.room_place).trim() }); });
-      const cpw = await getPw(); settings.adminPwd = cpw.admin; settings.specialPwd = cpw.access;
-      return { success: true, holidays: [...hol.keys()].map((k) => appDate(toDate(k))), schedule, settings, roomPasswords: pw };
+      return { success: true, holidays: [...hol.keys()].map((k) => appDate(toDate(k))), schedule, settings, roomPasswords: [] };   // 특별실 비밀번호는 잠금을 푼 뒤 getRoomPasswords 로
     } catch (e) { return { success: false, error: e.toString() }; }
   };
   SERVER.saveScheduleData = async function (updates) {
@@ -1008,7 +1156,8 @@
     } catch (e) { return { success: false, error: e.toString() }; }
   };
   SERVER.saveSettings = async () => ({ success: true }); // 공간 개방 설정은 관리자 페이지에서 관리합니다.
-  SERVER.saveRoomPasswords = async (p) => { try { await setCfg('room_passwords', p); return { success: true }; } catch (e) { return { success: false, error: e.toString() }; } };
+  SERVER.getRoomPasswords = async () => privGet('room_passwords', []);
+  SERVER.saveRoomPasswords = async (p) => { try { await privSet('room_passwords', p); return { success: true }; } catch (e) { return { success: false, error: e.toString() }; } };
 
   const safeName = (n) => String(n).replace(/[^\w.\-가-힣]+/g, '_');
   // 시간표 이미지는 Firebase Storage 대신 Firestore(data_images)에 압축한 사진(data URL)으로 저장합니다.
@@ -1131,6 +1280,7 @@
   // ===== Page 10 : 내선번호 파일 =====
   // 내선번호 파일은 Firebase Storage 대신 Firestore(data_files)에 조각(약 450KB)으로 나눠 저장합니다. (카드 등록·Blaze 요금제 불필요)
   SERVER.getFileMetadata = async function () {
+    await gate;
     const meta = await getCfg('ext_file', null);
     if (!meta) return { id: '', mimeType: 'image/png', name: '' };
     if (meta.updatedAt) { const sp = yearSpan((await loadGeneral()).year), d = new Date(meta.updatedAt); if (d < sp.start || d > sp.end) return { id: '', mimeType: 'image/png', name: '' }; }   // 지금 학년도에 올린 파일만
@@ -1139,20 +1289,14 @@
     const b64 = parts.map((d) => (d.exists ? d.data().data : '')).join('');
     return { id: 'data:' + meta.mimeType + ';base64,' + b64, mimeType: meta.mimeType, name: meta.name };
   };
-  SERVER.changeUserPassword = async function (adminPwd, newPwd) {
-    const pw = await getPw();
-    if (adminPwd !== pw.admin) return { success: false, message: '관리자 권한이 유효하지 않습니다.' };
-    pw.access = newPwd; await setPw(pw);
-    return { success: true, message: '비밀번호가 성공적으로 변경되었습니다.' };
-  };
+  SERVER.changeUserPassword = (adminPwd, newPwd) => changePw(adminPwd, newPwd, '');
   const shrinkImage = (b64, mime) => new Promise((res, rej) => {
     const im = new Image();
     im.onload = () => { const k = Math.min(1, 2000 / Math.max(im.width, im.height)), w = Math.round(im.width * k), h = Math.round(im.height * k); const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(im, 0, 0, w, h); res(c.toDataURL('image/jpeg', 0.82).split(',')[1]); };
     im.onerror = () => rej(new Error('이미지를 읽을 수 없습니다.')); im.src = 'data:' + mime + ';base64,' + b64;
   });
   SERVER.uploadFile = async function (adminPwd, base64, fileName, mime) {
-    const pw = await getPw();
-    if (adminPwd !== pw.admin) return { success: false, message: '관리자 권한이 유효하지 않습니다.' };
+    if (!hasLevel('admin')) { const r = await login('admin', adminPwd); if (!r.success) return { success: false, message: '관리자 권한이 유효하지 않습니다.' }; }
     try {
       mime = str(mime); const lower = str(fileName).toLowerCase();
       if (/\.xlsx?$/.test(lower) || /spreadsheetml|ms-excel/.test(mime)) return { success: false, message: '엑셀 파일은 올릴 수 없습니다. PDF나 이미지(캡처)로 저장해서 올려 주세요.' };
@@ -1225,8 +1369,8 @@
   }
 
   // ===== Page 11 : 쇼핑몰 학교 ID =====
-  SERVER.getAppConfig = async () => { const pw = await getPw(); return { userPw: pw.access, adminPw: pw.admin }; };
-  SERVER.saveAppConfig = async (c) => { const pw = await getPw(); if (c.userPw) pw.access = c.userPw; if (c.adminPw) pw.admin = c.adminPw; await setPw(pw); return true; };
+  SERVER.getAppConfig = async () => ({});   // 비밀번호는 더 이상 화면으로 보내지 않습니다(확인은 verifyPassword).
+  SERVER.saveAppConfig = async (c) => changePw('', c.userPw, c.adminPw);
   SERVER.getData = async function () {
     return (await getCol('data_mall', true)).map((r) => ({ rowIndex: Number(r._id), mall: str(r.mall), id: str(r.id), pw: str(r.pw), url: str(r.url), note: str(r.note) }))
       .sort((a, b) => a.rowIndex - b.rowIndex);
@@ -1270,6 +1414,6 @@
   window.google = { script: { run: runner(null, null), host: { close() {}, setHeight() {} } } };
 
   // 직접 Firestore를 쓰는 새 페이지(예산/바로가기/교실배치도)를 위한 공용 도구
-  window.GP = { periodTomb, parkPeriod: (n, prev) => renamePeriodData(n, periodTomb(n, prev)), restorePeriod: (n, prev) => renamePeriodData(periodTomb(n, prev), n), classroomGet, classroomPut, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
-    getPw, setPw, readList, writeList, spaceOrphans, countSpaceData, purgeSpaceData, renameSpaceData, listSpaceData, deleteSpaceRows, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
+  window.GP = { login, logout, authLevel, hasLevel, changePw, secured, securityStatus, studentStats, refreshStudentStats, SEC_EMAIL: EMAIL, periodTomb, parkPeriod: (n, prev) => renamePeriodData(n, periodTomb(n, prev)), restorePeriod: (n, prev) => renamePeriodData(periodTomb(n, prev), n), classroomGet, classroomPut, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
+    readList, writeList, spaceOrphans, countSpaceData, purgeSpaceData, renameSpaceData, listSpaceData, deleteSpaceRows, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
 })();

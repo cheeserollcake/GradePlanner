@@ -32,12 +32,15 @@
     return '스프레드시트를 만들지 못했습니다. (' + res.status + ') ' + msg;
   }
   async function create(title, sheets, onStatus) {
-    const say = onStatus || function () {}; let signedIn = false;
+    const say = onStatus || function () {}; let signedIn = false, gsAuth = null;
     try {
       say('구글 로그인 창을 여는 중입니다...');
       if (!firebase.auth) await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js');
       const provider = new firebase.auth.GoogleAuthProvider(); provider.addScope('https://www.googleapis.com/auth/drive.file'); provider.setCustomParameters({ prompt: 'select_account' });
-      const result = await firebase.auth().signInWithPopup(provider); signedIn = true;
+      // 구글 로그인은 별도 연결(gpgs)에서 해서, 비밀번호 페이지 로그인 상태를 건드리지 않습니다.
+      const gsApp = (firebase.apps || []).find((a) => a.name === 'gpgs') || firebase.initializeApp(window.FIREBASE_CONFIG || firebase.app().options, 'gpgs');
+      gsAuth = gsApp.auth(); try { await gsAuth.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) { /* 무시 */ }
+      const result = await gsAuth.signInWithPopup(provider); signedIn = true;
       const token = result && result.credential && result.credential.accessToken; if (!token) throw new Error('구글 권한(액세스 토큰)을 받지 못했습니다. 다시 시도해 주세요.');
       say('스프레드시트를 만드는 중입니다...');
       if (sheets.some((sp) => sp.rows.some((r) => r.some((c) => c && c.img)))) {
@@ -53,7 +56,7 @@
       if (!res.ok) throw new Error(await sheetsError(res));
       const j = await res.json(); return { url: j.spreadsheetUrl };
     } catch (e) { throw new Error(googleError(e)); }
-    finally { if (signedIn) { try { await firebase.auth().signOut(); } catch (e) { /* 무시 */ } } }
+    finally { if (signedIn && gsAuth) { try { await gsAuth.signOut(); } catch (e) { /* 무시 */ } } }
   }
   root.GSheet = { create, googleError };
 })(window);

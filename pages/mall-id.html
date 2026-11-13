@@ -2,11 +2,11 @@
 <html>
   <head>
   <script>window.__GP_PAGE__ = 'p11';</script>
-  <script src="../assets/js/fb-boot.js?v=20261112n"></script>
+  <script src="../assets/js/fb-boot.js?v=20261113a"></script>
   
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261112n">
-  <script src="../assets/js/firebase-config.js?v=20261112n"></script>
-  <script src="../assets/js/gas-shim.js?v=20261112n"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261113a">
+  <script src="../assets/js/firebase-config.js?v=20261113a"></script>
+  <script src="../assets/js/gas-shim.js?v=20261113a"></script>
 
     
     <meta charset="utf-8">
@@ -400,7 +400,7 @@
         .list-section { overflow-x: auto; overflow-y: visible; flex-grow: 0; }
       }
     </style>
-  <link rel="stylesheet" href="../assets/css/lock.css?v=20261112n">  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109c">
+  <link rel="stylesheet" href="../assets/css/lock.css?v=20261113a">  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109c">
 </head>
   <body>
 
@@ -483,12 +483,12 @@
 
         <div id="admin-settings-form" style="display:none;">
           <div class="input-group" style="margin-bottom: 15px; text-align: left;">
-            <label>접속 비밀번호 변경</label>
-            <input type="text" id="newUserPw" class="login-input" style="margin:0;">
+            <label>새 접속 비밀번호 (6자 이상, 비우면 그대로)</label>
+            <input type="password" id="newUserPw" class="login-input" style="margin:0;" autocomplete="new-password">
           </div>
           <div class="input-group" style="margin-bottom: 20px; text-align: left;">
-            <label>관리자 비밀번호 변경</label>
-            <input type="text" id="newAdminPw" class="login-input" style="margin:0;">
+            <label>새 관리자 비밀번호 (6자 이상, 비우면 그대로)</label>
+            <input type="password" id="newAdminPw" class="login-input" style="margin:0;" autocomplete="new-password">
           </div>
           <button class="btn-submit" onclick="saveSettings()">저장하기</button>
         </div>
@@ -498,33 +498,23 @@
     </div>
 
     <script>
-      let appConfig = {
-        userPw: "1111",
-        adminPw: "0000"
-      };
-      
       let globalTableData = [];
+      let adminPwOk = '';   // 관리자 확인에 쓴 비밀번호(비밀번호 변경 시 본인 확인용, 이 화면 메모리에만)
 
-      function initConfig() {
-        // 기존 localStorage 대신 구글 서버에서 영구 저장된 비밀번호를 불러옵니다.
-        google.script.run.withSuccessHandler(function(saved) {
-          if (saved) {
-            appConfig = saved;
-          }
-        }).getAppConfig();
-      }
+      function initConfig() { /* 비밀번호는 더 이상 화면으로 내려받지 않습니다. 확인은 서버(Firebase 로그인)가 합니다. */ }
 
       function checkLogin() {
-        const input = document.getElementById('entryPw').value;
-        if (input === appConfig.userPw) {
-          document.getElementById('login-screen').style.display = 'none';
-          document.getElementById('main-app').style.display = 'flex';
-          loadData(); 
-        } else {
-          alert('비밀번호가 일치하지 않습니다.');
-          document.getElementById('entryPw').value = '';
-          document.getElementById('entryPw').focus();
-        }
+        const el = document.getElementById('entryPw'); const input = el.value; el.value = '';
+        google.script.run.withSuccessHandler(function (res) {
+          if (res && res.success) {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('main-app').style.display = 'flex';
+            loadData();
+          } else {
+            alert((res && res.message) || '비밀번호가 일치하지 않습니다.');
+            el.focus();
+          }
+        }).verifyPassword(input);
       }
 
       function showAdminLogin() {
@@ -537,36 +527,29 @@
       }
 
       function verifyAdmin() {
-        const input = document.getElementById('adminInputPw').value;
-        if (input === appConfig.adminPw) {
-          document.getElementById('admin-auth-form').style.display = 'none';
-          document.getElementById('admin-settings-form').style.display = 'block';
-          document.getElementById('modalTitle').innerText = '비밀번호 관리';
-          
-          document.getElementById('newUserPw').value = appConfig.userPw;
-          document.getElementById('newAdminPw').value = appConfig.adminPw;
-        } else {
-          alert('관리자 비밀번호가 틀렸습니다.');
-        }
+        const el = document.getElementById('adminInputPw'); const input = el.value; el.value = '';
+        google.script.run.withSuccessHandler(function (res) {
+          if (res && res.success) {
+            adminPwOk = input;
+            document.getElementById('admin-auth-form').style.display = 'none';
+            document.getElementById('admin-settings-form').style.display = 'block';
+            document.getElementById('modalTitle').innerText = '비밀번호 관리';
+            document.getElementById('newUserPw').value = '';
+            document.getElementById('newAdminPw').value = '';
+          } else {
+            alert((res && res.message) || '관리자 비밀번호가 틀렸습니다.');
+          }
+        }).verifyAdminPassword(input);
       }
 
       function saveSettings() {
-        const newUserPw = document.getElementById('newUserPw').value;
-        const newAdminPw = document.getElementById('newAdminPw').value;
-
-        if (!newUserPw || !newAdminPw) {
-          alert('비밀번호를 입력해주세요.');
-          return;
-        }
-
-        appConfig.userPw = newUserPw;
-        appConfig.adminPw = newAdminPw;
-        
-        // 변경된 비밀번호를 구글 서버에 영구 저장 요청합니다.
-        google.script.run.withSuccessHandler(function() {
-          alert('설정이 저장되었습니다.');
-          closeModal();
-        }).saveAppConfig(appConfig);
+        const newUserPw = document.getElementById('newUserPw').value.trim();
+        const newAdminPw = document.getElementById('newAdminPw').value.trim();
+        if (!newUserPw && !newAdminPw) { alert('바꿀 비밀번호를 입력해주세요. (빈 칸은 그대로 둡니다)'); return; }
+        google.script.run.withSuccessHandler(function (res) {
+          alert(res.message);
+          if (res.success) { adminPwOk = ''; closeModal(); }
+        }).changePasswords(adminPwOk, newUserPw, newAdminPw);
       }
 
       function closeModal() {
@@ -613,7 +596,7 @@
             if (!url.match(/^https?:\/\//i)) {
               href = 'http://' + url;
             }
-            urlDisplay = `<a href="${href}" class="site-link" target="_blank">이동 ↗</a>`;
+            urlDisplay = `<a href="${escapeHtml(href)}" class="site-link" target="_blank" rel="noopener">이동 ↗</a>`;
           }
 
           // 연필 아이콘과 휴지통 아이콘 모두 추가 (SVG 코드 단순화 및 명확화)

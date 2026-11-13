@@ -32,7 +32,7 @@
     #clsSel .lbl { flex-shrink: 0; align-self: center; font-size: 11px; color: #94a3b8; margin-right: 2px; }
     @media (max-width: 900px) { #pageName { display: none; } #clsSel { justify-content: flex-start; } }
   </style>
-  <link rel="stylesheet" href="assets/css/themes.css?v=20261112n">
+  <link rel="stylesheet" href="assets/css/themes.css?v=20261113a">
 </head>
 <body>
   <header id="bar">
@@ -49,11 +49,14 @@
   <iframe id="frame" title="내용"></iframe>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="assets/js/firebase-config.js?v=20261112n"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="assets/js/firebase-config.js?v=20261113a"></script>
 <script>
 (function () {
   // Firebase 도구는 여기서 한 번만 불러와 연결하고, 안쪽 페이지들이 그대로 가져다 씁니다(fb-boot.js).
   try { firebase.initializeApp(window.FIREBASE_CONFIG); firebase.firestore().settings({ experimentalAutoDetectLongPolling: true, ignoreUndefinedProperties: true }); } catch (e) { console.warn('firebase init failed', e); }
+  // 비밀번호 페이지 로그인은 이 창의 메모리에만 둡니다(새로고침·창 닫기 시 풀림, 기기에 남지 않음).
+  try { if (firebase.auth) firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) { console.warn('auth init failed', e); }
   var CFG = {
     apiKey: "AIzaSyDonpgXJGlSjqv-sFVAdlokpZ0XhONpjY0", authDomain: "gradeplanner-d5499.firebaseapp.com", projectId: "gradeplanner-d5499",
     storageBucket: "gradeplanner-d5499.firebasestorage.app", messagingSenderId: "1084828628942", appId: "1:1084828628942:web:255327f94a2be511d99d9f", measurementId: "G-R5VZNEYT45"
@@ -107,8 +110,8 @@
       try {
         if (!d || !d.documentElement) return;
         if (THEME) d.documentElement.setAttribute('data-gp-theme', THEME); else d.documentElement.removeAttribute('data-gp-theme');
-        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261112n'; d.head.appendChild(l); }
-        if (d !== document && d.head && THEME && !d.getElementById('gp-theme-icons')) { var sc = d.createElement('script'); sc.id = 'gp-theme-icons'; sc.src = '../assets/js/theme-icons.js?v=20261112n'; d.head.appendChild(sc); }   // 디자인에 맞는 아이콘 그림 (기본 디자인일 때는 불러오지 않음)
+        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261113a'; d.head.appendChild(l); }
+        if (d !== document && d.head && THEME && !d.getElementById('gp-theme-icons')) { var sc = d.createElement('script'); sc.id = 'gp-theme-icons'; sc.src = '../assets/js/theme-icons.js?v=20261113a'; d.head.appendChild(sc); }   // 디자인에 맞는 아이콘 그림 (기본 디자인일 때는 불러오지 않음)
       } catch (e) {}
     });
     [].forEach.call(document.querySelectorAll('#themeSel button'), function (b) { b.classList.toggle('on', (b.getAttribute('data-theme') || '') === THEME); });
@@ -122,7 +125,7 @@
   function selClass() { var v = 0; try { v = parseInt(localStorage.getItem('gp_cls'), 10) || 0; } catch (e) {} return v >= 1 && v <= CLASSES.length ? v : 0; }
   function drawClassSel() {
     var box = document.getElementById('clsSel'), cur = selClass(); if (!box) return;
-    box.innerHTML = '<span class="lbl">학급</span>' + CLASSES.map(function (c, i) { return '<button type="button" data-cls="' + (i + 1) + '" class="' + (cur === i + 1 ? 'on' : '') + '" title="' + c + ' 내용 굵게 보기 (다시 누르면 해제)">' + c.replace(/[<>&"]/g, '') + '</button>'; }).join('');
+    box.innerHTML = '<span class="lbl">학급</span>' + CLASSES.map(function (c, i) { return '<button type="button" data-cls="' + (i + 1) + '" class="' + (cur === i + 1 ? 'on' : '') + '" title="' + String(c).replace(/[<>&"']/g, '') + ' 내용 굵게 보기 (다시 누르면 해제)">' + c.replace(/[<>&"]/g, '') + '</button>'; }).join('');
     [].forEach.call(box.querySelectorAll('[data-cls]'), function (b) {
       b.onclick = function () { var n = +b.getAttribute('data-cls'); try { localStorage.setItem('gp_cls', selClass() === n ? '' : String(n)); } catch (e) {} drawClassSel(); applyClass(); };
     });
@@ -133,7 +136,7 @@
     var n = selClass(); w.__gpSel = n ? { n: n, name: CLASSES[n - 1] } : null;
     if (curPage === 'admin') { w.__gpSel = null; if (w.__gpClassFocus) w.__gpClassFocus.apply(); return; }
     if (w.__gpClassFocus) { w.__gpClassFocus.apply(); return; }
-    if (!d.getElementById('gp-class-focus')) { var sc = d.createElement('script'); sc.id = 'gp-class-focus'; sc.src = '../assets/js/class-focus.js?v=20261112n'; d.head.appendChild(sc); }
+    if (!d.getElementById('gp-class-focus')) { var sc = d.createElement('script'); sc.id = 'gp-class-focus'; sc.src = '../assets/js/class-focus.js?v=20261113a'; d.head.appendChild(sc); }
   }
   drawClassSel();
   document.getElementById('frame').addEventListener('load', applyClass);
@@ -157,8 +160,12 @@
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
   function route() {
     var page = location.hash.replace('#/', '') || 'home';
+    if (!/^[a-z0-9-]+$/.test(page)) page = 'home';
+    // 다른 메뉴로 옮기면 비밀번호 페이지 로그인을 풉니다. (예산·전담 화면에서 관리자 비밀번호를 확인하고 관리자 페이지로 넘어가는 경우만 유지)
+    var keep = window.__gpKeepAuth === page; window.__gpKeepAuth = null;
+    if (!keep && curPage && curPage !== page) { try { if (firebase.auth && firebase.auth().currentUser) firebase.auth().signOut(); } catch (e) { /* 무시 */ } }
     curPage = page;
-    frame.src = 'pages/' + page + '.html?v=20261112n';
+    frame.src = 'pages/' + page + '.html?v=20261113a';
     items.forEach(function (a) { a.classList.toggle('active', a.dataset.page === page); });
     setOpen(false); applyMeta();
   }
@@ -183,7 +190,7 @@
 <script>
   // 새 버전 자동 확인: 브라우저가 예전 index.html 을 기억하고 있으면 version.json(캐시 없이 읽음)과 비교해 한 번 새로고침합니다.
   (function () {
-    var MINE = '20261112n';
+    var MINE = '20261113a';
     try {
       fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
         if (!j || !j.v || j.v === MINE) return;

@@ -52,19 +52,24 @@
   }
 
   // ================================================================ 로그인 (페이지에 들어올 때마다 비밀번호를 묻습니다)
+  let tries = 0, lockUntil = 0;
   async function tryLogin() {
-    const pw = await GP.getPw();
-    if ($('pw').value === pw.admin) start(); else $('pwErr').classList.remove('hidden');
+    const err = $('pwErr');
+    if (Date.now() < lockUntil) { err.textContent = '여러 번 틀려 ' + Math.ceil((lockUntil - Date.now()) / 1000) + '초 뒤에 다시 입력할 수 있습니다.'; err.classList.remove('hidden'); return; }
+    const r = await GP.login('admin', $('pw').value); $('pw').value = '';
+    if (r.success) { tries = 0; start(); return; }
+    if (++tries >= 5) { tries = 0; lockUntil = Date.now() + 30000; }
+    err.textContent = r.message || '비밀번호가 일치하지 않습니다.'; err.classList.remove('hidden');
   }
   $('login').onclick = tryLogin; $('pw').onkeydown = (e) => { if (e.key === 'Enter') tryLogin(); };
-  $('lock').onclick = () => { location.reload(); };
+  $('lock').onclick = () => { GP.logout().then(() => location.reload()); };
 
   { const st = document.createElement('style'); st.textContent = 'input.no-spin::-webkit-outer-spin-button,input.no-spin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}input.no-spin{-moz-appearance:textfield}'; document.head.appendChild(st); }
   const TABS = [['year', '학년도 설정'], ['time', '시간표 설정'], ['basic', '학년 기초 설정'], ['assign', '시간표 배정'], ['space', '공간 개방 설정'], ['budget', '예산 설정'], ['data', '비밀번호/데이터 관리']];
   let tab = 'year';
   const TABS_KEYS = TABS.map((t) => t[0]);
   // 예산 페이지에서 비밀번호를 확인하고 넘어온 경우에는 다시 묻지 않습니다.
-  try { const jump = sessionStorage.getItem('gp_admin_open'); if (jump) { sessionStorage.removeItem('gp_admin_open'); if (TABS_KEYS.indexOf(jump) >= 0) tab = jump; setTimeout(() => start(), 0); } } catch (e) { /* 무시 */ }
+  try { const jump = sessionStorage.getItem('gp_admin_open'); if (jump) { sessionStorage.removeItem('gp_admin_open'); if (TABS_KEYS.indexOf(jump) >= 0) tab = jump; if (GP.hasLevel('admin')) setTimeout(() => start(), 0); } } catch (e) { /* 무시 */ }
   // 다른 페이지에서 특정 부분으로 바로 가기 (예: 전담 시간표 페이지의 톱니 → 전담 시간표 일괄 업로드)
   try { const to = sessionStorage.getItem('gp_admin_scroll'); if (to) { sessionStorage.removeItem('gp_admin_scroll'); let n = 0; const t = setInterval(() => { const el = document.getElementById(to); if (el || ++n > 50) { clearInterval(t); if (el) { const box = el.closest('.border.rounded-xl') || el; box.scrollIntoView({ behavior: 'smooth', block: 'center' }); box.style.transition = 'box-shadow .3s'; box.style.boxShadow = '0 0 0 3px #6366f1'; setTimeout(() => { box.style.boxShadow = ''; }, 2500); } } }, 100); } } catch (e) { /* 무시 */ }
   function start() {
@@ -798,13 +803,32 @@
     draw();
   }
 
+  const RULES_TEXT = "rules_version = '2';\n// GradePlanner 보안 규칙\n//  - 학생 명렬표·쇼핑몰 ID·내선번호 파일·특별실 비밀번호: 비밀번호로 로그인한 사람만 읽고 쓸 수 있음\n//  - 비밀번호 사본(gp_secret): 관리자만\n//  - 그 밖의 시간표·일정 등: 지금처럼 누구나 보고 고칠 수 있음\n// ※ 관리자가 새 버전의 관리자 페이지에 한 번 로그인해 '보안 전환'을 마친 뒤 붙여 넣으세요.\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    function isAdmin() { return request.auth != null && request.auth.token.email == 'gp-admin@gradeplanner-d5499.firebaseapp.com'; }\n    function isMember() { return isAdmin() || (request.auth != null && request.auth.token.email == 'gp-access@gradeplanner-d5499.firebaseapp.com'); }\n\n    match /gp_secret/{doc} { allow read, write: if isAdmin(); }\n    match /gp_private/{doc} { allow read, write: if isMember(); }\n    match /data_student/{doc} { allow read, write: if isMember(); }\n    match /data_mall/{doc} { allow read, write: if isMember(); }\n    match /data_files/{doc} { allow read, write: if isMember() || !doc.matches('ext_.*'); }\n    match /app_config/{doc} {\n      allow read: if true;\n      allow write: if isAdmin() || !(doc in ['security', 'passwords', 'room_passwords']);\n    }\n    match /{col}/{doc} {\n      allow read, write: if !(col in ['gp_secret', 'gp_private', 'data_student', 'data_mall', 'data_files', 'app_config']);\n    }\n  }\n}\n";
+  async function renderSecCard() {
+    const box = $('secCard'); if (!box) return;
+    let st; try { st = await GP.securityStatus(); } catch (e) { st = { on: false, rules: null, err: String(e) }; }
+    const ok = (t) => '<span class="font-semibold" style="color:#047857">✔ ' + t + '</span>', bad = (t) => '<span class="font-semibold" style="color:#dc2626">✘ ' + t + '</span>';
+    const step1 = st.on ? ok('비밀번호 확인을 Firebase 로그인으로 처리 중 (비밀번호가 공개 설정에 없음)') :
+      bad('예전 방식(비밀번호가 공개 설정에 저장됨)') + '<div class="text-xs text-slate-500 mt-1">Firebase 콘솔 › Authentication › 로그인 방법에서 <b>이메일/비밀번호</b>를 사용 설정한 뒤, 이 관리자 페이지에 다시 로그인하면 자동으로 전환됩니다.' + (st.err ? '<br><span style="color:#dc2626">전환 실패 이유: ' + esc(st.err) + '</span>' : '') + '</div>';
+    const step2 = st.rules === true ? ok('보안 규칙 적용됨 — 로그인하지 않은 사람은 명렬표·쇼핑몰 ID·내선번호·특별실 비밀번호를 읽을 수 없음') :
+      (st.rules === false ? bad('보안 규칙이 아직 적용되지 않음 — 지금은 누구나 데이터를 읽을 수 있습니다') : '<span class="font-semibold" style="color:#b45309">? 보안 규칙 확인 실패(인터넷 연결 확인)</span>') +
+      (st.rules === true ? '' : '<div class="text-xs text-slate-500 mt-1">' + (st.on ? '' : '<b>1번을 먼저 마친 뒤</b> ') + 'Firebase 콘솔 › Firestore Database › <b>규칙</b> 탭의 내용을 아래 규칙으로 모두 바꾸고 <b>게시</b>를 누르세요.</div>' +
+        '<div class="mt-2 flex gap-2"><button id="copyRules" type="button" class="' + BTN_G + ' !py-1 text-xs">보안 규칙 복사</button><button id="showRules" type="button" class="' + BTN_G + ' !py-1 text-xs">규칙 보기</button></div><pre id="rulesPre" class="hidden mt-2 text-[11px] bg-slate-50 border rounded-lg p-2 overflow-x-auto whitespace-pre">' + esc(RULES_TEXT) + '</pre>');
+    box.innerHTML = '<h2 class="font-bold text-lg">보안 상태</h2><ol class="text-sm space-y-3 list-decimal pl-5"><li>' + step1 + '</li><li>' + step2 + '</li>' +
+      '<li class="text-slate-600">권장: 1·2번을 마친 뒤 Firebase 콘솔 › Authentication › 설정 › 사용자 작업에서 <b>“생성(가입) 사용”</b>을 꺼 두면 다른 사람이 로그인 계정을 새로 만들 수 없습니다.</li></ol>' +
+      '<p class="text-xs text-slate-400 mt-2">비밀번호 페이지의 로그인은 다른 메뉴로 옮기거나, 새로고침하거나, 20분 동안 조작이 없으면 자동으로 풀립니다.</p>';
+    const cp = $('copyRules'); if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(RULES_TEXT); toast('보안 규칙을 복사했습니다. 콘솔 규칙 탭에 붙여 넣으세요.'); } catch (e) { $('rulesPre').classList.remove('hidden'); toast('복사가 막혀 있어 규칙을 펼쳤습니다. 직접 선택해 복사하세요.', true); } };
+    const sh = $('showRules'); if (sh) sh.onclick = () => $('rulesPre').classList.toggle('hidden');
+  }
   async function renderData() {
-    const pw = await GP.getPw(); const years = await APP.detectYears(); const g = await APP.getGeneral();
+    const years = await APP.detectYears(); const g = await APP.getGeneral();
     if (g.year && years.indexOf(g.year) < 0) years.push(g.year); years.sort((a, b) => a - b);
-    view.innerHTML = '<div class="space-y-5"><div class="' + CARD + '"><h2 class="font-bold text-lg">비밀번호 설정</h2><div class="grid sm:grid-cols-2 gap-3">' +
-      '<label class="text-sm font-semibold">페이지 접근 비밀번호<span class="block text-xs font-normal text-slate-400">학생 명렬표, 내선번호 등에 공통 적용</span><input id="pwAccess" value="' + esc(pw.access) + '" class="' + INP + ' w-full mt-1"></label>' +
-      '<label class="text-sm font-semibold">관리자 페이지 비밀번호<span class="block text-xs font-normal text-slate-400">이 관리자 페이지 접근용</span><input id="pwAdmin" value="' + esc(pw.admin) + '" class="' + INP + ' w-full mt-1"></label></div>' +
-      '<div class="text-right"><button id="savePw" class="' + BTN_P + '">비밀번호 저장</button></div></div>' +
+    view.innerHTML = '<div class="space-y-5"><div id="secCard" class="' + CARD + '"><h2 class="font-bold text-lg">보안 상태</h2><p class="text-sm text-slate-400">확인 중...</p></div>' +
+      '<div class="' + CARD + '"><h2 class="font-bold text-lg">비밀번호 변경</h2><p class="text-sm text-slate-500">보안을 위해 지금 비밀번호는 화면에 보여 주지 않습니다. 바꿀 칸만 새로 입력하세요(빈 칸은 그대로). 새 비밀번호는 <b>6자 이상</b>, 숫자와 영문을 섞으면 더 안전합니다.</p><div class="grid sm:grid-cols-3 gap-3">' +
+      '<label class="text-sm font-semibold">지금 관리자 비밀번호<span class="block text-xs font-normal text-slate-400">본인 확인용</span><input id="pwCur" type="password" autocomplete="current-password" class="' + INP + ' w-full mt-1"></label>' +
+      '<label class="text-sm font-semibold">새 페이지 접근 비밀번호<span class="block text-xs font-normal text-slate-400">명렬표·내선번호·쇼핑몰 ID·특별실 비밀번호</span><input id="pwAccess" type="password" autocomplete="new-password" class="' + INP + ' w-full mt-1"></label>' +
+      '<label class="text-sm font-semibold">새 관리자 비밀번호<span class="block text-xs font-normal text-slate-400">이 관리자 페이지 접근용</span><input id="pwAdmin" type="password" autocomplete="new-password" class="' + INP + ' w-full mt-1"></label></div>' +
+      '<div class="text-right"><button id="savePw" class="' + BTN_P + '">비밀번호 변경</button></div></div>' +
       '<div class="' + CARD + ' border-red-200"><h2 class="font-bold text-lg text-red-700">데이터 삭제</h2><p class="text-sm text-slate-500">선택한 학년도(2월 1일~다음 해 2월 말일)의 데이터 중 삭제할 항목을 팝업에서 골라 지웁니다.<br>학년도를 바꾸면 명렬표·기초시간표·예산·강좌·이미지·교실배치도·내선번호는 새 학년도에서 빈 화면으로 보이고, 이전 데이터는 여기서 삭제하기 전까지 남아 있습니다.<br><b>삭제되지 않음:</b> 쇼핑몰 ID, 바로가기, 비밀번호, 학급·과목·교시·공간 목록</p>' +
       '<div class="flex gap-2 items-center"><select id="delYear" class="' + INP + '">' + years.map((y) => '<option value="' + y + '">' + y + '학년도</option>').join('') + '</select><button id="delBtn" class="' + BTN + ' bg-red-600 text-white hover:bg-red-700">과거 데이터 삭제</button></div></div>' +
       '<div class="' + CARD + '"><h2 class="font-bold text-lg">임시 저장 데이터 새로고침</h2><p class="text-sm text-slate-500">속도와 사용량을 줄이려고 기기에 저장해 둔 데이터는 앱에서 저장할 때마다 자동으로 갱신됩니다. 파이어베이스 콘솔에서 데이터를 직접 고쳤다면 이 버튼으로 모든 기기가 새로 받게 하세요.</p><button id="resetCache" class="' + BTN_G + '">모든 기기 데이터 새로고침</button></div></div>' +
@@ -815,9 +839,12 @@
       '<p class="text-sm text-slate-600">계속하려면 아래에 <b>과거 데이터 삭제</b> 를 입력하세요.</p><input id="dmIn" class="' + INP + ' w-full" placeholder="과거 데이터 삭제">' +
       '<div class="flex justify-end gap-2"><button id="dmNo" class="' + BTN_G + '">취소</button><button id="dmYes" disabled class="' + BTN + ' bg-red-600 text-white disabled:opacity-40">선택한 항목 삭제</button></div></div></div>';
     $('savePw').onclick = () => guard(async () => {
-      const a = $('pwAccess').value.trim(), b = $('pwAdmin').value.trim(); if (!a || !b) throw new Error('비밀번호를 입력하세요.');
-      await GP.setPw({ access: a, admin: b });
-    }, '비밀번호가 저장되었습니다.');
+      const c = $('pwCur').value, a = $('pwAccess').value.trim(), b = $('pwAdmin').value.trim(); if (!a && !b) throw new Error('새 비밀번호를 입력하세요.');
+      if (!c) throw new Error('지금 관리자 비밀번호를 입력하세요.');
+      const r = await GP.changePw(c, a, b); if (!r.success) throw new Error(r.message);
+      $('pwCur').value = ''; $('pwAccess').value = ''; $('pwAdmin').value = '';
+    }, '비밀번호가 변경되었습니다.');
+    renderSecCard();
     $('resetCache').onclick = () => guard(() => GP.resetCaches(), '모든 기기가 다음에 열 때 데이터를 새로 받습니다.');
     const modal = $('dm'); const show = (v) => { modal.classList.toggle('hidden', !v); modal.classList.toggle('flex', v); };
     const picked = () => [...modal.querySelectorAll('[data-dk]:checked')].map((c) => c.dataset.dk);

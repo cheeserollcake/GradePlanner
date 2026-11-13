@@ -1,10 +1,25 @@
 rules_version = '2';
+// GradePlanner 보안 규칙
+//  - 학생 명렬표·쇼핑몰 ID·내선번호 파일·특별실 비밀번호: 비밀번호로 로그인한 사람만 읽고 쓸 수 있음
+//  - 비밀번호 사본(gp_secret): 관리자만
+//  - 그 밖의 시간표·일정 등: 지금처럼 누구나 보고 고칠 수 있음
+// ※ 관리자가 새 버전의 관리자 페이지에 한 번 로그인해 '보안 전환'을 마친 뒤 붙여 넣으세요.
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 기존 구글 사이트처럼 로그인 없이 읽고 수정하는 설정입니다. (임시)
-    // 학생 이름·생년월일, 쇼핑몰 ID/비밀번호가 포함되어 있어 공개 운영 전 반드시 강화하세요.
-    match /{document=**} {
-      allow read, write: if true;
+    function isAdmin() { return request.auth != null && request.auth.token.email == 'gp-admin@gradeplanner-d5499.firebaseapp.com'; }
+    function isMember() { return isAdmin() || (request.auth != null && request.auth.token.email == 'gp-access@gradeplanner-d5499.firebaseapp.com'); }
+
+    match /gp_secret/{doc} { allow read, write: if isAdmin(); }
+    match /gp_private/{doc} { allow read, write: if isMember(); }
+    match /data_student/{doc} { allow read, write: if isMember(); }
+    match /data_mall/{doc} { allow read, write: if isMember(); }
+    match /data_files/{doc} { allow read, write: if isMember() || !doc.matches('ext_.*'); }
+    match /app_config/{doc} {
+      allow read: if true;
+      allow write: if isAdmin() || !(doc in ['security', 'passwords', 'room_passwords']);
+    }
+    match /{col}/{doc} {
+      allow read, write: if !(col in ['gp_secret', 'gp_private', 'data_student', 'data_mall', 'data_files', 'app_config']);
     }
   }
 }

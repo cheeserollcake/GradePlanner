@@ -36,5 +36,5 @@
       patch(p); window.firebase = p.firebase; window.__GP_SHARED_FB = true; return;
     }
   } catch (e) { /* 다른 출처: 직접 불러옴 */ }
-  document.write('<script src="' + FB + 'firebase-app-compat.js"><\/script><script src="' + FB + 'firebase-firestore-compat.js"><\/script>');
+  document.write('<script src="' + FB + 'firebase-app-compat.js"><\/script><script src="' + FB + 'firebase-firestore-compat.js"><\/script><script src="' + FB + 'firebase-auth-compat.js"><\/script>');
 })();
