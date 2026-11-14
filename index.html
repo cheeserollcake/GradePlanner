@@ -6,9 +6,9 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
   <title>학년 통합 관리 시스템</title>
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=20261114d">
-  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png?v=20261114d">
-  <link rel="manifest" href="manifest.webmanifest?v=20261114d">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=20261114e">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png?v=20261114e">
+  <link rel="manifest" href="manifest.webmanifest?v=20261114e">
   <meta name="theme-color" content="#4f46e5">
   <meta name="apple-mobile-web-app-title" content="학년 관리">
   <style>
@@ -37,7 +37,7 @@
     #clsSel .lbl { flex-shrink: 0; align-self: center; font-size: 11px; color: #94a3b8; margin-right: 2px; }
     @media (max-width: 900px) { #pageName { display: none; } #clsSel { justify-content: flex-start; } }
   </style>
-  <link rel="stylesheet" href="assets/css/themes.css?v=20261114d">
+  <link rel="stylesheet" href="assets/css/themes.css?v=20261114e">
 </head>
 <body>
   <header id="bar">
@@ -55,7 +55,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="assets/js/firebase-config.js?v=20261114d"></script>
+<script src="assets/js/firebase-config.js?v=20261114e"></script>
 <script>
 (function () {
   // Firebase 도구는 여기서 한 번만 불러와 연결하고, 안쪽 페이지들이 그대로 가져다 씁니다(fb-boot.js).
@@ -115,8 +115,8 @@
       try {
         if (!d || !d.documentElement) return;
         if (THEME) d.documentElement.setAttribute('data-gp-theme', THEME); else d.documentElement.removeAttribute('data-gp-theme');
-        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261114d'; d.head.appendChild(l); }
-        if (d !== document && d.head && THEME && !d.getElementById('gp-theme-icons')) { var sc = d.createElement('script'); sc.id = 'gp-theme-icons'; sc.src = '../assets/js/theme-icons.js?v=20261114d'; d.head.appendChild(sc); }   // 디자인에 맞는 아이콘 그림 (기본 디자인일 때는 불러오지 않음)
+        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261114e'; d.head.appendChild(l); }
+        if (d !== document && d.head && THEME && !d.getElementById('gp-theme-icons')) { var sc = d.createElement('script'); sc.id = 'gp-theme-icons'; sc.src = '../assets/js/theme-icons.js?v=20261114e'; d.head.appendChild(sc); }   // 디자인에 맞는 아이콘 그림 (기본 디자인일 때는 불러오지 않음)
       } catch (e) {}
     });
     [].forEach.call(document.querySelectorAll('#themeSel button'), function (b) { b.classList.toggle('on', (b.getAttribute('data-theme') || '') === THEME); });
@@ -142,7 +142,7 @@
     if (curPage === 'admin') { w.__gpSel = null; if (w.__gpClassFocus) w.__gpClassFocus.apply(); return; }
     try { if (w.__gpClassChanged) w.__gpClassChanged(w.__gpSel); } catch (e) { /* 무시 */ }   // 예산(학급운영비) 등: 고른 반으로 거르기
     if (w.__gpClassFocus) { w.__gpClassFocus.apply(); return; }
-    if (!d.getElementById('gp-class-focus')) { var sc = d.createElement('script'); sc.id = 'gp-class-focus'; sc.src = '../assets/js/class-focus.js?v=20261114d'; d.head.appendChild(sc); }
+    if (!d.getElementById('gp-class-focus')) { var sc = d.createElement('script'); sc.id = 'gp-class-focus'; sc.src = '../assets/js/class-focus.js?v=20261114e'; d.head.appendChild(sc); }
   }
   drawClassSel();
   document.getElementById('frame').addEventListener('load', applyClass);
@@ -171,7 +171,7 @@
     var keep = window.__gpKeepAuth === page; window.__gpKeepAuth = null;
     if (!keep && curPage && curPage !== page) { try { if (firebase.auth && firebase.auth().currentUser) firebase.auth().signOut(); } catch (e) { /* 무시 */ } }
     curPage = page;
-    frame.src = 'pages/' + page + '.html?v=20261114d';
+    frame.src = 'pages/' + page + '.html?v=20261114e';
     items.forEach(function (a) { a.classList.toggle('active', a.dataset.page === page); });
     setOpen(false); applyMeta();
   }
@@ -200,7 +200,7 @@
 <script>
   // 새 버전 자동 확인: 브라우저가 예전 index.html 을 기억하고 있으면 version.json(캐시 없이 읽음)과 비교해 한 번 새로고침합니다.
   (function () {
-    var MINE = '20261114d';
+    var MINE = '20261114e';
     try {
       fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
         if (!j || !j.v || j.v === MINE) return;

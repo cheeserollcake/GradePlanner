@@ -263,6 +263,20 @@
   const isHolidayWord = (v) => /^(휴일|y|yes|o|1|true|예|공휴일)$/i.test(str(v).trim());
 
   // part: 'year' = 학년도 설정 탭(학년도·학기, 교시, 주간시수, 학교 기초 일정), 'basic' = 학년 기초 설정 탭(학급 및 교사)
+  // 오래 걸리는 작업 중: 화면 가운데 빙글빙글 + 다른 곳을 누르지 못하게 막음
+  function busy(on, msg) {
+    let el = document.getElementById('gp-busy');
+    if (!el) {
+      el = document.createElement('div'); el.id = 'gp-busy';
+      el.style.cssText = 'position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.28);backdrop-filter:blur(1px)';
+      el.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px 28px;box-shadow:0 10px 30px rgba(0,0,0,.18);display:flex;flex-direction:column;align-items:center;gap:12px;min-width:200px">' +
+        '<div style="width:42px;height:42px;border:4px solid #e0e7ff;border-top-color:#4f46e5;border-radius:50%;animation:gpspin .8s linear infinite"></div><div id="gp-busy-msg" style="font-size:14px;font-weight:600;color:#334155"></div></div>';
+      const st = document.createElement('style'); st.textContent = '@keyframes gpspin{to{transform:rotate(360deg)}}'; document.head.appendChild(st);
+      el.addEventListener('keydown', (e) => e.preventDefault(), true); document.body.appendChild(el);
+    }
+    el.querySelector('#gp-busy-msg').textContent = msg || '처리 중...'; el.style.display = on ? 'flex' : 'none';
+    if (on && document.activeElement) document.activeElement.blur();
+  }
   async function renderBasic(part) {
     const $ = (id) => document.getElementById(id) || document.createElement('i');   // 이 탭에 없는 요소는 무시
     view.innerHTML = '<p class="text-slate-400">불러오는 중...</p>';
@@ -331,7 +345,7 @@
       await APP.syncTeachers(old, gs); await APP.saveGeneral(gs);
     });
     let pendingTimer = null;
-    const saveGeneralSoon = () => { clearTimeout(pendingTimer); pendingTimer = setTimeout(saveGeneral, 350); };
+    const saveGeneralSoon = () => { clearTimeout(pendingTimer); pendingTimer = setTimeout(() => { pendingTimer = null; saveGeneral(); }, 350); };
     const listOf = (kind) => (kind === 'hr' ? g.homerooms : g.specials);
 
     const termUI = (kind, i, e) => {
@@ -440,13 +454,14 @@
         try {
           const y = parseInt($('year').value, 10); if (!(y >= 2000 && y <= 2100)) throw new Error('올바른 연도를 입력하세요.');
           if (y !== g.year) {
-            clearTimeout(pendingTimer); await saveGeneral();            // 이전 학년도 입력을 먼저 저장
+            busy(true, y + '학년도로 바꾸는 중...');
+            if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; await saveGeneral(); }   // 아직 저장 안 된 입력이 있을 때만 먼저 저장
             await APP.setYear(y);                                         // 새 학년도: 그 학년도에 저장한 설정(없으면 이전 학년도 설정)
-            notifyMeta(); toast(y + '학년도로 설정되었습니다.');
-            await renderBasic(part); return;                              // 교시·주간시수 등 화면에 들고 있던 이전 학년도 값을 버리고 새 학년도 값으로 다시 그림
+            await renderBasic(part); busy(false);
+            notifyMeta(); toast(y + '학년도로 설정되었습니다.'); return;                              // 교시·주간시수 등 화면에 들고 있던 이전 학년도 값을 버리고 새 학년도 값으로 다시 그림
           }
           notifyMeta(); toast(y + '학년도로 설정되었습니다.');
-        } catch (e) { console.error(e); toast('실패: ' + e.message, true); }
+        } catch (e) { busy(false); console.error(e); toast('실패: ' + e.message, true); }
       };
 
       if (part === 'year') {   // 학기·방학 칸은 '학년도 설정' 탭에만 있습니다

@@ -33,7 +33,8 @@
   // 기초시간표는 학급마다 문서 하나(class_N)라서, 학년도가 바뀌면 지난 학년도 문서를 class_N__y<학년도> 로 옮겨 두고 새 학년도의 보관본이 있으면 되돌립니다.
   const BT = 'data_basic_timetable';
   const archiveOps = (row, y) => { const d = Object.assign({}, row); delete d._id; d._year = y; return [{ type: 'set', col: BT, id: row._id + '__y' + y, data: d }, { type: 'delete', col: BT, id: row._id }]; };
-  async function tagYear(y, newYear) {
+  async function tagYear(y, newYear) { await commit(await tagYearOps(y, newYear)); }
+  async function tagYearOps(y, newYear) {
     const ops = [];
     for (const col of G.YEARED) (await G.getColAll(col)).forEach((r) => {
       if (r._year !== undefined && r._year !== null) return;
@@ -41,16 +42,21 @@
     });
     if (newYear) (await G.getColAll(BT)).forEach((r) => { const m = r._id.match(/^(class_\d+)__y(\d+)$/); if (m && Number(m[2]) === newYear) { const d = Object.assign({}, r); delete d._id; delete d._year; ops.push({ type: 'set', col: BT, id: m[1], data: d }, { type: 'delete', col: BT, id: r._id }); } });
     (await getCol('data_basic')).forEach((r) => { if (str(r.list_budget).trim() && (r.list_budget_year === undefined || r.list_budget_year === null || r.list_budget_year === '')) ops.push({ type: 'update', col: 'data_basic', id: r._id, data: { list_budget_year: y } }); });   // 예산 카드도 이전 학년도 것으로 표시
-    await commit(ops);
     const groups = await getCfg('course_groups', []);
-    if (groups.some((g) => g.year === undefined || g.year === null)) await setCfg('course_groups', groups.map((g) => (g.year === undefined || g.year === null ? Object.assign({}, g, { year: y }) : g)));
+    if (groups.some((g) => g.year === undefined || g.year === null)) ops.push(G.cfgOp('course_groups', groups.map((g) => (g.year === undefined || g.year === null ? Object.assign({}, g, { year: y }) : g))));
+    return ops;
   }
+  // 학년도 바꾸기: 필요한 저장을 모두 모아 한 번에 보냄(예전에는 저장을 15~20번 따로 해서 느렸음)
   async function setYear(year) {
-    const cur = await G.loadGeneral(); await G.saveGeneral(cur);
-    if (year !== cur.year) await G.freezeYearSettings();   // 떠나는 학년도의 교시·과목·교사·공간·주간시수를 그 학년도 것으로 고정
-    if (year !== cur.year && !(await G.getCfg('space_open_' + cur.year, null))) await G.saveOpen(cur.year, await G.loadOpen(cur.year));   // 공간 개방 설정도 떠나는 학년도 것으로 먼저 고정   // 이전 형식의 데이터가 있으면 현재 학년도 것으로 먼저 옮김
-    if (year !== cur.year) await tagYear(cur.year, year);   // 지금까지의 명렬표·기초시간표·예산 등에 '이전 학년도' 표시를 붙여 새 학년도에서는 빈 화면으로 보이게 함(삭제 아님)
-    cur.year = year; const raw = (await G.getCfg('general', {})) || {}; await G.setCfg('general', { year, grade: cur.grade, classCount: raw.classCount !== undefined ? raw.classCount : cur.classCount, classNames: Array.isArray(raw.classNames) ? raw.classNames : cur.classNames, legacyMigrated: true });   // 학급 값은 학년도별(year_<학년도>)로, 새 학년도는 이전 학년도 것을 이어받음
+    const cur = await G.loadGeneral(); const ops = await G.generalOps(cur);
+    if (year !== cur.year) {
+      ops.push(...(await G.freezeOps()));   // 떠나는 학년도의 교시·과목·교사·공간·주간시수를 그 학년도 것으로 고정
+      if (!(await G.getCfg('space_open_' + cur.year, null))) ops.push(...G.openOps(cur.year, await G.loadOpen(cur.year)));   // 공간 개방 설정도 떠나는 학년도 것으로 고정
+      ops.push(...(await tagYearOps(cur.year, year)));   // 명렬표·기초시간표·예산 등에 '이전 학년도' 표시(삭제 아님)
+    }
+    const raw = (await G.getCfg('general', {})) || {};
+    ops.push(G.cfgOp('general', { year, grade: cur.grade, classCount: raw.classCount !== undefined ? raw.classCount : cur.classCount, classNames: Array.isArray(raw.classNames) ? raw.classNames : cur.classNames, legacyMigrated: true }));   // 학급 값은 학년도별(year_<학년도>)
+    await commit(ops);
   }
   // 학기/기간 매칭: entry = {terms:[...], period:{start,end}|null}, sems = {학기이름:{start,end}}
   function entryApplies(e, date, sems) {
