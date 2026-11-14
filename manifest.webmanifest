@@ -1,0 +1,26 @@
+{
+ "name": "학년 통합 관리 시스템",
+ "short_name": "학년 관리",
+ "start_url": "./",
+ "display": "standalone",
+ "background_color": "#f8fafc",
+ "theme_color": "#4f46e5",
+ "icons": [
+  {
+   "src": "assets/icons/icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "assets/icons/icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  },
+  {
+   "src": "assets/icons/icon-512-maskable.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ]
+}

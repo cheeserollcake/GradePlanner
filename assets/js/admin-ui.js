@@ -273,9 +273,9 @@
     let saveSlots = () => {}, saveTimes = () => {}, extraOff = [];
     if (part === 'year') {
       times = (await GP.readList('list_time')).map((i) => i.value); if (!times.length) times = [1, 2, 3, 4, 5, 6].map((n) => n + '교시');
-      const slotCfg = await GP.getCfg('basic_slots', {}); const rawOff = Array.isArray(slotCfg.off) ? slotCfg.off : []; extraOff = []; off = new Set();
+      const slotCfg = await GP.getYearCfg('basic_slots', {}); const rawOff = Array.isArray(slotCfg.off) ? slotCfg.off : []; extraOff = []; off = new Set();
       rawOff.forEach((k) => { let m = /^(\d)\|(.+)$/.exec(k), d, nm; if (m) { d = m[1]; nm = m[2]; } else if ((m = /^(\d)_(\d+)$/.exec(k))) { d = m[1]; nm = m[2] + '교시'; } else return; const i = times.indexOf(nm); if (i >= 0) off.add(d + '_' + (i + 1)); else extraOff.push(d + '|' + nm); });   // 꺼 둔 칸: '<요일1~5>_<교시1~>'
-      saveSlots = () => autosave(() => GP.setCfg('basic_slots', { off: [...off].map((k) => { const [d, r] = k.split('_'); return times[r - 1] ? d + '|' + times[r - 1].trim() : null; }).filter(Boolean).concat(extraOff) }));   // 교시 이름 기준으로 저장
+      saveSlots = () => autosave(() => GP.setYearCfg('basic_slots', { off: [...off].map((k) => { const [d, r] = k.split('_'); return times[r - 1] ? d + '|' + times[r - 1].trim() : null; }).filter(Boolean).concat(extraOff) }));   // 교시 이름 기준으로 저장
       saveTimes = () => autosave(async () => {
         const list = times.map((t) => t.trim()).filter(Boolean); if (new Set(list).size !== list.length) throw new Error('중복된 교시가 있습니다.');
         await GP.writeList('list_time', list.map((v) => ({ value: v })));

@@ -214,8 +214,14 @@
   async function loadGeneral() {
     const base = Object.assign({ year: yearNow(), grade: 6, classCount: 10, classNames: [] }, await getCfg('general', {}));
     const yd = await getCfg('year_' + base.year, null);
+    // 학년도별 설정: 그 학년도에 저장한 것이 없으면 가장 가까운 이전 학년도 것을 그대로 보여 줌(저장하면 그때부터 그 학년도 것)
+    const yearDocs = (await getCol('app_config')).map((x) => { const m = /^year_(\d{4})$/.exec(x._id); if (!m) return null; try { return { y: +m[1], d: JSON.parse(x.json || '{}') }; } catch (e) { return null; } }).filter(Boolean).sort((a, b) => b.y - a.y);
+    const prevDoc = (has) => (yearDocs.find((x) => x.y < base.year && has(x.d)) || {}).d || null;
+    const clsDoc = yd && Array.isArray(yd.classNames) ? yd : prevDoc((d) => Array.isArray(d.classNames));
+    if (clsDoc) { base.classCount = clsDoc.classCount || clsDoc.classNames.length || base.classCount; base.classNames = clsDoc.classNames; }
     let homerooms = [], specials = [];
-    if (yd) { homerooms = yd.homerooms || []; specials = yd.specials || []; }
+    const hrDoc = yd || prevDoc((d) => Array.isArray(d.homerooms) || Array.isArray(d.specials));
+    if (hrDoc) { homerooms = hrDoc.homerooms || []; specials = hrDoc.specials || []; }
     else if (!base.legacyMigrated) {
       specials = base.specials || []; homerooms = base.homerooms || [];
       if (!homerooms.length && base.homeroom && typeof base.homeroom === 'object') {
@@ -246,8 +252,9 @@
   async function saveGeneral(g) {
     const gen = await getCfg('general', {});
     if (!gen.legacyMigrated) { const o = await loadOpen(g.year); await saveOpen(g.year, o); }   // 이전 데이터 이전
-    await setCfg('general', { year: g.year, grade: g.grade || 6, classCount: g.classCount, classNames: g.classNames, legacyMigrated: true });
-    await setCfg('year_' + g.year, { homerooms: g.homerooms || [], specials: g.specials || [] });
+    // 학급 수·이름은 학년도별(year_<학년도>)로 저장. general 의 학급 값은 예전(학년도 구분 전) 기준값으로 그대로 둠
+    await setCfg('general', { year: g.year, grade: g.grade || 6, classCount: gen.classCount !== undefined ? gen.classCount : g.classCount, classNames: Array.isArray(gen.classNames) ? gen.classNames : g.classNames, legacyMigrated: true });
+    await setCfg('year_' + g.year, { homerooms: g.homerooms || [], specials: g.specials || [], classCount: g.classCount, classNames: (g.classNames || []).slice(0, g.classCount) });
   }
 
   // ---------------------------------------------------------------- 기본 설정 / 휴일
@@ -365,8 +372,8 @@
     const uniq = (f) => [...new Set(rows.map((r) => str(r[f]).trim()).filter(Boolean))];
     return {
       classes: (await loadGeneral()).classNames.slice(),   // 학급 수·이름은 관리자 > 학년 기초 설정을 따릅니다
-      subs: uniq('list_sub'), times: (await readList('list_time')).map((i) => i.value),
-      gyms: uniq('list_gym'), rooms: uniq('list_room'), teachers: uniq('list_t'),
+      subs: (await readList('list_sub')).map((i) => i.value), times: (await readList('list_time')).map((i) => i.value),
+      gyms: (await readList('list_gym')).map((i) => i.value), rooms: (await readList('list_room')).map((i) => i.value), teachers: (await readList('list_t')).map((i) => i.value),
       budgets: rows.filter((r) => str(r.list_budget).trim() && budgetYearOK(r, curY))
         .map((r, i) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount), color: str(r.list_budget_color).trim(), kind: str(r.list_budget_kind).trim(), classes: str(r.list_budget_classes).split(',').map((x) => x.trim()).filter(Boolean), common: (r.list_budget_common === undefined || r.list_budget_common === null) ? '' : r.list_budget_common, pages: str(r.list_budget_pages).trim() ? str(r.list_budget_pages).split(',').filter(Boolean).map((p) => (p === 'supply' ? 'supply1' : p)) : ['budget'], _o: (r.list_budget_order === undefined || r.list_budget_order === '' || r.list_budget_order === null) ? 1e6 + i : Number(r.list_budget_order) }))
         .sort((a, b) => a._o - b._o).map(({ _o, ...b }) => { if (/학년회비|친목회비/.test(b.name) && b.pages.indexOf('budget') >= 0 && b.pages.indexOf('fee') < 0) b.pages = b.pages.map((x) => (x === 'budget' ? 'fee' : x)); return b; }),
@@ -637,8 +644,24 @@
   };
   // 예산 카드(list_budget)는 학년도별로 따로 보관합니다. 학년도 표시(list_budget_year)가 없는 카드는 '지금 학년도' 것으로 봅니다.
   const budgetYearOK = (r, y) => { const v = r.list_budget_year; return v === undefined || v === null || v === '' || Number(v) === y; };
+  // 학년도별 목록: 교시(list_time)·과목(list_sub)·교사(list_t)·체육 공간(list_gym)·특별실(list_room)
+  //  - 행마다 <필드>_yr = 학년도. 그 학년도에 한 번이라도 저장했으면(app_config/list_years) 그 행만,
+  //    아니면 가장 가까운 이전 학년도 → 학년도 표시 없는 예전 행 → 가장 가까운 다음 학년도 순으로 그대로 보여 줌.
+  //  - 저장은 언제나 지금 학년도 행만 만들고 고침(다른 학년도에는 영향 없음).
+  const YEARLY = new Set(['list_time', 'list_sub', 'list_t', 'list_gym', 'list_room']);
+  const yrKey = (f) => f + '_yr';
+  const untaggedRow = (r, f) => { const v = r[yrKey(f)]; return v === undefined || v === null || v === ''; };
+  async function listYearSrc(field, rows) {
+    const y = (await loadGeneral()).year; const wy = (((await getCfg('list_years', {})) || {})[field] || []).map(Number);
+    if (wy.indexOf(y) >= 0) return y;
+    const before = wy.filter((x) => x < y), after = wy.filter((x) => x > y);
+    if (before.length) return Math.max.apply(null, before);
+    if (rows.some((r) => untaggedRow(r, field))) return null;
+    return after.length ? Math.min.apply(null, after) : null;
+  }
   async function readList(field) {
     let rows = (await getCol('data_basic')).filter((r) => str(r[field]).trim());
+    if (YEARLY.has(field)) { const src = await listYearSrc(field, rows); rows = rows.filter((r) => (src === null ? untaggedRow(r, field) : Number(r[yrKey(field)]) === src)); }
     if (field === 'list_budget') { const y = (await loadGeneral()).year; rows = rows.filter((r) => budgetYearOK(r, y)); }
     const canon = CANON[field] || [];
     const seen = new Set();
@@ -661,6 +684,13 @@
     const rows = await getCol('data_basic');
     const DEL = DELETE;
     let cur = rows.filter((r) => str(r[field]).trim());
+    let markYear = null;
+    if (YEARLY.has(field)) {   // 지금 학년도 행만 고침. 처음 저장하는 학년도면 새 행을 만들어 다른 학년도 행은 그대로 둠
+      const y = (await loadGeneral()).year; const ly = (await getCfg('list_years', {})) || {}; const wy = (ly[field] || []).map(Number);
+      cur = wy.indexOf(y) >= 0 ? cur.filter((r) => Number(r[yrKey(field)]) === y) : [];
+      items = items.map((i) => Object.assign({}, i, { extra: Object.assign({}, i.extra || {}, { [yrKey(field)]: y }) }));
+      if (wy.indexOf(y) < 0) markYear = () => { const n = Object.assign({}, ly); n[field] = wy.concat([y]).sort(); return setCfg('list_years', n); };
+    }
     if (field === 'list_budget') { const y = (await loadGeneral()).year; cur = cur.filter((r) => budgetYearOK(r, y)); items = items.map((i) => Object.assign({}, i, { extra: Object.assign({}, i.extra || {}, { list_budget_year: y }) })); }
     const holder = new Map();
     cur.forEach((r) => { const v = str(r[field]).trim(); if (!holder.has(v)) holder.set(v, r); });
@@ -681,7 +711,19 @@
       else { const d = {}; mine.forEach((k) => { if (r[k] !== undefined) d[k] = DEL; }); ops.push({ type: 'update', col: 'data_basic', id: r._id, data: d }); }
     });
     await commit(ops); invalidate('data_basic');
+    if (markYear) await markYear();
   }
+  // 학년도별 설정 문서(예: 주간 시수 배정 basic_slots): <key>_y<학년도>. 없으면 가장 가까운 이전 학년도 → 예전(<key>) → 다음 학년도
+  async function getYearCfg(key, def) {
+    const y = (await loadGeneral()).year; const ids = (await getCol('app_config')).map((x) => x._id);
+    const ys = ids.map((id) => { const m = new RegExp('^' + key + '_y(\\d{4})$').exec(id); return m ? +m[1] : null; }).filter((x) => x !== null);
+    const before = ys.filter((x) => x <= y), after = ys.filter((x) => x > y);
+    if (before.length) return getCfg(key + '_y' + Math.max.apply(null, before), def);
+    if (ids.indexOf(key) >= 0) return getCfg(key, def);
+    if (after.length) return getCfg(key + '_y' + Math.min.apply(null, after), def);
+    return def;
+  }
+  async function setYearCfg(key, obj) { const y = (await loadGeneral()).year; return setCfg(key + '_y' + y, obj); }
   const DEFAULT_HOURS = { 국어: 6, 수학: 4, 사회: 3, 과학: 3, 영어: 3, 음악: 2, 미술: 2, 체육: 2, 실과: 1, 창체: 2, 도덕: 1 };
   const DEFAULT_SPECIAL = ['과학', '영어'];
   async function getSubjectConfig() {
@@ -880,7 +922,7 @@
   }
   const nameKey = (periods, r, c) => `${periods[r - 1]}|${c}`;
   async function basicSlotsOff() {
-    const cfg = await getCfg('basic_slots', {}); const periods = await basicPeriods(); const set = new Set();
+    const cfg = await getYearCfg('basic_slots', {}); const periods = await basicPeriods(); const set = new Set();
     (Array.isArray(cfg.off) ? cfg.off : []).forEach((k) => {
       let m = /^(\d)\|(.+)$/.exec(k); let d, i;
       if (m) { d = m[1]; i = periods.indexOf(m[2]); } else if ((m = /^(\d)_(\d+)$/.exec(k))) { d = m[1]; i = periods.indexOf(m[2] + '교시'); }   // 예전 형식
@@ -968,11 +1010,14 @@
   // ---- 삭제된 공간의 남은 시간표 데이터 관리 ----
   const SPACE_COLS = { gym: { col: 'data_gym_timetable', f: 'gym_place' }, room: { col: 'data_room_timetable', f: 'room_place' } };
   async function validSpaces() { const l = [...(await readList('list_gym')), ...(await readList('list_room'))]; return new Set(l.map((i) => i.value)); }
+  // 공간·교시 이름을 바꾸거나 지울 때는 지금 학년도(2/1~다음 해 2월 말일)의 시간표만 바꿈(다른 학년도에는 영향 없음)
+  const curSpan = async () => yearSpan((await loadGeneral()).year);
+  const inSpan = (v, sp) => { const d = toDate(v); return !!d && d >= sp.start && d <= sp.end; };
   async function spaceOrphans() {   // 현재 공간 목록에 없는 공간 이름으로 남아 있는 데이터
     const names = await validSpaces(), out = [];
     for (const k of Object.keys(SPACE_COLS)) {
       const d = SPACE_COLS[k], m = new Map();
-      (await getCol(d.col)).forEach((r) => { const p = str(r[d.f]).trim(); if (!names.has(p)) m.set(p, (m.get(p) || 0) + 1); });
+      const sp = await curSpan(); (await getCol(d.col)).forEach((r) => { if (!inSpan(r[k + '_date'], sp)) return; const p = str(r[d.f]).trim(); if (!names.has(p)) m.set(p, (m.get(p) || 0) + 1); });
       m.forEach((count, place) => out.push({ col: d.col, place, count }));
     }
     return out;
@@ -981,7 +1026,7 @@
     const out = [];
     for (const k of Object.keys(SPACE_COLS)) {
       const d = SPACE_COLS[k], pre = k;
-      (await getCol(d.col)).forEach((r) => { if (str(r[d.f]).trim() !== place) return; const dt = toDate(r[pre + '_date']); out.push({ col: d.col, id: r._id, date: dt ? ymd(dt) : '', period: str(r[pre + '_time']).trim(), cls: str(r[pre + '_class']).trim() }); });
+      const sp = await curSpan(); (await getCol(d.col)).forEach((r) => { if (str(r[d.f]).trim() !== place || !inSpan(r[pre + '_date'], sp)) return; const dt = toDate(r[pre + '_date']); out.push({ col: d.col, id: r._id, date: dt ? ymd(dt) : '', period: str(r[pre + '_time']).trim(), cls: str(r[pre + '_class']).trim() }); });
     }
     return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : natural(a.period, b.period)));
   }
@@ -990,19 +1035,19 @@
     await commit(ops); Object.keys(SPACE_COLS).forEach((k) => invalidate(SPACE_COLS[k].col)); return ops.length;
   }
   async function countSpaceData(place) {
-    let n = 0; for (const k of Object.keys(SPACE_COLS)) { const d = SPACE_COLS[k]; n += (await getCol(d.col)).filter((r) => str(r[d.f]).trim() === place).length; } return n;
+    const sp = await curSpan(); let n = 0; for (const k of Object.keys(SPACE_COLS)) { const d = SPACE_COLS[k]; n += (await getCol(d.col)).filter((r) => str(r[d.f]).trim() === place && inSpan(r[k + '_date'], sp)).length; } return n;
   }
   async function purgeSpaceData(place) {   // place 가 null 이면 현재 없는 공간의 데이터를 모두 삭제
     const names = await validSpaces(), ops = [];
     for (const k of Object.keys(SPACE_COLS)) {
       const d = SPACE_COLS[k];
-      (await getCol(d.col)).forEach((r) => { const p = str(r[d.f]).trim(); if (place === null ? !names.has(p) : p === place) ops.push({ type: 'delete', col: d.col, id: r._id }); });
+      const sp = await curSpan(); (await getCol(d.col)).forEach((r) => { if (!inSpan(r[k + '_date'], sp)) return; const p = str(r[d.f]).trim(); if (place === null ? !names.has(p) : p === place) ops.push({ type: 'delete', col: d.col, id: r._id }); });
     }
     await commit(ops); Object.keys(SPACE_COLS).forEach((k) => invalidate(SPACE_COLS[k].col)); return ops.length;
   }
   async function renameSpaceData(oldName, newName) {   // 공간 이름을 바꾸면 이미 입력된 시간표도 새 이름으로 옮깁니다.
-    const ops = [];
-    for (const k of Object.keys(SPACE_COLS)) { const d = SPACE_COLS[k]; (await getCol(d.col)).forEach((r) => { if (str(r[d.f]).trim() === oldName) ops.push({ type: 'update', col: d.col, id: r._id, data: { [d.f]: newName } }); }); }
+    const ops = []; const sp = await curSpan();
+    for (const k of Object.keys(SPACE_COLS)) { const d = SPACE_COLS[k]; (await getCol(d.col)).forEach((r) => { if (str(r[d.f]).trim() === oldName && inSpan(r[k + '_date'], sp)) ops.push({ type: 'update', col: d.col, id: r._id, data: { [d.f]: newName } }); }); }
     await commit(ops); Object.keys(SPACE_COLS).forEach((k) => invalidate(SPACE_COLS[k].col));
   }
   const slotRow = (d, cls, per, name) => [isoLocal(d), cls, per, name];
@@ -1322,10 +1367,13 @@
     if (!from || !to || from === to) return 0;
     const ops = []; const ln = legacyName(from);
     const swap = (v) => { let ch = false; const out = str(v).split(/[,，、]+/).map((t) => t.trim()).map((t) => (t === from ? (ch = true, to) : t)); return ch ? out.join(', ') : null; };
+    const sp = await curSpan(), cy = (await loadGeneral()).year;   // 지금 학년도 자료만
     for (const [col, f] of [['data_sub_timetable', 'sub_time'], ['data_add_timetable', 'add_time'], ['data_gym_timetable', 'gym_time'], ['data_room_timetable', 'room_time']]) {
-      (await rawCol(col, true)).forEach((r) => { const n = swap(r[f]); if (n !== null) ops.push({ type: 'update', col, id: r._id, data: { [f]: n } }); });
+      const pre = f.replace(/_time$/, '');
+      (await rawCol(col, true)).forEach((r) => { if (!inSpan(r[pre + '_date'], sp)) return; const n = swap(r[f]); if (n !== null) ops.push({ type: 'update', col, id: r._id, data: { [f]: n } }); });
     }
     (await rawCol('data_basic_timetable', true)).forEach((r) => {
+      if (r._year !== undefined && r._year !== null && Number(r._year) !== cy) return;
       const cells = Object.assign({}, r.cells || {}); let ch = false;
       for (let c = 1; c <= 5; c++) {
         const nk = `${from}|${c}`, lk = ln ? `${ln}_${c}` : null;
@@ -1336,7 +1384,7 @@
     });
     const snap = await db.collection('app_config').get();
     snap.docs.forEach((doc) => {
-      if (!/^space_open_\d+$/.test(doc.id)) return;
+      if (doc.id !== 'space_open_' + cy) return;
       let o; try { o = JSON.parse(doc.data().json || '{}'); } catch (e) { return; } let ch = false;
       ['sem1', 'sem2'].forEach((k) => { const src = o[k] || {}, out = {}; Object.keys(src).forEach((key) => {
         let m = /^([A-Za-z]+|\d)\|([^|]*)\|(.+)$/.exec(key), nk = key;
@@ -1418,6 +1466,6 @@
     const y = Number((await loadGeneral()).year) || new Date().getFullYear(); const t = new Date(), d = new Date(t.getFullYear(), t.getMonth(), t.getDate());
     return d >= new Date(y, 1, 1) && d <= new Date(y + 1, 2, 0) ? d.getMonth() + 1 : 3;
   }
-  window.GP = { baseMonth, login, logout, authLevel, hasLevel, changePw, secured, securityStatus, studentStats, refreshStudentStats, SEC_EMAIL: EMAIL, periodTomb, parkPeriod: (n, prev) => renamePeriodData(n, periodTomb(n, prev)), restorePeriod: (n, prev) => renamePeriodData(periodTomb(n, prev), n), classroomGet, classroomPut, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
+  window.GP = { getYearCfg, setYearCfg, baseMonth, login, logout, authLevel, hasLevel, changePw, secured, securityStatus, studentStats, refreshStudentStats, SEC_EMAIL: EMAIL, periodTomb, parkPeriod: (n, prev) => renamePeriodData(n, periodTomb(n, prev)), restorePeriod: (n, prev) => renamePeriodData(periodTomb(n, prev), n), classroomGet, classroomPut, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
     readList, writeList, spaceOrphans, countSpaceData, purgeSpaceData, renameSpaceData, listSpaceData, deleteSpaceRows, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
 })();

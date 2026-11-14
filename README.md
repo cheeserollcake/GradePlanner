@@ -375,3 +375,18 @@ data_mall(쇼핑몰 ID), data_links(바로가기)
 - 예산 표 아래 + 버튼: 상단 예산 추가 + 버튼과 같은 너비(min-width 5.25rem).
 - 추가한 예산 페이지는 만든 학년도(sheets[].year)에만 보임. 예전 페이지는 id 의 생성 시각(없으면 입력한 줄의 _year, 그것도 없으면 지금 학년도)으로 학년도를 정해 한 번 저장. 관리자 > 예산 설정의 페이지 목록도 같은 기준.
 - 기본 페이지(학년 예산·학년회비·학습준비물·학급운영비)는 삭제 버튼 없음.
+
+## 20261113g — 관리자 설정 학년도별 저장
+- 목록(list_time 교시, list_sub 과목/시수/전담, list_t 교사, list_gym 체육 공간, list_room 특별실): 행에 <필드>_yr=학년도. app_config/list_years 에 저장한 학년도 기록. 읽기: 그 학년도 → 가까운 이전 학년도 → 표시 없는 예전 행 → 가까운 다음 학년도. 쓰기: 지금 학년도 행만(처음이면 새 행 생성, 다른 학년도 행은 그대로).
+- 학급 수·이름: year_<학년도>.classCount/classNames 에 저장, 없으면 가까운 이전 학년도 → general. general 의 학급 값은 더 이상 바꾸지 않음(예전 기준값). 담임·전담 카드(homerooms/specials)도 그 학년도 것이 없으면 이전 학년도 것을 보여 줌. 상단 학급 버튼(index)도 같은 규칙.
+- 주간 시수 배정(basic_slots): basic_slots_y<학년도> (getYearCfg/setYearCfg), 없으면 이전 학년도 → 예전 basic_slots.
+- 교시·공간 이름 변경/삭제 시 시간표 자료 수정(renamePeriodData, renameSpaceData, purge/count/list/orphans)은 지금 학년도(2/1~다음 해 2월 말일) 자료와 그 학년도 공간 개방 설정만.
+
+## 20261114a — 앱 아이콘
+- assets/icons/: icon.svg(원본, 남색 바탕 + 시간표 달력 + 노란 형광펜 칸 체크), favicon.svg(작은 크기용 단순화), icon-512/192.png, apple-touch-icon.png(180), favicon-32.png. manifest.webmanifest(홈 화면에 추가 시 이름 '학년 관리'), theme-color #4f46e5.
+
+## 20261114b
+- 아이콘을 고양이 버전으로 교체: 치즈 고양이가 시간표 카드 위로 앞발을 걸치고 내다보는 모양(노란 체크 칸 유지). 작은 크기(favicon)는 고양이 얼굴만.
+
+## 20261114c
+- 아이콘을 사용자가 준 그림(체크리스트 수첩 + 연필)으로 교체. 투명 배경 PNG: icon-512/192, favicon-32. 아이폰 홈 화면용 apple-touch-icon(180)과 안드로이드 maskable(512)은 흰 바탕 + 여백. SVG 아이콘은 삭제.
