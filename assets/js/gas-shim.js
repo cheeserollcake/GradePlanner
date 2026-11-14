@@ -28,7 +28,8 @@
   const mapCol = (n) => (PREFIX && !GLOBAL_COLS.has(n) ? PREFIX + n : n);
   const db = { collection: (n) => rawDb.collection(mapCol(n)), batch: () => rawDb.batch(), settings: (o) => rawDb.settings(o) };
   // 서버의 학년 선택과 이 화면이 쓰는 학년이 다르면(다른 기기에서 바꿈) 맞춰서 다시 엶
-  rawDb.collection('gp_global').doc('state').get().then((snap) => {
+  let parentChecked = false; try { parentChecked = window.parent !== window && !!window.parent.__gpGradeVerified; } catch (e) { /* 단독 */ }
+  if (!parentChecked) rawDb.collection('gp_global').doc('state').get().then((snap) => {   // 바깥 틀이 이미 확인했으면 다시 읽지 않음
     const st = snap.exists ? snap.data() : null; if (!st || prefixOf(st) === PREFIX) { if (st) { try { localStorage.setItem('gp_grade', JSON.stringify({ grade: st.grade, base: st.base })); } catch (e) { /* 무시 */ } } return; }
     try { localStorage.setItem('gp_grade', JSON.stringify({ grade: st.grade, base: st.base })); } catch (e) { /* 무시 */ }
     try { if (window.parent !== window) window.parent.__gpGradeState = { grade: st.grade, base: st.base }; } catch (e) { /* 무시 */ }
@@ -517,7 +518,7 @@
   //  - 관리자만 보는 비밀번호 사본(gp_secret/passwords): 관리자가 페이지 접근 비밀번호를 바꿀 때 필요.
   //  - 로그인은 이 창(탭)의 메모리에만 남고, 다른 메뉴로 옮기거나 새로고침하거나 20분 동안 아무 조작이 없으면 풀립니다.
   //  - 처음 한 번: 관리자가 (예전 비밀번호로) 관리자 페이지에 들어오면 자동으로 로그인 계정을 만들고 옮깁니다(보안 전환).
-  const PROJECT = (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.authDomain) || 'gradeplanner-d5499.firebaseapp.com';
+  const PROJECT = (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.authDomain) || ((window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.projectId) + '.firebaseapp.com');   // 로그인 계정 주소는 설정 파일(firebase-config.js)의 값으로
   const EMAIL = { access: 'gp-access@' + PROJECT, admin: 'gp-admin@' + PROJECT };
   const authPw = (p) => 'gp#' + String(p);   // Firebase 비밀번호는 6자 이상이어야 해서 앞에 고정 글자를 붙임(예전 4자리 비밀번호도 그대로 사용)
   const AUTH = (() => { try { return firebase.auth ? firebase.auth() : null; } catch (e) { return null; } })();
@@ -552,7 +553,7 @@
     if (!pw) return { success: false, message: '비밀번호를 입력해 주세요.' };
     if (await secured()) {
       if (!AUTH) return { success: false, message: '로그인 도구를 불러오지 못했습니다. 새로고침해 주세요.' };
-      try { await AUTH.signInWithEmailAndPassword(EMAIL[level], authPw(pw)); gateOpen(); if (level === 'admin') refreshStudentStats().catch(() => {}); return { success: true }; }
+      try { await AUTH.signInWithEmailAndPassword(EMAIL[level], authPw(pw)); gateOpen(); if (level === 'admin') studentStatsMissing().then((m) => { if (m) refreshStudentStats(); }).catch(() => {}); return { success: true }; }
       catch (e) { return { success: false, message: authErr(e) || (level === 'admin' ? '관리자 비밀번호가 일치하지 않습니다.' : '비밀번호가 일치하지 않습니다.') }; }
     }
     // 보안 전환 전(예전 방식)
@@ -628,6 +629,7 @@
     all[y] = c; await setCfg('student_stats', all); return c;
   }
   function countStudents(rows) { const c = {}; rows.forEach((s) => { const n = num(s.student_class); if (!n || !str(s.student_name).trim()) return; const o = c[n] || (c[n] = { all: 0, m: 0, f: 0 }); o.all++; if (isMale(s)) o.m++; if (isFemale(s)) o.f++; }); return c; }
+  async function studentStatsMissing() { const y = (await loadGeneral()).year; const all = await getCfg('student_stats', {}); return !all || !all[y]; }   // 명렬표를 다시 읽는 일은 학년도 숫자가 없을 때만
   async function studentStats() {
     const y = (await loadGeneral()).year; const all = await getCfg('student_stats', {});
     if (all[y]) return all[y];
@@ -1183,9 +1185,10 @@
     const top = [['구분'].concat(options), ['시수'].concat(options.map(() => total)), ['배정'].concat(options.map((o) => counts[o] || 0))];
     return { np: times.length, names: times, top, bottom, options, title: `${g.year}학년도 ${semNo}학기 ${tab.subject} ${tab.teacher}${tab.space ? '/' + tab.space : ''}${sem ? '' : ' (학기 기간 미설정)'}` };
   }
+  let ttLoaded = false;
   SERVER.getAllTimetableData = async function () {
     try {
-      fresh();
+      if (ttLoaded) fresh(); ttLoaded = true;   // 처음 열 때는 방금 확인한 변경 번호를 그대로 씀(읽기 1번 줄임). 다시 불러오기를 누르면 확인
       const g = await generalCfg(); const tabs = await specialTabs(g); const sems = await semestersOfYear(g.year);
       const times = await periodLabels(); const sub = await getCol('data_sub_timetable'); const subCfg = await getSubjectConfig(); const data = {};
       const subjOrder = subCfg.map((x) => x.name);   // 탭 순서: 시간표 설정의 과목 순서 → 같은 과목 안에서는 담당 학급 번호가 작은 순 (정렬은 화면에서 학기별로 합니다)

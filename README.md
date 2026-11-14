@@ -407,3 +407,14 @@ data_mall(쇼핑몰 ID), data_links(바로가기)
 - 관리자 > 학년도 설정의 '학년' 선택 = 학년 바꾸기(GP.switchGrade): 확인 → 새 학년 general 이 없으면 같은 학년도·10학급으로 만들고, 있으면서 학년도가 다르면 다시 연 뒤 APP.setYear 로 맞춤(gp_need_year). 로그인은 유지(gp_admin_open).
 - 보안 전환 표시·예전 비밀번호(app_config/security, passwords)는 처음 학년 것을 공통으로 읽음(baseCfg).
 - firestore.rules: 학년 접두어(g1__~g6__) 포함 정규식으로 보호. 관리자 보안 상태에서 새 규칙 여부 확인(g1__data_student 읽기 시도) — 예전 규칙이면 '새 규칙으로 바꿔야 함' 표시.
+
+## 20261114g — 로딩 속도 점검
+- 안쪽 화면마다 하던 학년 선택(gp_global/state) 읽기: 바깥 틀이 확인했으면 생략(__gpGradeVerified).
+- 바깥 틀 제목·학급 버튼: app_config 전체 대신 general + year_<학년도> 문서만 읽음(없으면 이전 학년도, 최대 5년).
+- 관리자: 보안 전환 뒤 매번 실패하던 작성일 조회(REST, migrateYearTags)를 한 번 표시하고 끝냄. 관리자 로그인 때마다 명렬표 전체를 다시 읽던 학생 수 갱신은 그 학년도 숫자가 없을 때만. 기초 일정 목록(listBaseItems)이 열 때마다 하던 서버 재확인 제거.
+- 전담 시간표: 처음 열 때 변경 번호를 두 번 읽던 것 → 한 번(다시 불러오기 때만 재확인).
+- 시험(지연 200ms 가정): 안정 상태에서 화면 하나 여는 데 서버 읽기 1번(변경 번호) + 바뀐 자료만.
+
+## 20261114h — 설정 파일 하나로
+- 프로젝트별 값은 assets/js/firebase-config.js 하나에만. index.html 의 쓰지 않던 설정 사본 삭제, 오류 문구·로그인 계정 주소·보안 규칙(관리자 화면 복사 버튼)은 FIREBASE_CONFIG(authDomain/projectId)에서 만듦.
+- 저장소의 firestore.rules 는 {{DOMAIN}} 자리표시가 있는 참고용(직접 붙여 넣지 말고 관리자 화면의 [보안 규칙 복사] 사용). storage.rules 는 프로젝트 이름 없이 일반화.

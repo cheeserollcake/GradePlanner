@@ -12,13 +12,13 @@
     if (code === 'auth/popup-blocked') return '브라우저가 로그인 창을 막았습니다. 팝업을 허용한 뒤 다시 눌러 주세요.';
     if (code === 'auth/unauthorized-domain') return '이 사이트 주소(' + location.hostname + ')가 Firebase 승인된 도메인에 없습니다. Firebase 콘솔 > Authentication > 설정 > 승인된 도메인에 추가해 주세요.';
     if (code === 'auth/operation-not-allowed') return 'Firebase 콘솔 > Authentication > 로그인 방법에서 Google 로그인을 사용 설정해 주세요.';
-    if (code === 'auth/configuration-not-found') return 'Firebase Authentication이 아직 시작되지 않았습니다. Firebase 콘솔(gradeplanner-d5499) > 빌드 > Authentication > 시작하기를 누르고, 로그인 방법에서 Google을 사용 설정(프로젝트 지원 이메일 선택 후 저장)해 주세요.';
+    if (code === 'auth/configuration-not-found') return 'Firebase Authentication이 아직 시작되지 않았습니다. Firebase 콘솔(' + ((window.FIREBASE_CONFIG || {}).projectId || '') + ') > 빌드 > Authentication > 시작하기를 누르고, 로그인 방법에서 Google을 사용 설정(프로젝트 지원 이메일 선택 후 저장)해 주세요.';
     return (e && e.message) || String(e);
   }
   async function sheetsError(res) {
     let body = {}; try { body = await res.json(); } catch (e) { /* 본문 없음 */ }
     const msg = (body.error && body.error.message) || ''; const reason = JSON.stringify(body.error || {});
-    if (res.status === 403 && /SERVICE_DISABLED|has not been used|is disabled/i.test(reason)) return 'Google Sheets API가 사용 설정되어 있지 않습니다. Google Cloud 콘솔의 이 프로젝트(gradeplanner-d5499)에서 "Google Sheets API"를 사용 설정해 주세요.';
+    if (res.status === 403 && /SERVICE_DISABLED|has not been used|is disabled/i.test(reason)) return 'Google Sheets API가 사용 설정되어 있지 않습니다. Google Cloud 콘솔의 이 프로젝트(' + ((window.FIREBASE_CONFIG || {}).projectId || '') + ')에서 "Google Sheets API"를 사용 설정해 주세요.';
     if (res.status === 403) return '구글 계정 권한이 부족합니다. 로그인 창에서 "Google 드라이브 파일 만들기" 권한을 허용했는지 확인해 주세요. (' + msg + ')';
     if (res.status === 401) return '구글 로그인이 만료되었습니다. 다시 시도해 주세요.';
     return '스프레드시트를 만들지 못했습니다. (' + res.status + ') ' + msg;
@@ -26,7 +26,7 @@
   async function driveError(res) {
     let body = {}; try { body = await res.json(); } catch (e) { /* 본문 없음 */ }
     const msg = (body.error && body.error.message) || ''; const reason = JSON.stringify(body.error || {});
-    if (res.status === 403 && /SERVICE_DISABLED|has not been used|is disabled/i.test(reason)) return 'Google Drive API가 사용 설정되어 있지 않습니다. Google Cloud 콘솔의 이 프로젝트(gradeplanner-d5499)에서 API 및 서비스 > 라이브러리 > "Google Drive API"를 사용 설정한 뒤 1~2분 후 다시 시도해 주세요. (사진이 들어간 내보내기에 필요합니다)';
+    if (res.status === 403 && /SERVICE_DISABLED|has not been used|is disabled/i.test(reason)) return 'Google Drive API가 사용 설정되어 있지 않습니다. Google Cloud 콘솔의 이 프로젝트(' + ((window.FIREBASE_CONFIG || {}).projectId || '') + ')에서 API 및 서비스 > 라이브러리 > "Google Drive API"를 사용 설정한 뒤 1~2분 후 다시 시도해 주세요. (사진이 들어간 내보내기에 필요합니다)';
     if (res.status === 403) return '구글 계정 권한이 부족합니다. 로그인 창에서 "Google 드라이브 파일 만들기" 권한을 허용했는지 확인해 주세요. (' + msg + ')';
     if (res.status === 401) return '구글 로그인이 만료되었습니다. 다시 시도해 주세요.';
     return '스프레드시트를 만들지 못했습니다. (' + res.status + ') ' + msg;

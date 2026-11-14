@@ -22,6 +22,7 @@
   async function migrateYearTags() {
     if (G.gradePrefix) return false;   // 새로 만든 학년의 자료에는 예전 형식이 없음
     const flag = await getCfg('year_tag', null); if (flag && flag.done) return false;
+    try { if (await G.secured()) { await setCfg('year_tag', { done: true, skipped: 'secured', at: new Date().toISOString() }); return false; } } catch (e) { /* 무시 */ }   // 보안 전환 뒤에는 작성일 조회(REST)가 막혀 매번 실패하며 시간만 씀 → 한 번만 표시하고 끝
     const cur = (await G.loadGeneral()).year; const ops = [];
     for (const col of G.YEARED) {
       const rows = (await G.getColAll(col)).filter((r) => r._year === undefined || r._year === null); if (!rows.length) continue;
@@ -251,7 +252,7 @@
   //  학교 행사 → data_task_school(task_school_name / _date_start / _date_end)
   //  휴일      → data_basic(holiday / holiday_start_date / holiday_end_date)
   async function listBaseItems(year) {
-    G.fresh(); const r = yearRange(year);
+    const r = yearRange(year);   // (저장할 때마다 사본이 갱신되므로 매번 서버를 다시 확인하지 않음)
     const ts = (await getCol('data_task_school')).map((x) => ({ kind: 'school', id: x._id, name: str(x.task_school_name), start: toDate(x.task_school_date_start), end: toDate(x.task_school_date_end) }));
     const hol = (await getCol('data_basic')).filter((x) => str(x.holiday).trim() && toDate(x.holiday_start_date))
       .map((x) => ({ kind: 'holiday', id: x._id, name: str(x.holiday), start: toDate(x.holiday_start_date), end: toDate(x.holiday_end_date) }));
