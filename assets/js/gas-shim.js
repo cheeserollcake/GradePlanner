@@ -18,7 +18,23 @@
 
   // ---------------------------------------------------------------- 초기화
   if (!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);   // 바깥 틀이 이미 연결해 둔 경우 그대로 사용(fb-boot.js)
-  const db = firebase.firestore();
+  const rawDb = firebase.firestore();
+  // ---- 학년별 자료 나누기: 지금 학년(gp_global/state.grade)이 처음 쓰던 학년(base)과 다르면 모든 컬렉션 이름 앞에 'g<학년>__' 를 붙임
+  //  (처음 학년의 자료는 예전 이름 그대로). 비밀번호 사본(gp_secret)·학년 선택(gp_global)은 모든 학년 공통.
+  const GRADE_ST = (() => { try { if (window.parent !== window && window.parent.__gpGradeState) return window.parent.__gpGradeState; } catch (e) { /* 단독 */ } try { return JSON.parse(localStorage.getItem('gp_grade') || 'null'); } catch (e) { return null; } })();
+  const prefixOf = (st) => (st && st.base && st.grade && Number(st.grade) !== Number(st.base) ? 'g' + Number(st.grade) + '__' : '');
+  const PREFIX = prefixOf(GRADE_ST);
+  const GLOBAL_COLS = new Set(['gp_secret', 'gp_global']);
+  const mapCol = (n) => (PREFIX && !GLOBAL_COLS.has(n) ? PREFIX + n : n);
+  const db = { collection: (n) => rawDb.collection(mapCol(n)), batch: () => rawDb.batch(), settings: (o) => rawDb.settings(o) };
+  // 서버의 학년 선택과 이 화면이 쓰는 학년이 다르면(다른 기기에서 바꿈) 맞춰서 다시 엶
+  rawDb.collection('gp_global').doc('state').get().then((snap) => {
+    const st = snap.exists ? snap.data() : null; if (!st || prefixOf(st) === PREFIX) { if (st) { try { localStorage.setItem('gp_grade', JSON.stringify({ grade: st.grade, base: st.base })); } catch (e) { /* 무시 */ } } return; }
+    try { localStorage.setItem('gp_grade', JSON.stringify({ grade: st.grade, base: st.base })); } catch (e) { /* 무시 */ }
+    try { if (window.parent !== window) window.parent.__gpGradeState = { grade: st.grade, base: st.base }; } catch (e) { /* 무시 */ }
+    try { const n = +(sessionStorage.getItem('gp_grade_reload') || 0); if (n < 2) { sessionStorage.setItem('gp_grade_reload', n + 1); location.reload(); } } catch (e) { location.reload(); }
+  }).catch(() => { /* 무시 */ });
+  try { sessionStorage.removeItem('gp_grade_reload'); } catch (e) { /* 무시 */ }
   // 모바일·학교망처럼 기본 연결 방식이 막히거나 느릴 때 자동으로 다른 방식으로 연결합니다.
   if (!window.__GP_SHARED_FB) { try { db.settings({ experimentalAutoDetectLongPolling: true, ignoreUndefinedProperties: true, merge: true }); } catch (e) { /* 이미 시작됨 */ } }
   const storage = firebase.storage ? firebase.storage() : null;
@@ -83,12 +99,12 @@
   // 이 기기에 저장해 둔 사본: 시크릿/사생활 보호 모드에서는 localStorage 가 막히거나 창을 닫으면 사라지므로,
   // 바깥 틀(index.html)이 열려 있는 동안은 그 메모리에도 함께 두어 페이지를 옮겨 다녀도 다시 내려받지 않게 합니다.
   const MEM = (() => { try { if (window.__GP_SHARED_FB && window.parent && window.parent !== window) return window.parent.__gpMem || (window.parent.__gpMem = {}); } catch (e) { /* 단독 실행 */ } return {}; })();
-  const readLocal = (name) => { try { const raw = MEM[name] || (LS && LS.getItem(lsKey(name))); return raw ? JSON.parse(raw) : null; } catch (e) { return null; } };
-  const lsKey = (n) => 'gp_c_' + n;
+  const readLocal = (name) => { try { const raw = MEM[PREFIX + name] || (LS && LS.getItem(lsKey(name))); return raw ? JSON.parse(raw) : null; } catch (e) { return null; } };
+  const lsKey = (n) => 'gp_c_' + PREFIX + n;   // 학년마다 따로
   const idcmp = (a, b) => (a._id < b._id ? -1 : a._id > b._id ? 1 : 0);
   const saveLocal = (name, v, rows) => {
     let raw; try { raw = JSON.stringify({ v, t: Date.now(), rows }); } catch (e) { return; }
-    MEM[name] = raw;
+    MEM[PREFIX + name] = raw;
     if (LS) { try { LS.setItem(lsKey(name), raw); } catch (e) { /* 용량 초과: 메모리 사본만 사용 */ } }
   };
   // 화면에 HTML(스크립트)이 끼어들지 못하도록 글자 속 꺾쇠 < > 를 모양이 비슷한 전각 ＜ ＞ 로 바꿔서 읽고 저장합니다.
@@ -165,7 +181,7 @@
       if (last) batch.set(verRef, inc, { merge: true });   // 변경 번호는 같은 묶음(1회 통신)으로 올림 — 모바일에서 저장이 느리던 원인 중 하나(통신 3번 → 2번)
       ops.slice(i, i + 400).forEach((o) => {
         if (o.data) o.data = safeVal(o.data);
-        const ref = db.collection(o.col).doc(o.id);
+        const ref = (o.raw ? rawDb : db).collection(o.col).doc(o.id);   // raw: 모든 학년 공통 문서
         if (o.type === 'delete') batch.delete(ref);
         else if (o.type === 'update') batch.update(ref, o.data);
         else batch.set(ref, o.data, { merge: !!o.merge });
@@ -489,7 +505,7 @@
 
 
   // ---------------------------------------------------------------- 공통 비밀번호 (관리자 페이지에서 변경)
-  const getPw = async () => Object.assign({ access: '000000', admin: '000000' }, await getCfg('passwords', {}));
+  const getPw = async () => Object.assign({ access: '000000', admin: '000000' }, (await baseCfg('passwords', {})) || {});
   const setPw = (pw) => setCfg('passwords', pw);
 
   // ================================================================ 보안 (비밀번호 페이지)
@@ -510,13 +526,16 @@
   const authLevel = () => (AUTH ? levelOf(AUTH.currentUser) : null);
   let legacyOk = null;   // 보안 전환 전: 이 화면에서 예전 방식으로 통과한 단계
   let secOn = false;
-  const secured = async () => { const s = await getCfg('security', null); return (secOn = !!(s && s.on)); };
+  // 보안 전환 표시·예전 비밀번호는 모든 학년 공통(처음 학년의 app_config)
+  const baseCfg = async (id, def) => { if (!PREFIX) return getCfg(id, def); try { const d = await rawDb.collection('app_config').doc(id).get(); return d.exists && d.data().json ? JSON.parse(d.data().json) : def; } catch (e) { return def; } };
+  let secMemo = null;
+  const secured = async () => { if (!secMemo || !PREFIX) secMemo = baseCfg('security', null); const s = await secMemo; return (secOn = !!(s && s.on)); };
   let gateOpen; const gate = new Promise((r) => { gateOpen = r; });
   // 보호된 자료는 로그인(보안 전환 전에는 예전 비밀번호 통과) 뒤에만 읽습니다.
   secured().then((on) => { if (!on) return gateOpen(); if (AUTH) AUTH.onAuthStateChanged((u) => { if (levelOf(u)) gateOpen(); }); }).catch(() => { /* 무시 */ });
   // 예전에 이 기기에 남겨 둔 사본 지우기(학생 명렬표·쇼핑몰 ID·비밀번호가 들어 있던 설정 사본)
-  try { if (LS && !LS.getItem('gp_sec_purged_1')) { ['data_student', 'data_mall', 'app_config'].forEach((n) => { LS.removeItem(lsKey(n)); delete MEM[n]; }); LS.setItem('gp_sec_purged_1', '1'); } } catch (e) { /* 무시 */ }
-  ['data_student', 'data_mall'].forEach((n) => { try { if (LS) LS.removeItem(lsKey(n)); delete MEM[n]; } catch (e) { /* 무시 */ } });
+  try { if (LS && !LS.getItem('gp_sec_purged_1')) { ['data_student', 'data_mall', 'app_config'].forEach((n) => { LS.removeItem(lsKey(n)); delete MEM[PREFIX + n]; }); LS.setItem('gp_sec_purged_1', '1'); } } catch (e) { /* 무시 */ }
+  ['data_student', 'data_mall'].forEach((n) => { try { if (LS) LS.removeItem(lsKey(n)); delete MEM[PREFIX + n]; } catch (e) { /* 무시 */ } });
 
   const auxApp = (name) => { const f = firebase; const a = (f.apps || []).find((x) => x.name === name); return a || f.initializeApp(window.FIREBASE_CONFIG, name); };
   const auxAuth = () => { const a = auxApp('gpaux').auth(); try { a.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) { /* 무시 */ } return a; };
@@ -565,9 +584,10 @@
     const room = await getCfg('room_passwords', null);
     if (room) await db.collection('gp_private').doc('room_passwords').set({ json: JSON.stringify(room), updatedAt: new Date().toISOString() });
     await refreshStudentStats();
-    const ops = [{ type: 'set', col: 'app_config', id: 'security', data: { json: JSON.stringify({ on: true, at: new Date().toISOString() }), updatedAt: new Date().toISOString() } }];
+    const ops = [{ type: 'set', raw: true, col: 'app_config', id: 'security', data: { json: JSON.stringify({ on: true, at: new Date().toISOString() }), updatedAt: new Date().toISOString() } }];
     const cfg = await getCol('app_config');
     ['passwords', 'room_passwords'].forEach((id) => { if (cfg.some((r) => r._id === id)) ops.push({ type: 'delete', col: 'app_config', id }); });
+    if (PREFIX) ops.push({ type: 'delete', raw: true, col: 'app_config', id: 'passwords' });
     await commit(ops); gateOpen();
   }
   // 비밀번호 바꾸기. adminPw: 지금 관리자 비밀번호(이미 관리자로 로그인했다면 생략 가능). 새 비밀번호는 6자 이상.
@@ -627,9 +647,26 @@
   // 보안 상태(관리자 화면 표시용): 로그인 계정 사용 여부, 보안 규칙이 적용됐는지(로그인 안 한 상태로 보호 자료를 읽어 봄)
   async function securityStatus() {
     const on = await secured(); let rules = null;
-    try { await auxApp('gpprobe').firestore().collection('gp_secret').doc('passwords').get(); rules = false; }
-    catch (e) { rules = /permission/i.test(String(e && (e.code || e.message))) ? true : null; }
+    const probe = async (col, id) => { try { await auxApp('gpprobe').firestore().collection(col).doc(id).get(); return false; } catch (e) { return /permission/i.test(String(e && (e.code || e.message))) ? true : null; } };
+    rules = await probe('gp_secret', 'passwords');
+    if (rules === true) { const r2 = await probe('g1__data_student', 'x'); if (r2 === false) rules = 'old'; }   // 학년별 자료(g<학년>__) 까지 막는 새 규칙인지
     return { on, rules, authLib: !!AUTH, err: window.__gpSecErr || '' };
+  }
+  // ---- 학년 바꾸기(관리자): 지금 학년의 학년도를 새 학년에도 맞추고, gp_global/state 를 바꾼 뒤 화면을 다시 엶
+  async function gradeState() { try { const d = await rawDb.collection('gp_global').doc('state').get(); if (d.exists) return d.data(); } catch (e) { /* 무시 */ } const g = await loadGeneral(); return { grade: Number(g.grade) || 6, base: Number(g.grade) || 6 }; }
+  async function switchGrade(n) {
+    n = Number(n); const st = await gradeState(); const base = Number(st.base) || Number(st.grade) || 6; const curG = Number(st.grade) || base;
+    if (n === curG) return { changed: false };
+    const year = (await loadGeneral()).year; const pre = n === base ? '' : 'g' + n + '__';
+    const ref = rawDb.collection(pre + 'app_config').doc('general'); const tg = await ref.get();
+    let needYear = null;
+    if (!tg.exists) await ref.set({ json: JSON.stringify({ year, grade: n, classCount: 10, classNames: [], legacyMigrated: true }), updatedAt: new Date().toISOString() });   // 처음 여는 학년: 같은 학년도, 기본 10학급
+    else { let tj = {}; try { tj = JSON.parse(tg.data().json || '{}'); } catch (e) { /* 무시 */ } if (Number(tj.year) !== Number(year)) needYear = year; }
+    const ns = { grade: n, base, updatedAt: new Date().toISOString() };
+    await rawDb.collection('gp_global').doc('state').set(ns);
+    try { localStorage.setItem('gp_grade', JSON.stringify({ grade: n, base })); } catch (e) { /* 무시 */ }
+    try { if (window.parent !== window) window.parent.__gpGradeState = { grade: n, base }; } catch (e) { /* 무시 */ }
+    return { changed: true, needYear };
   }
   // 20분 동안 조작이 없으면 로그인을 풀고 화면을 다시 잠급니다(공용 컴퓨터 대비).
   (function idleLock() {
@@ -1483,6 +1520,6 @@
     const y = Number((await loadGeneral()).year) || new Date().getFullYear(); const t = new Date(), d = new Date(t.getFullYear(), t.getMonth(), t.getDate());
     return d >= new Date(y, 1, 1) && d <= new Date(y + 1, 2, 0) ? d.getMonth() + 1 : 3;
   }
-  window.GP = { freezeOps, generalOps, openOps, cfgOp, freezeYearSettings, getYearCfg, setYearCfg, baseMonth, login, logout, authLevel, hasLevel, changePw, secured, securityStatus, studentStats, refreshStudentStats, SEC_EMAIL: EMAIL, periodTomb, parkPeriod: (n, prev) => renamePeriodData(n, periodTomb(n, prev)), restorePeriod: (n, prev) => renamePeriodData(periodTomb(n, prev), n), classroomGet, classroomPut, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
+  window.GP = { gradePrefix: PREFIX, gradeState, switchGrade, freezeOps, generalOps, openOps, cfgOp, freezeYearSettings, getYearCfg, setYearCfg, baseMonth, login, logout, authLevel, hasLevel, changePw, secured, securityStatus, studentStats, refreshStudentStats, SEC_EMAIL: EMAIL, periodTomb, parkPeriod: (n, prev) => renamePeriodData(n, periodTomb(n, prev)), restorePeriod: (n, prev) => renamePeriodData(periodTomb(n, prev), n), classroomGet, classroomPut, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
     readList, writeList, spaceOrphans, countSpaceData, purgeSpaceData, renameSpaceData, listSpaceData, deleteSpaceRows, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
 })();

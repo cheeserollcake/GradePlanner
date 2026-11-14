@@ -400,3 +400,10 @@ data_mall(쇼핑몰 ID), data_links(바로가기)
 - 원인: '이 학년도로 설정하기' 한 번에 저장을 15~20번 따로 보냄(저장마다 서버 왕복 2번: 쓰기 + 변경 번호 확인). 학년도별 설정 고정(목록 5개 × 저장 2번), 담임/학급 저장 2번, 학년도 표시, course_groups, general 등.
 - 개선: generalOps/freezeOps/openOps/tagYearOps 로 쓰기 목록만 모아 commit 1번(400건 넘으면 나눠 보냄). 저장 안 된 담임 입력이 있을 때만 먼저 저장. 시험: 저장 19번 → 1~3번, 문서 읽기 20번 → 2~4번.
 - 학년도 바꾸는 동안 화면 가운데 빙글빙글(#gp-busy) + 반투명 덮개로 다른 곳을 누르지 못하게 함.
+
+## 20261114f — 학년별 자료 분리
+- gp_global/state {grade, base}: 지금 학년과 처음 쓰던 학년(base). base 학년 자료는 원래 컬렉션 이름, 다른 학년은 'g<학년>__<컬렉션>' (gas-shim 의 db 래퍼 mapCol). gp_secret·gp_global 은 공통. 기기 사본(localStorage gp_c_*, 바깥 틀 메모리)도 학년별 키.
+- 화면은 기기에 기억한 학년(localStorage gp_grade / 바깥 틀 __gpGradeState)으로 먼저 열고 서버 값과 다르면 다시 엶.
+- 관리자 > 학년도 설정의 '학년' 선택 = 학년 바꾸기(GP.switchGrade): 확인 → 새 학년 general 이 없으면 같은 학년도·10학급으로 만들고, 있으면서 학년도가 다르면 다시 연 뒤 APP.setYear 로 맞춤(gp_need_year). 로그인은 유지(gp_admin_open).
+- 보안 전환 표시·예전 비밀번호(app_config/security, passwords)는 처음 학년 것을 공통으로 읽음(baseCfg).
+- firestore.rules: 학년 접두어(g1__~g6__) 포함 정규식으로 보호. 관리자 보안 상태에서 새 규칙 여부 확인(g1__data_student 읽기 시도) — 예전 규칙이면 '새 규칙으로 바꿔야 함' 표시.

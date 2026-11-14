@@ -20,6 +20,7 @@
   // 학년도 변경: 이전 학년도 설정은 그대로 보관하고, 새 학년도의 담임/전담교사/공간 개방 설정은 비어 있는 상태로 시작
   // 이 기능이 생기기 전에 이미 학년도를 바꿔 둔 경우: 문서를 처음 만든 시각(REST createTime)으로 학년도를 추정해 한 번만 표시를 붙입니다.
   async function migrateYearTags() {
+    if (G.gradePrefix) return false;   // 새로 만든 학년의 자료에는 예전 형식이 없음
     const flag = await getCfg('year_tag', null); if (flag && flag.done) return false;
     const cur = (await G.loadGeneral()).year; const ops = [];
     for (const col of G.YEARED) {

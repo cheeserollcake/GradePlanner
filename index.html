@@ -6,9 +6,9 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
   <title>학년 통합 관리 시스템</title>
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=20261114e">
-  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png?v=20261114e">
-  <link rel="manifest" href="manifest.webmanifest?v=20261114e">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=20261114f">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png?v=20261114f">
+  <link rel="manifest" href="manifest.webmanifest?v=20261114f">
   <meta name="theme-color" content="#4f46e5">
   <meta name="apple-mobile-web-app-title" content="학년 관리">
   <style>
@@ -37,7 +37,7 @@
     #clsSel .lbl { flex-shrink: 0; align-self: center; font-size: 11px; color: #94a3b8; margin-right: 2px; }
     @media (max-width: 900px) { #pageName { display: none; } #clsSel { justify-content: flex-start; } }
   </style>
-  <link rel="stylesheet" href="assets/css/themes.css?v=20261114e">
+  <link rel="stylesheet" href="assets/css/themes.css?v=20261114f">
 </head>
 <body>
   <header id="bar">
@@ -55,13 +55,16 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="assets/js/firebase-config.js?v=20261114e"></script>
+<script src="assets/js/firebase-config.js?v=20261114f"></script>
 <script>
 (function () {
   // Firebase 도구는 여기서 한 번만 불러와 연결하고, 안쪽 페이지들이 그대로 가져다 씁니다(fb-boot.js).
   try { firebase.initializeApp(window.FIREBASE_CONFIG); firebase.firestore().settings({ experimentalAutoDetectLongPolling: true, ignoreUndefinedProperties: true }); } catch (e) { console.warn('firebase init failed', e); }
   // 비밀번호 페이지 로그인은 이 창의 메모리에만 둡니다(새로고침·창 닫기 시 풀림, 기기에 남지 않음).
   try { if (firebase.auth) firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) { console.warn('auth init failed', e); }
+  // 지금 학년(학년별 자료): 기기에 기억한 값으로 먼저 열고, 서버 값(gp_global/state)과 다르면 맞춰서 다시 엶
+  try { window.__gpGradeState = JSON.parse(localStorage.getItem('gp_grade') || 'null'); } catch (e) { window.__gpGradeState = null; }
+  var gradePrefix = function (st) { return st && st.base && st.grade && Number(st.grade) !== Number(st.base) ? 'g' + Number(st.grade) + '__' : ''; };
   var CFG = {
     apiKey: "AIzaSyDonpgXJGlSjqv-sFVAdlokpZ0XhONpjY0", authDomain: "gradeplanner-d5499.firebaseapp.com", projectId: "gradeplanner-d5499",
     storageBucket: "gradeplanner-d5499.firebasestorage.app", messagingSenderId: "1084828628942", appId: "1:1084828628942:web:255327f94a2be511d99d9f", measurementId: "G-R5VZNEYT45"
@@ -115,8 +118,8 @@
       try {
         if (!d || !d.documentElement) return;
         if (THEME) d.documentElement.setAttribute('data-gp-theme', THEME); else d.documentElement.removeAttribute('data-gp-theme');
-        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261114e'; d.head.appendChild(l); }
-        if (d !== document && d.head && THEME && !d.getElementById('gp-theme-icons')) { var sc = d.createElement('script'); sc.id = 'gp-theme-icons'; sc.src = '../assets/js/theme-icons.js?v=20261114e'; d.head.appendChild(sc); }   // 디자인에 맞는 아이콘 그림 (기본 디자인일 때는 불러오지 않음)
+        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261114f'; d.head.appendChild(l); }
+        if (d !== document && d.head && THEME && !d.getElementById('gp-theme-icons')) { var sc = d.createElement('script'); sc.id = 'gp-theme-icons'; sc.src = '../assets/js/theme-icons.js?v=20261114f'; d.head.appendChild(sc); }   // 디자인에 맞는 아이콘 그림 (기본 디자인일 때는 불러오지 않음)
       } catch (e) {}
     });
     [].forEach.call(document.querySelectorAll('#themeSel button'), function (b) { b.classList.toggle('on', (b.getAttribute('data-theme') || '') === THEME); });
@@ -142,7 +145,7 @@
     if (curPage === 'admin') { w.__gpSel = null; if (w.__gpClassFocus) w.__gpClassFocus.apply(); return; }
     try { if (w.__gpClassChanged) w.__gpClassChanged(w.__gpSel); } catch (e) { /* 무시 */ }   // 예산(학급운영비) 등: 고른 반으로 거르기
     if (w.__gpClassFocus) { w.__gpClassFocus.apply(); return; }
-    if (!d.getElementById('gp-class-focus')) { var sc = d.createElement('script'); sc.id = 'gp-class-focus'; sc.src = '../assets/js/class-focus.js?v=20261114e'; d.head.appendChild(sc); }
+    if (!d.getElementById('gp-class-focus')) { var sc = d.createElement('script'); sc.id = 'gp-class-focus'; sc.src = '../assets/js/class-focus.js?v=20261114f'; d.head.appendChild(sc); }
   }
   drawClassSel();
   document.getElementById('frame').addEventListener('load', applyClass);
@@ -171,7 +174,7 @@
     var keep = window.__gpKeepAuth === page; window.__gpKeepAuth = null;
     if (!keep && curPage && curPage !== page) { try { if (firebase.auth && firebase.auth().currentUser) firebase.auth().signOut(); } catch (e) { /* 무시 */ } }
     curPage = page;
-    frame.src = 'pages/' + page + '.html?v=20261114e';
+    frame.src = 'pages/' + page + '.html?v=20261114f';
     items.forEach(function (a) { a.classList.toggle('active', a.dataset.page === page); });
     setOpen(false); applyMeta();
   }
@@ -181,10 +184,18 @@
   function loadScript(src) { return new Promise(function (res, rej) { var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
   function getDb() { try { return Promise.resolve(firebase.firestore()); } catch (e) { return Promise.reject(e); } }
   function refreshMeta() {
-    getDb().then(function (db) { return db.collection('app_config').get(); }).then(function (all) {
+    var DB;
+    getDb().then(function (db) { DB = db; return db.collection('gp_global').doc('state').get().catch(function () { return null; }); }).then(function (snap) {
+      var st = snap && snap.exists ? snap.data() : null;
+      if (st && gradePrefix(st) !== gradePrefix(window.__gpGradeState)) {   // 다른 기기에서 학년을 바꿈 → 화면을 그 학년 자료로
+        window.__gpGradeState = { grade: st.grade, base: st.base }; try { localStorage.setItem('gp_grade', JSON.stringify(window.__gpGradeState)); } catch (e) {}
+        try { frame.contentWindow.location.reload(); } catch (e) {}
+      } else if (st) { window.__gpGradeState = { grade: st.grade, base: st.base }; try { localStorage.setItem('gp_grade', JSON.stringify(window.__gpGradeState)); } catch (e) {} }
+      return DB.collection(gradePrefix(window.__gpGradeState) + 'app_config').get();
+    }).then(function (all) {
       var docs = {}; all.docs.forEach(function (d) { try { docs[d.id] = JSON.parse((d.data() || {}).json || '{}'); } catch (e) {} });
       var g = docs.general || {};
-      var next = { year: g.year || meta.year, grade: g.grade || 6 };
+      var next = { year: g.year || meta.year, grade: (window.__gpGradeState && window.__gpGradeState.grade) || g.grade || 6 };
       // 학급은 학년도별(year_<학년도>) 값, 없으면 가장 가까운 이전 학년도 값, 그것도 없으면 general 값
       var ys = Object.keys(docs).map(function (k) { var m = /^year_(\d{4})$/.exec(k); return m && Array.isArray(docs[k].classNames) ? +m[1] : null; }).filter(function (y) { return y !== null && y <= next.year; }).sort(function (a, b) { return b - a; });
       if (ys.length) { var yd = docs['year_' + ys[0]]; g = { classCount: yd.classCount || yd.classNames.length, classNames: yd.classNames }; }
@@ -200,7 +211,7 @@
 <script>
   // 새 버전 자동 확인: 브라우저가 예전 index.html 을 기억하고 있으면 version.json(캐시 없이 읽음)과 비교해 한 번 새로고침합니다.
   (function () {
-    var MINE = '20261114e';
+    var MINE = '20261114f';
     try {
       fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
         if (!j || !j.v || j.v === MINE) return;

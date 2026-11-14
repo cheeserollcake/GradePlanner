@@ -72,7 +72,12 @@
   try { const jump = sessionStorage.getItem('gp_admin_open'); if (jump) { sessionStorage.removeItem('gp_admin_open'); if (TABS_KEYS.indexOf(jump) >= 0) tab = jump; if (GP.hasLevel('admin')) setTimeout(() => start(), 0); } } catch (e) { /* 무시 */ }
   // 다른 페이지에서 특정 부분으로 바로 가기 (예: 전담 시간표 페이지의 톱니 → 전담 시간표 일괄 업로드)
   try { const to = sessionStorage.getItem('gp_admin_scroll'); if (to) { sessionStorage.removeItem('gp_admin_scroll'); let n = 0; const t = setInterval(() => { const el = document.getElementById(to); if (el || ++n > 50) { clearInterval(t); if (el) { const box = el.closest('.border.rounded-xl') || el; box.scrollIntoView({ behavior: 'smooth', block: 'center' }); box.style.transition = 'box-shadow .3s'; box.style.boxShadow = '0 0 0 3px #6366f1'; setTimeout(() => { box.style.boxShadow = ''; }, 2500); } } }, 100); } } catch (e) { /* 무시 */ }
-  function start() {
+  async function start() {
+    // 학년을 바꾸고 다시 연 경우: 그 학년의 학년도를 지금 학년도에 맞춤(이전 학년도 자료는 보관)
+    try { const ny = sessionStorage.getItem('gp_need_year'); if (ny) { sessionStorage.removeItem('gp_need_year'); busy(true, '학년도를 맞추는 중...'); try { await APP.setYear(parseInt(ny, 10)); notifyMeta(); } finally { busy(false); } } } catch (e) { console.error(e); }
+    startTab();
+  }
+  function startTab() {
     if (!window.__migTried) { window.__migTried = true; APP.migrateYearTags().then((ch) => { if (ch) toast('이전 학년도 데이터를 정리했습니다. 다른 페이지는 새로고침하면 반영됩니다.'); }).catch((e) => console.warn('학년도 표시 정리 보류', e)); }
     $('gate').classList.add('hidden'); $('app').classList.remove('hidden');
     $('tabs').innerHTML = TABS.map(([k, l]) => '<button data-t="' + k + '" class="px-4 py-2 text-sm font-semibold rounded-t-lg border-b-2 ' + (k === tab ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800') + '">' + l + '</button>').join('');
@@ -449,7 +454,18 @@
       });
       $('addTime').onclick = async () => { times.push((times.length + 1) + '교시'); draw(); await saveTimes(); await restoreAt(times.length - 1); };
       $('evExpand').onclick = () => { window.__evOpen = !window.__evOpen; const b = $('evBox'); b.style.maxHeight = window.__evOpen ? '' : '615px'; b.style.overflowY = window.__evOpen ? '' : 'auto'; $('evExpand').textContent = window.__evOpen ? '접기' : '펼침 보기'; };
-      $('grade').onchange = () => { g.grade = parseInt($('grade').value, 10) || 6; saveGeneral().then(() => notifyMeta()); };
+      // 학년 바꾸기: 학년마다 자료(설정·명렬표·시간표·예산·일정)를 따로 씀. 처음 여는 학년은 빈 상태(기본값)에서 시작
+      $('grade').onchange = async () => {
+        const n = parseInt($('grade').value, 10) || 6;
+        if (!confirm(n + '학년으로 바꿀까요?\n학년마다 설정·명렬표·시간표·예산·일정을 따로 저장합니다. ' + n + '학년을 처음 연다면 빈 상태에서 시작합니다.\n(지금 학년의 자료는 그대로 남아 있고, 다시 이 학년을 고르면 돌아옵니다.)')) { $('grade').value = g.grade; return; }
+        try {
+          busy(true, n + '학년으로 바꾸는 중...');
+          if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; await saveGeneral(); }
+          const r = await GP.switchGrade(n);
+          try { sessionStorage.setItem('gp_admin_open', part === 'year' ? 'year' : 'basic'); if (r.needYear) sessionStorage.setItem('gp_need_year', String(r.needYear)); } catch (e) { /* 무시 */ }
+          notifyMeta(); location.reload();   // 새 학년 자료로 처음부터 다시 엶(로그인은 유지)
+        } catch (e) { busy(false); console.error(e); toast('실패: ' + e.message, true); $('grade').value = g.grade; }
+      };
       $('saveYear').onclick = async () => {
         try {
           const y = parseInt($('year').value, 10); if (!(y >= 2000 && y <= 2100)) throw new Error('올바른 연도를 입력하세요.');
@@ -820,7 +836,7 @@
     draw();
   }
 
-  const RULES_TEXT = "rules_version = '2';\n// GradePlanner 보안 규칙\n//  - 학생 명렬표·쇼핑몰 ID·내선번호 파일·특별실 비밀번호: 비밀번호로 로그인한 사람만 읽고 쓸 수 있음\n//  - 비밀번호 사본(gp_secret): 관리자만\n//  - 그 밖의 시간표·일정 등: 지금처럼 누구나 보고 고칠 수 있음\n// ※ 관리자가 새 버전의 관리자 페이지에 한 번 로그인해 '보안 전환'을 마친 뒤 붙여 넣으세요.\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    function isAdmin() { return request.auth != null && request.auth.token.email == 'gp-admin@gradeplanner-d5499.firebaseapp.com'; }\n    function isMember() { return isAdmin() || (request.auth != null && request.auth.token.email == 'gp-access@gradeplanner-d5499.firebaseapp.com'); }\n\n    match /gp_secret/{doc} { allow read, write: if isAdmin(); }\n    match /gp_private/{doc} { allow read, write: if isMember(); }\n    match /data_student/{doc} { allow read, write: if isMember(); }\n    match /data_mall/{doc} { allow read, write: if isMember(); }\n    match /data_files/{doc} { allow read, write: if isMember() || !doc.matches('ext_.*'); }\n    match /app_config/{doc} {\n      allow read: if true;\n      allow write: if isAdmin() || !(doc in ['security', 'passwords', 'room_passwords']);\n    }\n    match /{col}/{doc} {\n      allow read, write: if !(col in ['gp_secret', 'gp_private', 'data_student', 'data_mall', 'data_files', 'app_config']);\n    }\n  }\n}\n";
+  const RULES_TEXT = "rules_version = '2';\n// GradePlanner 보안 규칙 (학년별 자료: 처음 쓰던 학년은 원래 이름, 다른 학년은 컬렉션 이름 앞에 g<학년>__)\n//  - 학생 명렬표·쇼핑몰 ID·내선번호 파일·특별실 비밀번호: 비밀번호로 로그인한 사람만 읽고 쓸 수 있음\n//  - 비밀번호 사본(gp_secret)·학년 선택(gp_global 쓰기): 관리자만\n//  - 그 밖의 시간표·일정 등: 지금처럼 누구나 보고 고칠 수 있음\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    function isAdmin() { return request.auth != null && request.auth.token.email == 'gp-admin@gradeplanner-d5499.firebaseapp.com'; }\n    function isMember() { return isAdmin() || (request.auth != null && request.auth.token.email == 'gp-access@gradeplanner-d5499.firebaseapp.com'); }\n    function isPriv(col) { return col.matches('(g[1-6]__)?(data_student|data_mall|gp_private)'); }\n    function isFiles(col) { return col.matches('(g[1-6]__)?data_files'); }\n    function isCfg(col) { return col.matches('(g[1-6]__)?app_config'); }\n\n    match /gp_secret/{doc} { allow read, write: if isAdmin(); }\n    match /gp_global/{doc} { allow read: if true; allow write: if isAdmin(); }\n    match /{col}/{doc} {\n      allow read: if col != 'gp_secret' && col != 'gp_global' && (isPriv(col) ? isMember() : (isFiles(col) ? (isMember() || !doc.matches('ext_.*')) : true));\n      allow write: if col != 'gp_secret' && col != 'gp_global' && (isPriv(col) ? isMember() : (isFiles(col) ? (isMember() || !doc.matches('ext_.*')) : (isCfg(col) ? (isAdmin() || !(doc in ['security', 'passwords', 'room_passwords'])) : true)));\n    }\n  }\n}\n";
   async function renderSecCard() {
     const box = $('secCard'); if (!box) return;
     let st; try { st = await GP.securityStatus(); } catch (e) { st = { on: false, rules: null, err: String(e) }; }
@@ -828,7 +844,7 @@
     const step1 = st.on ? ok('비밀번호 확인을 Firebase 로그인으로 처리 중 (비밀번호가 공개 설정에 없음)') :
       bad('예전 방식(비밀번호가 공개 설정에 저장됨)') + '<div class="text-xs text-slate-500 mt-1">Firebase 콘솔 › Authentication › 로그인 방법에서 <b>이메일/비밀번호</b>를 사용 설정한 뒤, 이 관리자 페이지에 다시 로그인하면 자동으로 전환됩니다.' + (st.err ? '<br><span style="color:#dc2626">전환 실패 이유: ' + esc(st.err) + '</span>' : '') + '</div>';
     const step2 = st.rules === true ? ok('보안 규칙 적용됨 — 로그인하지 않은 사람은 명렬표·쇼핑몰 ID·내선번호·특별실 비밀번호를 읽을 수 없음') :
-      (st.rules === false ? bad('보안 규칙이 아직 적용되지 않음 — 지금은 누구나 데이터를 읽을 수 있습니다') : '<span class="font-semibold" style="color:#b45309">? 보안 규칙 확인 실패(인터넷 연결 확인)</span>') +
+      (st.rules === 'old' ? bad('보안 규칙을 새 규칙으로 바꿔야 합니다 — 지금 규칙은 다른 학년 자료(명렬표 등)를 막지 못합니다') : st.rules === false ? bad('보안 규칙이 아직 적용되지 않음 — 지금은 누구나 데이터를 읽을 수 있습니다') : '<span class="font-semibold" style="color:#b45309">? 보안 규칙 확인 실패(인터넷 연결 확인)</span>') +
       (st.rules === true ? '' : '<div class="text-xs text-slate-500 mt-1">' + (st.on ? '' : '<b>1번을 먼저 마친 뒤</b> ') + 'Firebase 콘솔 › Firestore Database › <b>규칙</b> 탭의 내용을 아래 규칙으로 모두 바꾸고 <b>게시</b>를 누르세요.</div>' +
         '<div class="mt-2 flex gap-2"><button id="copyRules" type="button" class="' + BTN_G + ' !py-1 text-xs">보안 규칙 복사</button><button id="showRules" type="button" class="' + BTN_G + ' !py-1 text-xs">규칙 보기</button></div><pre id="rulesPre" class="hidden mt-2 text-[11px] bg-slate-50 border rounded-lg p-2 overflow-x-auto whitespace-pre">' + esc(RULES_TEXT) + '</pre>');
     box.innerHTML = '<h2 class="font-bold text-lg">보안 상태</h2><ol class="text-sm space-y-3 list-decimal pl-5"><li>' + step1 + '</li><li>' + step2 + '</li>' +
