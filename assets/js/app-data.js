@@ -47,6 +47,7 @@
   }
   async function setYear(year) {
     const cur = await G.loadGeneral(); await G.saveGeneral(cur);
+    if (year !== cur.year) await G.freezeYearSettings();   // 떠나는 학년도의 교시·과목·교사·공간·주간시수를 그 학년도 것으로 고정
     if (year !== cur.year && !(await G.getCfg('space_open_' + cur.year, null))) await G.saveOpen(cur.year, await G.loadOpen(cur.year));   // 공간 개방 설정도 떠나는 학년도 것으로 먼저 고정   // 이전 형식의 데이터가 있으면 현재 학년도 것으로 먼저 옮김
     if (year !== cur.year) await tagYear(cur.year, year);   // 지금까지의 명렬표·기초시간표·예산 등에 '이전 학년도' 표시를 붙여 새 학년도에서는 빈 화면으로 보이게 함(삭제 아님)
     cur.year = year; const raw = (await G.getCfg('general', {})) || {}; await G.setCfg('general', { year, grade: cur.grade, classCount: raw.classCount !== undefined ? raw.classCount : cur.classCount, classNames: Array.isArray(raw.classNames) ? raw.classNames : cur.classNames, legacyMigrated: true });   // 학급 값은 학년도별(year_<학년도>)로, 새 학년도는 이전 학년도 것을 이어받음

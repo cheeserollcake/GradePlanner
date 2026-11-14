@@ -720,8 +720,18 @@
     const before = ys.filter((x) => x <= y), after = ys.filter((x) => x > y);
     if (before.length) return getCfg(key + '_y' + Math.max.apply(null, before), def);
     if (ids.indexOf(key) >= 0) return getCfg(key, def);
-    if (after.length) return getCfg(key + '_y' + Math.min.apply(null, after), def);
-    return def;
+    return def;   // 이후 학년도 값은 가져오지 않음
+  }
+  // 학년도를 떠나기 전에: 그 학년도에 따로 저장된 것이 없는 설정은 지금 보이는 값을 그 학년도 것으로 고정
+  //  (그래야 다른 학년도에서 고친 내용이 이 학년도로 넘어오지 않음)
+  async function freezeYearSettings() {
+    const y = (await loadGeneral()).year; const ly = (await getCfg('list_years', {})) || {};
+    for (const f of YEARLY) {
+      if (((ly[f] || []).map(Number)).indexOf(y) >= 0) continue;
+      const items = (await readList(f)).map((i) => { const ex = {}; Object.keys(i.row || {}).forEach((k) => { if (k.indexOf(f + '_') === 0 && k !== f + '_order' && k !== yrKey(f)) ex[k] = i.row[k]; }); return { value: i.value, extra: ex }; });
+      await writeList(f, items);
+    }
+    for (const key of ['basic_slots']) { if (!(await getCol('app_config')).some((x) => x._id === key + '_y' + y)) await setYearCfg(key, await getYearCfg(key, {})); }
   }
   async function setYearCfg(key, obj) { const y = (await loadGeneral()).year; return setCfg(key + '_y' + y, obj); }
   const DEFAULT_HOURS = { 국어: 6, 수학: 4, 사회: 3, 과학: 3, 영어: 3, 음악: 2, 미술: 2, 체육: 2, 실과: 1, 창체: 2, 도덕: 1 };
@@ -1466,6 +1476,6 @@
     const y = Number((await loadGeneral()).year) || new Date().getFullYear(); const t = new Date(), d = new Date(t.getFullYear(), t.getMonth(), t.getDate());
     return d >= new Date(y, 1, 1) && d <= new Date(y + 1, 2, 0) ? d.getMonth() + 1 : 3;
   }
-  window.GP = { getYearCfg, setYearCfg, baseMonth, login, logout, authLevel, hasLevel, changePw, secured, securityStatus, studentStats, refreshStudentStats, SEC_EMAIL: EMAIL, periodTomb, parkPeriod: (n, prev) => renamePeriodData(n, periodTomb(n, prev)), restorePeriod: (n, prev) => renamePeriodData(periodTomb(n, prev), n), classroomGet, classroomPut, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
+  window.GP = { freezeYearSettings, getYearCfg, setYearCfg, baseMonth, login, logout, authLevel, hasLevel, changePw, secured, securityStatus, studentStats, refreshStudentStats, SEC_EMAIL: EMAIL, periodTomb, parkPeriod: (n, prev) => renamePeriodData(n, periodTomb(n, prev)), restorePeriod: (n, prev) => renamePeriodData(periodTomb(n, prev), n), classroomGet, classroomPut, db, storage, TS, budgetLines, getCol, getColAll: rawCol, YEARED, yearSpan, curYear: async () => (await loadGeneral()).year, invalidate, getCfg, setCfg, getLists, toDate, ymd, appDate, isoLocal, addDays, eachDay, mondayOf, DAYS, num, str, natural, classNo, commit, newId, SERVER,
     readList, writeList, spaceOrphans, countSpaceData, purgeSpaceData, renameSpaceData, listSpaceData, deleteSpaceRows, fresh, resetCaches, DELETE, loadGeneral, saveGeneral, loadOpen, saveOpen, delCfg, yearNow, buildBudgetCards, buildInfo, getSubjectConfig, PUBLIC_HOLIDAYS, getSemesters, DEFAULT_HOURS };
 })();

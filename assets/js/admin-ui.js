@@ -441,8 +441,9 @@
           const y = parseInt($('year').value, 10); if (!(y >= 2000 && y <= 2100)) throw new Error('올바른 연도를 입력하세요.');
           if (y !== g.year) {
             clearTimeout(pendingTimer); await saveGeneral();            // 이전 학년도 입력을 먼저 저장
-            await APP.setYear(y);                                         // 새 학년도: 담임/전담교사, 공간 개방 설정은 빈 상태로 시작
-            g = await APP.getGeneral(); ensureHr(); await loadYearData(); draw();
+            await APP.setYear(y);                                         // 새 학년도: 그 학년도에 저장한 설정(없으면 이전 학년도 설정)
+            notifyMeta(); toast(y + '학년도로 설정되었습니다.');
+            await renderBasic(part); return;                              // 교시·주간시수 등 화면에 들고 있던 이전 학년도 값을 버리고 새 학년도 값으로 다시 그림
           }
           notifyMeta(); toast(y + '학년도로 설정되었습니다.');
         } catch (e) { console.error(e); toast('실패: ' + e.message, true); }
