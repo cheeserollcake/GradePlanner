@@ -25,8 +25,8 @@
 
   // ---------------------------------------------------------------- 학생
   async function loadStudents() {
-    const rows = await GP.getCol('data_student');
-    return rows.filter((r) => str(r.student_name).trim() && num(r.student_class) > 0).map((r) => {
+    const rows = await GP.getCol('data_student'); const cc = (await GP.loadGeneral()).classCount;
+    return rows.filter((r) => str(r.student_name).trim() && num(r.student_class) > 0 && num(r.student_class) <= cc).map((r) => {   // 지금 학급 수 안의 학생만(지운 학급의 남은 자료 제외)
       const name = str(r.student_name).trim(); const sur = str(r.bj_sur).trim() || name.charAt(0);
       return { id: r._id, cls: num(r.student_class), num: num(r.student_num), name, sur, given: name.indexOf(sur) === 0 ? name.slice(sur.length) : name.slice(1), g: genderOf(r.student_gender),
         score: r.bj_score === undefined || r.bj_score === '' || r.bj_score === null ? null : num(r.bj_score), sp: !!r.bj_sp, slow: !!r.bj_slow, multi: !!r.bj_multi, move: !!r.bj_move,

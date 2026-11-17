@@ -413,7 +413,7 @@
         '<div id="evBox" class="border rounded-lg" style="' + (window.__evOpen ? '' : 'max-height:615px;overflow-y:auto;') + '"><table class="w-full text-sm"><tbody>' + (evHtml || '<tr><td class="p-4 text-center text-slate-400">이 학년도에 등록된 일정이 없습니다.</td></tr>') + '</tbody></table></div></div>';
       const classCard =
         '<div class="' + CARD + '"><h2 class="font-bold text-lg">학급 및 교사 설정 <span class="text-xs font-normal text-slate-400">입력하면 바로 저장됩니다</span></h2>' +
-        '<div class="space-y-2"><h3 class="font-semibold text-sm text-slate-600">학급 설정</h3><div class="flex flex-wrap items-center gap-2"><span class="text-sm">학급 수</span><input id="cc" type="number" min="1" max="30" value="' + g.classCount + '" class="' + INP + ' w-20"></div><div class="flex flex-wrap gap-2">' + classHtml + '</div></div>' +
+        '<div class="space-y-2"><h3 class="font-semibold text-sm text-slate-600">학급 설정</h3><div class="flex flex-wrap items-center gap-2"><span class="text-sm">학급 수</span><input id="cc" type="number" min="1" max="30" value="' + g.classCount + '" class="' + INP + ' w-20"></div><div class="flex flex-wrap gap-2">' + classHtml + '</div><div id="orphanBox"></div></div>' +
         '<div class="grid lg:grid-cols-2 gap-5 pt-3 border-t"><div class="space-y-2"><h3 class="font-semibold text-sm text-slate-600">담임교사</h3><div class="grid sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2">' + homeHtml + '</div></div>' +
         '<div class="space-y-2"><h3 class="font-semibold text-sm text-slate-600">전담교사</h3>' + (spHtml || '<p class="text-sm text-slate-400">등록된 전담교사가 없습니다. (과목은 시간표 설정에서 \'전담\'으로 체크한 과목만 선택됩니다.)</p>') +
         '<button id="addSp" class="' + BTN_G + '">+ 전담교사 추가</button></div></div></div>';
@@ -565,11 +565,37 @@
       });
 
       // 학급 설정
-      $('cc').onchange = () => {
+      $('cc').onchange = async () => {
         const n = parseInt($('cc').value, 10); if (!(n >= 1 && n <= 30)) return toast('학급 수는 1~30 사이로 입력하세요.', true);
+        if (n < g.classCount) {   // 학급을 줄이면: 없어지는 학급의 명렬표·기초시간표를 함께 지움(경고 후)
+          const gone = []; for (let c = n + 1; c <= g.classCount; c++) gone.push(c);
+          const goneNames = gone.map((c) => g.classNames[c - 1] || c + '반');
+          let stu = [], btt = [];
+          try { stu = (await GP.getCol('data_student')).filter((r) => gone.indexOf(num(r.student_class)) >= 0); btt = (await GP.getCol('data_basic_timetable')).filter((r) => gone.some((c) => r._id === 'class_' + c)); } catch (e) { console.warn(e); }
+          if (!confirm('학급 수를 ' + g.classCount + '개에서 ' + n + '개로 줄이면 [' + goneNames.join(', ') + '] 학급이 삭제됩니다.\n\n함께 지워지는 자료(' + g.year + '학년도):\n· 학년 전체 명렬표의 학생 ' + stu.length + '명 (반배정 기초 설정 포함)\n· 기초 시간표 ' + btt.length + '개\n· 담임·전담교사 설정 중 이 학급 부분\n\n지운 자료는 되돌릴 수 없습니다. 계속할까요?')) { $('cc').value = g.classCount; return; }
+          try { const ops = stu.map((r) => ({ type: 'delete', col: 'data_student', id: r._id })).concat(btt.map((r) => ({ type: 'delete', col: 'data_basic_timetable', id: r._id }))); if (ops.length) await GP.commit(ops); }
+          catch (e) { toast('학급 자료 삭제 실패: ' + e.message, true); $('cc').value = g.classCount; return; }
+          toast('[' + goneNames.join(', ') + '] 학급과 자료(학생 ' + stu.length + '명)를 지웠습니다.');
+        }
         g.classCount = n; g.classNames = Array.from({ length: n }, (_, i) => g.classNames[i] || (i + 1) + '반'); ensureHr(); g.specials.forEach((s) => { s.classes = (s.classes || []).filter((c) => g.classNames.indexOf(c) >= 0); });
         draw(); saveGeneral();
       };
+      // 예전에 지운 학급의 명렬표가 남아 있으면 알려 주고 정리할 수 있게
+      (async () => {
+        const box = document.getElementById('orphanBox'); if (!box) return;
+        let left = []; try { left = (await GP.getCol('data_student')).filter((r) => num(r.student_class) > g.classCount); } catch (e) { return; }
+        if (!left.length) return;
+        const cls = [...new Set(left.map((r) => num(r.student_class)))].sort((x, y) => x - y);
+        box.innerHTML = '<div class="mt-2 p-3 rounded-lg text-sm" style="background:#fffbeb;color:#92400e">지금 학급 수(' + g.classCount + '개)보다 큰 학급 번호(' + cls.map((c) => c + '반').join(', ') + ')의 명렬표 학생 ' + left.length + '명이 남아 있습니다. 예전에 지운 학급의 자료입니다. <button type="button" id="orphanDel" class="' + BTN + ' bg-red-600 text-white !py-1 ml-1">이 자료 지우기</button></div>';
+        document.getElementById('orphanDel').onclick = async () => {
+          if (!confirm(cls.map((c) => c + '반').join(', ') + ' 학생 ' + left.length + '명의 명렬표 자료(반배정 기초 설정 포함)와 그 학급의 기초 시간표를 지웁니다. 되돌릴 수 없습니다. 계속할까요?')) return;
+          try {
+            const btt = (await GP.getCol('data_basic_timetable')).filter((r) => cls.some((c) => r._id === 'class_' + c));
+            await GP.commit(left.map((r) => ({ type: 'delete', col: 'data_student', id: r._id })).concat(btt.map((r) => ({ type: 'delete', col: 'data_basic_timetable', id: r._id }))));
+            box.innerHTML = ''; toast('남아 있던 자료를 지웠습니다.');
+          } catch (e) { toast('삭제 실패: ' + e.message, true); }
+        };
+      })();
       view.querySelectorAll('[data-cedit]').forEach((b) => b.onclick = () => {
         const i = +b.dataset.cedit; const span = view.querySelector('[data-cn="' + i + '"]');
         span.innerHTML = '<input class="border rounded px-1 w-20 text-sm" value="' + esc(g.classNames[i]) + '">'; const inp = span.firstChild; inp.focus();
