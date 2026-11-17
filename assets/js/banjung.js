@@ -1,7 +1,7 @@
 /* banjung.js — 반배정 (관리자 > 반배정 설정, 반배정하기 페이지가 함께 씀)
  *  설정(공개, 학년도별)   app_config/banjung_<학년도> = { show, names:[임시반], rule:'num'|'name'|'score', starts:{ 기존반번호: { M:{sid,to}, F:{sid,to} } } }
  *  학생별 반배정 정보(보호) data_student 의 bj_sur(성) bj_score bj_sp(특수) bj_slow(학습부진) bj_multi(다문화) bj_move(전출예정) bj_sep[분리 희망 학생 id] bj_contact(연락처·관계)
- *                         비고는 명렬표의 student_memo 를 함께 씀
+ *                         bj_memo(반배정 비고 — 명렬표의 비고와는 따로)
  *  배정 결과(보호, 학년도별) gp_private/banjung_res_<학년도> = { a:{학생id: 임시반 번호}, hold:[id], moved:{id:1}, at }
  */
 (function () {
@@ -30,7 +30,7 @@
       const name = str(r.student_name).trim(); const sur = str(r.bj_sur).trim() || name.charAt(0);
       return { id: r._id, cls: num(r.student_class), num: num(r.student_num), name, sur, given: name.indexOf(sur) === 0 ? name.slice(sur.length) : name.slice(1), g: genderOf(r.student_gender),
         score: r.bj_score === undefined || r.bj_score === '' || r.bj_score === null ? null : num(r.bj_score), sp: !!r.bj_sp, slow: !!r.bj_slow, multi: !!r.bj_multi, move: !!r.bj_move,
-        sep: Array.isArray(r.bj_sep) ? r.bj_sep.slice() : [], memo: str(r.student_memo), contact: str(r.bj_contact) };
+        sep: Array.isArray(r.bj_sep) ? r.bj_sep.slice() : [], memo: str(r.bj_memo), contact: str(r.bj_contact) };
     });
   }
   const saveStudent = (id, data) => GP.commit([{ type: 'update', col: 'data_student', id, data }]);
@@ -59,7 +59,7 @@
         const L = inC.filter((s) => s.g === G); if (!L.length) return;
         const st = (cfg.starts[c] && cfg.starts[c][G]) || {};
         let i0 = L.findIndex((s) => s.id === st.sid); if (i0 < 0) i0 = 0;
-        let to = st.to !== undefined && st.to !== '' && st.to !== null ? Number(st.to) : (G === 'F' ? ci + Math.ceil(K / 2) : ci); to = ((to % K) + K) % K;
+        let to = st.to !== undefined && st.to !== '' && st.to !== null ? Number(st.to) : (G === 'F' ? ci + 1 : ci); to = ((to % K) + K) % K;
         for (let j = 0; j < L.length; j++) b[idx.get(L[(i0 + j) % L.length].id)] = (to + j) % K;
       });
     });
@@ -146,19 +146,30 @@
     return { a: out, warn: checkRules(students, out, cfg) };
   }
 
-  // 규칙 위반 점검(보드 경고용)
+  // 규칙 위반 점검(보드 경고용). hard = 꼭 고쳐야 함, 나머지는 확인 권장
+  //  동명이인·분리 희망(절대) / 성 뺀 이름 같음 / 성비(전출예정 제외) / 특수 몰림 / 성적 평균(성적순) / 출신 반 쏠림
   function checkRules(students, a, cfg) {
-    const w = []; const byK = {};
-    students.forEach((s) => { const k = a[s.id]; if (k === undefined || k === null || k === 'hold') return; (byK[k] = byK[k] || []).push(s); });
+    const w = []; const byK = {}; const K = cfg.names.length;
+    students.forEach((s) => { const k = a[s.id]; if (typeof k !== 'number') return; (byK[k] = byK[k] || []).push(s); });
     const nm = (s) => s.cls + '반 ' + s.name;
-    Object.keys(byK).forEach((k) => {
-      const L = byK[k], tn = tempName(cfg, Number(k));
+    const inAll = students.filter((s) => typeof a[s.id] === 'number');
+    const act = inAll.filter((s) => !s.move); const totM = act.filter((s) => s.g === 'M').length, totF = act.filter((s) => s.g === 'F').length;
+    const spAll = inAll.filter((s) => s.sp).length, spCap = K ? Math.ceil(spAll / K) : 0;
+    const scored = inAll.filter((s) => s.score !== null); const avgAll = scored.length ? scored.reduce((x, s) => x + s.score, 0) / scored.length : 0;
+    const origs = [...new Set(inAll.map((s) => s.cls))]; const nOrig = {}; inAll.forEach((s) => { nOrig[s.cls] = (nOrig[s.cls] || 0) + 1; });
+    Object.keys(byK).map(Number).sort((x, y) => x - y).forEach((k) => {
+      const L = byK[k], tn = tempName(cfg, k);
       for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
         const x = L[i], y = L[j];
-        if (x.name === y.name) w.push({ hard: true, k: +k, t: tn + ': 동명이인 ' + nm(x) + ' · ' + nm(y) });
-        else if (x.given && x.given === y.given) w.push({ hard: false, k: +k, t: tn + ': 이름(성 제외)이 같음 ' + nm(x) + ' · ' + nm(y) });
-        if (x.sep.indexOf(y.id) >= 0 || y.sep.indexOf(x.id) >= 0) w.push({ hard: true, k: +k, t: tn + ': 분리 희망 ' + nm(x) + ' · ' + nm(y) });
+        if (x.name === y.name) w.push({ hard: true, kind: 'dup', k, t: tn + ': 동명이인 ' + nm(x) + ' · ' + nm(y) });
+        else if (x.given && x.given === y.given) w.push({ hard: false, kind: 'given', k, t: tn + ': 이름(성 제외)이 같음 ' + nm(x) + ' · ' + nm(y) });
+        if (x.sep.indexOf(y.id) >= 0 || y.sep.indexOf(x.id) >= 0) w.push({ hard: true, kind: 'sep', k, t: tn + ': 분리 희망 학생이 같은 반 ' + nm(x) + ' · ' + nm(y) });
       }
+      const la = L.filter((s) => !s.move); const m = la.filter((s) => s.g === 'M').length, f = la.filter((s) => s.g === 'F').length;
+      if (totM + totF && la.length) { const expM = la.length * totM / (totM + totF); if (Math.abs(m - expM) > 2) w.push({ hard: false, kind: 'ratio', k, t: tn + ': 성비가 많이 기움 (남 ' + m + ', 여 ' + f + ' · 전출예정 제외)' }); }
+      const sp = L.filter((s) => s.sp).length; if (spAll && sp > spCap) w.push({ hard: false, kind: 'sp', k, t: tn + ': 특수 학생이 몰림 (' + sp + '명, 반마다 ' + spCap + '명 이하 권장)' });
+      if (cfg.rule === 'score' && scored.length) { const sc = L.filter((s) => s.score !== null); if (sc.length) { const av = sc.reduce((x, s) => x + s.score, 0) / sc.length; if (Math.abs(av - avgAll) > 5) w.push({ hard: false, kind: 'score', k, t: tn + ': 평균 성적 ' + av.toFixed(1) + '점 (전체 평균 ' + avgAll.toFixed(1) + '점과 ' + Math.abs(av - avgAll).toFixed(1) + '점 차이)' }); } }
+      origs.forEach((c) => { const cnt = L.filter((s) => s.cls === c).length; const exp = nOrig[c] * L.length / inAll.length; if (Math.abs(cnt - exp) > Math.max(2, exp * 0.5)) w.push({ hard: false, kind: 'orig', k, t: tn + ': ' + (cfg.classNames && cfg.classNames[c - 1] || c + '반') + ' 출신이 ' + (cnt > exp ? '너무 많음' : '너무 적음') + ' (' + cnt + '명, 보통 ' + Math.round(exp) + '명 안팎)' }); });
     });
     return w;
   }
@@ -173,8 +184,9 @@
   const exportOrder = (list) => list.slice().sort((x, y) => (x.move - y.move) || ko(x.name, y.name) || x.cls - y.cls);
 
   // ---------------------------------------------------------------- 결과 저장(보호)
-  async function loadResult(year) { const r = (await GP.privGet('banjung_res_' + year, null)) || {}; return { a: r.a || {}, hold: Array.isArray(r.hold) ? r.hold : [], moved: r.moved || {}, at: r.at || '' }; }
-  async function saveResult(year, r) { await GP.privSet('banjung_res_' + year, { a: r.a, hold: r.hold, moved: r.moved, at: new Date().toISOString() }); }
+  // orig = 기본 배정하기로 처음 정해진 반(옮겼다가 같은 반으로 돌아오면 '옮김' 표시를 지우는 데 씀)
+  async function loadResult(year) { const r = (await GP.privGet('banjung_res_' + year, null)) || {}; return { a: r.a || {}, orig: r.orig || null, hold: Array.isArray(r.hold) ? r.hold : [], moved: r.moved || {}, at: r.at || '' }; }
+  async function saveResult(year, r) { await GP.privSet('banjung_res_' + year, { a: r.a, orig: r.orig || null, hold: r.hold, moved: r.moved, at: new Date().toISOString() }); }
 
   // ---------------------------------------------------------------- 관리자 > 반배정 탭
   async function renderAdmin(view, h) {
@@ -195,7 +207,7 @@
         const inC = sortInClass(studs.filter((s) => s.cls === c.n), cfg.rule);
         const cell = (G) => {
           const L = inC.filter((s) => s.g === G); const st = (cfg.starts[c.n] && cfg.starts[c.n][G]) || {};
-          const defTo = G === 'F' ? (ci + Math.ceil(K / 2)) % K : ci % K; const to = st.to !== undefined && st.to !== null && st.to !== '' ? Number(st.to) % K : defTo;
+          const defTo = G === 'F' ? (ci + 1) % K : ci % K; /* 기본: 남 1반 1번→가, 2반→나… / 여 1반 1번→나, 2반→다… */ const to = st.to !== undefined && st.to !== null && st.to !== '' ? Number(st.to) % K : defTo;
           if (!L.length) return '<td class="border px-2 py-1 text-slate-400 text-xs">학생 없음</td>';
           return '<td class="border px-2 py-1"><div class="flex flex-wrap items-center gap-1 text-sm"><select data-st="' + c.n + '|' + G + '|sid" class="' + INP + ' !py-1">' +
             L.map((s, i) => '<option value="' + esc(s.id) + '" ' + (st.sid === s.id || (!st.sid && i === 0) ? 'selected' : '') + '>' + (i + 1) + '. ' + esc(s.name) + '</option>').join('') + '</select>' +

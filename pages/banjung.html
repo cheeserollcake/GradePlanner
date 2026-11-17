@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>반배정하기</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261117b">
-  <script src="../assets/js/fb-boot.js?v=20261117b"></script>
-  <script src="../assets/js/firebase-config.js?v=20261117b"></script>
-  <script src="../assets/js/gas-shim.js?v=20261117b"></script>
-  <link rel="stylesheet" href="../assets/css/lock.css?v=20261117b">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261117c">
+  <script src="../assets/js/fb-boot.js?v=20261117c"></script>
+  <script src="../assets/js/firebase-config.js?v=20261117c"></script>
+  <script src="../assets/js/gas-shim.js?v=20261117c"></script>
+  <link rel="stylesheet" href="../assets/css/lock.css?v=20261117c">
   <style>
     body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;background:#f8fafc;color:#1e293b;margin:0}
     .wrap{max-width:1500px;margin:0 auto;padding:16px}
@@ -43,7 +43,7 @@
     .bj-st.moved td{border-top:3px solid #111827 !important;border-bottom:3px solid #111827 !important}
     .bj-st.moved td:first-child{border-left:3px solid #111827 !important}.bj-st.moved td:last-child{border-right:3px solid #111827 !important}
     .manual .bj-st{cursor:grab}
-    .hold{width:250px;position:sticky;top:10px;flex:none}
+    .hold{width:300px;position:sticky;top:10px;flex:none;max-height:calc(100vh - 20px);overflow:auto}
     .hold .bj-zone{min-height:120px}
     .warn{font-size:13px;border-radius:10px;padding:8px 12px;margin:8px 0}
     .warn.h{background:#fef2f2;color:#b91c1c}.warn.s{background:#fffbeb;color:#92400e}
@@ -68,9 +68,9 @@
 </div>
 <div id="busy" class="busy"><div><div class="spin"></div><div id="busyMsg">처리 중...</div></div></div>
 <div id="toast" class="toast"></div>
-<script src="../assets/js/xlsx-lite.js?v=20261117b"></script>
-<script src="../assets/js/dnd.js?v=20261117b"></script>
-<script src="../assets/js/banjung.js?v=20261117b"></script>
+<script src="../assets/js/xlsx-lite.js?v=20261117c"></script>
+<script src="../assets/js/dnd.js?v=20261117c"></script>
+<script src="../assets/js/banjung.js?v=20261117c"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -79,6 +79,7 @@
   const busy = (on, m) => { $('busyMsg').textContent = m || '처리 중...'; $('busy').style.display = on ? 'flex' : 'none'; };
   const savedMark = () => { $('saved').textContent = '✓ 저장됨 ' + new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }); };
   let cfg, S = [], res, tab = 'setup', curCls = 1, manual = false, dropMode = 'move';
+  let fold = {}; try { fold = JSON.parse(localStorage.getItem('gp_bj_fold') || '{}') || {}; } catch (e) { fold = {}; }   // 통계표 접기(1: 반별 현황, 2: 출신 반)
   const byId = () => new Map(S.map((s) => [s.id, s]));
   const clsName = (n) => (cfg.classNames[n - 1] || n + '반');
   const FLAGS = [['sp', '특수', 'bj-sp'], ['slow', '학습부진', 'bj-slow'], ['multi', '다문화', 'bj-multi'], ['move', '전출예정', 'bj-move']];
@@ -100,18 +101,20 @@
 
   // ================= 학급 기초 설정 =================
   const sepText = (s, M) => s.sep.map((id) => M.get(id)).filter(Boolean).sort((a, b) => a.cls - b.cls || a.name.localeCompare(b.name, 'ko')).map((x) => x.cls + '반 ' + x.name).join(', ');
+  // 기초 설정 화면의 순서: 성적순이면 성적을 입력해도 줄이 바뀌지 않게 출석번호 순으로 고정(남·여 따로)
+  const setupSort = (list) => BJ.sortInClass(list, cfg.rule === 'score' ? 'num' : cfg.rule);
   function drawSetup() {
     const n = cfg.classNames.length; const M = byId();
     let h = '<div class="cls-btns">' + cfg.classNames.map((nm, i) => '<button data-c="' + (i + 1) + '" class="' + (curCls === i + 1 ? 'on' : '') + '">' + esc(nm) + '</button>').join('') + '<button data-c="0" class="' + (curCls === 0 ? 'on' : '') + '">전체</button></div>';
     h += '<p class="muted" style="margin:0 0 8px">배정 규칙: <b>' + (BJ.RULES.find((r) => r[0] === cfg.rule) || [, '번호순'])[1] + '</b> (관리자 › 반배정에서 바꿀 수 있어요) · 입력하면 바로 저장됩니다. 색: <span class="bj-sp" style="padding:0 6px">특수</span> <span class="bj-slow" style="padding:0 6px">학습부진</span> <span class="bj-multi" style="padding:0 6px">다문화</span> <span class="bj-move" style="padding:0 6px">전출예정</span></p>';
     if (curCls === 0) {   // 전체 보기(읽기 전용)
-      const rows = []; for (let c = 1; c <= n; c++) BJ.sortInClass(S.filter((s) => s.cls === c), cfg.rule).forEach((s) => rows.push(s));
-      h += '<div class="card" style="overflow-x:auto"><table class="t"><thead><tr><th>기존반</th><th>이름</th><th>성별</th><th>특기사항</th><th>분리 희망</th></tr></thead><tbody>' +
+      const rows = []; for (let c = 1; c <= n; c++) setupSort(S.filter((s) => s.cls === c)).forEach((s) => rows.push(s));
+      h += '<div class="card"><table class="t"><thead><tr><th>기존반</th><th>이름</th><th>성별</th><th>특기사항</th><th>분리 희망</th></tr></thead><tbody>' +
         rows.map((s) => '<tr><td class="c ' + cellCls(s, 0) + '">' + esc(clsName(s.cls)) + '</td><td class="' + cellCls(s, 1) + '">' + esc(s.name) + '</td><td class="c ' + cellCls(s, 2) + '">' + BJ.G_LABEL[s.g] + '</td><td class="' + cellCls(s, 3) + '">' + esc(BJ.flagsOf(s).join(', ')) + '</td><td class="' + cellCls(s, 4) + '">' + esc(sepText(s, M)) + '</td></tr>').join('') +
         '</tbody></table>' + (rows.length ? '' : '<p class="muted">학년 전체 명렬표에 학생이 없습니다.</p>') + '</div>';
       $('view').innerHTML = h; bindCls(); return;
     }
-    const L = BJ.sortInClass(S.filter((s) => s.cls === curCls), cfg.rule);
+    const L = setupSort(S.filter((s) => s.cls === curCls));
     const sc = useScore();
     const head = ['기존반', '이름', '성', '성별'].concat(sc ? ['성적'] : [], ['특수', '학습부진', '다문화', '전출예정', '분리 희망', '비고', '연락처(관계)']);
     let lastG = null;
@@ -120,19 +123,26 @@
       let row = '';
       if (s.g !== lastG) { lastG = s.g; row += '<tr class="sexrow"><td colspan="' + head.length + '">' + (s.g === 'M' ? '남학생' : s.g === 'F' ? '여학생' : '성별 미입력') + ' ' + L.filter((x) => x.g === s.g).length + '명</td></tr>'; }
       row += '<tr data-id="' + esc(s.id) + '">' + td(esc(clsName(s.cls)), 'c') + td(esc(s.name)) + td('<input type="text" data-f="sur" value="' + esc(s.sur) + '" style="width:3.2em;text-align:center">', 'c') + td(BJ.G_LABEL[s.g], 'c') +
-        (sc ? td('<input type="number" data-f="score" value="' + (s.score === null ? '' : s.score) + '" style="width:4.5em;text-align:right">', 'c') : '') +
+        (sc ? td('<input type="text" inputmode="decimal" data-f="score" value="' + (s.score === null ? '' : s.score) + '" style="width:4.5em;text-align:right" autocomplete="off">', 'c') : '') +
         FLAGS.map((f) => td('<input type="checkbox" data-f="' + f[0] + '" ' + (s[f[0]] ? 'checked' : '') + '>', 'c')).join('') +
         td('<button type="button" class="sepbtn" data-sep="' + esc(s.id) + '">' + (s.sep.length ? esc(sepText(s, M)) : '<span class="muted">+ 선택</span>') + '</button>') +
         td('<input type="text" data-f="memo" value="' + esc(s.memo) + '">') + td('<input type="text" data-f="contact" value="' + esc(s.contact) + '" placeholder="예) 010-…(모)">') + '</tr>';
       return row;
     }).join('');
-    h += '<div class="card" style="overflow-x:auto"><table class="t"><thead><tr>' + head.map((x) => '<th>' + x + '</th>').join('') + '</tr></thead><tbody>' + (body || '<tr><td colspan="' + head.length + '" class="c muted">이 반의 학생이 명렬표에 없습니다.</td></tr>') + '</tbody></table></div>';
+    const HC = { '특수': 'bj-sp', '학습부진': 'bj-slow', '다문화': 'bj-multi', '전출예정': 'bj-move' };   // 머리글도 항목 색
+    h += '<div class="card"><table class="t"><thead><tr>' + head.map((x) => '<th class="' + (HC[x] || '') + '">' + x + '</th>').join('') + '</tr></thead><tbody>' + (body || '<tr><td colspan="' + head.length + '" class="c muted">이 반의 학생이 명렬표에 없습니다.</td></tr>') + '</tbody></table></div>';
     $('view').innerHTML = h; bindCls();
-    const FIELD = { sur: 'bj_sur', score: 'bj_score', sp: 'bj_sp', slow: 'bj_slow', multi: 'bj_multi', move: 'bj_move', memo: 'student_memo', contact: 'bj_contact' };
+    const FIELD = { sur: 'bj_sur', score: 'bj_score', sp: 'bj_sp', slow: 'bj_slow', multi: 'bj_multi', move: 'bj_move', memo: 'bj_memo', contact: 'bj_contact' };   // 비고는 반배정 전용(명렬표 비고와 따로)
+    // 성적 칸: 휠·화살표로 숫자가 바뀌지 않게(글자 칸), ↑↓·Enter 는 위·아래 학생의 성적 칸으로 이동
+    const scoreIns = [...$('view').querySelectorAll('[data-f="score"]')];
+    scoreIns.forEach((el, i) => el.onkeydown = (e) => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.key !== 'Enter') return;
+      e.preventDefault(); const nx = scoreIns[i + (e.key === 'ArrowUp' ? -1 : 1)]; if (nx) { nx.focus(); nx.select(); } else el.blur();
+    });
     $('view').querySelectorAll('[data-f]').forEach((el) => el.onchange = async () => {
       const tr = el.closest('tr'); const s = byId().get(tr.dataset.id); const f = el.dataset.f;
       let v = el.type === 'checkbox' ? el.checked : el.value.trim();
-      if (f === 'score') v = v === '' ? '' : Number(v);
+      if (f === 'score') { if (v !== '' && isNaN(Number(v))) { toast('성적은 숫자로 입력하세요.'); el.value = s.score === null ? '' : s.score; return; } v = v === '' ? '' : Number(v); }
       if (f === 'sur') { if (!v || s.name.indexOf(v) !== 0) { toast('성은 이름의 앞부분이어야 해요. (예: 남궁민 → 남궁)'); el.value = s.sur; return; } s.sur = v; s.given = s.name.slice(v.length); }
       else if (f === 'score') s.score = v === '' ? null : v; else s[f] = v;
       try { await BJ.saveStudent(s.id, { [FIELD[f]]: v }); savedMark(); } catch (e) { toast('저장 실패: ' + e.message); }
@@ -177,24 +187,29 @@
     const { st, origs } = BJ.stats(S, a, cfg);
     const warn = BJ.checkRules(S, a, cfg);
     let h = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"><button class="btn p" id="auto">기본 배정하기</button><button class="btn ' + (manual ? 'on' : '') + '" id="man">' + (manual ? '✋ 수동 조정 끝내기' : '수동 조정하기') + '</button>' +
-      (manual ? '<span class="muted">끌어 놓기:</span><button class="btn ' + (dropMode === 'move' ? 'on' : '') + '" data-dm="move">옮기기</button><button class="btn ' + (dropMode === 'swap' ? 'on' : '') + '" data-dm="swap">맞바꾸기</button>' : '') +
       '<span style="flex:1"></span><button class="btn g" id="xls">⬇ 엑셀로 내보내기</button></div>';
-    if (!Object.keys(a).length) h += '<div class="card muted">아직 배정하지 않았습니다. <b>기본 배정하기</b>를 누르세요. (학생 ' + S.length + '명 · 배정할 반 ' + K + '개)</div>';
+    const has = Object.keys(a).length > 0;
+    if (!has) h += '<div class="card muted">아직 배정하지 않았습니다. <b>기본 배정하기</b>를 누르세요. (학생 ' + S.length + '명 · 배정할 반 ' + K + '개)</div>';
     else {
-      const headCols = ['배정반', '총인원', '성별인원'].concat(sc ? ['평균점수'] : [], ['특수', '학습부진', '다문화', '전출예정']);
-      h += '<div class="card" style="overflow-x:auto;margin-bottom:10px"><table class="t stat"><thead><tr>' + headCols.map((x) => '<th>' + x + '</th>').join('') + '</tr></thead><tbody>' +
-        st.map((q, k) => '<tr><td><b>' + esc(BJ.tempName(cfg, k)) + '</b></td><td>' + q.n + '명</td><td>남 ' + q.M + ', 여 ' + q.F + (q.U ? ', ? ' + q.U : '') + '</td>' + (sc ? '<td>' + (q.scn ? (q.sc / q.scn).toFixed(1) : '-') + '</td>' : '') +
-          '<td>' + q.sp + '명</td><td>' + q.slow + '명</td><td>' + q.multi + '명</td><td>' + q.move + '명</td></tr>' +
-          '<tr class="o"><td colspan="' + headCols.length + '">' + origs.map((o) => esc(clsName(o)) + ' ' + (q.o[o] || 0) + '명').join(', ') + '</td></tr>').join('') + '</tbody></table></div>';
-      const hard = warn.filter((w) => w.hard), soft = warn.filter((w) => !w.hard);
-      if (hard.length) h += '<div class="warn h"><b>꼭 고쳐야 할 배정 ' + hard.length + '건</b><br>' + hard.map((w) => esc(w.t)).join('<br>') + '</div>';
-      if (soft.length) h += '<details class="warn s"><summary style="cursor:pointer"><b>가능하면 피할 배정 ' + soft.length + '건</b> (성을 뺀 이름이 같음 — 학생 수에 비해 같은 이름이 많으면 다 피할 수 없을 때가 있어요)</summary>' + soft.map((w) => esc(w.t)).join('<br>') + '</details>';
-      if (holdIds.length && !manual) h += '<div class="warn s">임시보관함·미배정 학생 ' + holdIds.length + '명은 통계에 들어가지 않습니다. (수동 조정하기에서 확인)</div>';
+      // 인원: 전출예정은 합계에서 빼고 ( ) 안에 따로
+      const mv = Array.from({ length: K }, () => ({ M: 0, F: 0, U: 0 })); S.forEach((x) => { const k = a[x.id]; if (typeof k === 'number' && x.move && mv[k]) mv[k][x.g]++; });
+      const par = (n) => (n ? '(' + n + ')' : '');
+      const foldBtn = (n) => '<th style="width:44px"><button type="button" class="btn" data-fold="' + n + '" title="' + (fold[n] ? '펼치기' : '접기') + '" style="padding:2px 8px">' + (fold[n] ? '▼' : '▲') + '</button></th>';
+      const tblStyle = (cols) => 'table-layout:fixed;width:100%;max-width:' + (cols * 120 + 44) + 'px';   // 넓은 화면에서도 칸이 너무 넓어지지 않게, 칸 너비는 똑같이
+      const c1 = ['배정반', '총인원', '성별인원'].concat(sc ? ['평균점수'] : [], ['특수', '학습부진', '다문화', '전출예정']);
+      h += '<div class="card" style="margin-bottom:10px;overflow-x:auto"><table class="t stat" style="' + tblStyle(c1.length) + '"><thead><tr>' + c1.map((x) => '<th>' + x + '</th>').join('') + foldBtn(1) + '</tr></thead>' + (fold[1] ? '' : '<tbody>' +
+        st.map((q, k) => { const m = mv[k], mt = m.M + m.F + m.U;
+          return '<tr><td><b>' + esc(BJ.tempName(cfg, k)) + '</b></td><td>' + (q.n - mt) + par(mt) + '명</td><td>남 ' + (q.M - m.M) + par(m.M) + ', 여 ' + (q.F - m.F) + par(m.F) + (q.U ? ', ? ' + (q.U - m.U) + par(m.U) : '') + '</td>' + (sc ? '<td>' + (q.scn ? (q.sc / q.scn).toFixed(1) : '-') + '</td>' : '') +
+            '<td>' + q.sp + '명</td><td>' + q.slow + '명</td><td>' + q.multi + '명</td><td>' + q.move + '명</td><td></td></tr>'; }).join('') + '</tbody>') + '</table></div>';
+      const c2 = ['배정반'].concat(origs.map((o) => clsName(o)));
+      h += '<div class="card" style="margin-bottom:10px;overflow-x:auto"><table class="t stat" style="' + tblStyle(c2.length) + '"><thead><tr>' + c2.map((x) => '<th>' + esc(x) + '</th>').join('') + foldBtn(2) + '</tr></thead>' + (fold[2] ? '' : '<tbody>' +
+        st.map((q, k) => '<tr><td><b>' + esc(BJ.tempName(cfg, k)) + '</b></td>' + origs.map((o) => '<td>' + (q.o[o] || 0) + '명</td>').join('') + '<td></td></tr>').join('') + '</tbody>') + '</table></div>';
     }
     const M = byId();
-    const rowOf = (s, cols) => '<tr class="bj-st' + (manual ? ' dnd-handle' : '') + (res.moved[s.id] ? ' moved' : '') + '" data-id="' + esc(s.id) + '">' + cols.map((v, i) => '<td class="' + cellCls(s, i) + '">' + v + '</td>').join('') + '</tr>';
+    const isMoved = (id) => (res.orig ? (res.orig[id] !== undefined && a[id] !== res.orig[id]) : !!res.moved[id]);   // 처음 배정된 반으로 돌아오면 표시 없음
+    const rowOf = (s, cols) => '<tr class="bj-st' + (manual ? ' dnd-handle' : '') + (isMoved(s.id) ? ' moved' : '') + '" data-id="' + esc(s.id) + '">' + cols.map((v, i) => '<td class="' + cellCls(s, i) + '">' + v + '</td>').join('') + '</tr>';
     const cardCols = ['기존반', '이름', '성별'].concat(sc ? ['성적'] : [], ['특기사항', '비고']);
-    if (Object.keys(a).length || manual) {
+    if (has || manual) {
       h += '<div class="board' + (manual ? ' manual' : '') + '"><div class="grid2">';
       for (let k = 0; k < K; k++) {
         const L = S.filter((s) => a[s.id] === k); const ord = { M: 0, F: 1, U: 2 };
@@ -205,23 +220,30 @@
         h += '<div class="card kcard"><h3><span>' + esc(BJ.tempName(cfg, k)) + '</span><span class="muted">' + L.length + '명</span></h3><div style="overflow-x:auto"><table class="t"><thead><tr>' + cardCols.map((x) => '<th>' + x + '</th>').join('') + '</tr></thead><tbody class="bj-zone" data-k="' + k + '">' + (rows || '<tr><td colspan="' + cardCols.length + '" class="c muted">비어 있음</td></tr>') + '</tbody></table></div></div>';
       }
       h += '</div>';
-      if (manual) {
-        h += '<div class="card hold"><h3 style="margin:0 0 6px;font-size:15px">임시보관함 <span class="muted">' + holdIds.length + '명 · 통계 제외</span></h3><table class="t"><thead><tr><th>기존반</th><th>이름</th><th>성별</th></tr></thead><tbody class="bj-zone" data-k="hold">' +
-          (holdIds.map((id) => { const s = M.get(id); return rowOf(s, [esc(clsName(s.cls)), esc(s.name), BJ.G_LABEL[s.g]]); }).join('') || '<tr><td colspan="3" class="c muted" style="height:80px">여기로 끌어다 놓으면<br>잠시 빼 둡니다</td></tr>') + '</tbody></table></div>';
-      }
-      h += '</div>';
+      // 오른쪽 구역: 옮기기/맞바꾸기 → 확인할 점(오류) → 임시보관함
+      const hard = warn.filter((w) => w.hard), soft = warn.filter((w) => !w.hard);
+      let side = '';
+      if (manual) side += '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px"><span class="muted">끌어 놓기</span><button class="btn ' + (dropMode === 'move' ? 'on' : '') + '" data-dm="move">옮기기</button><button class="btn ' + (dropMode === 'swap' ? 'on' : '') + '" data-dm="swap">맞바꾸기</button></div>';
+      side += hard.length ? '<div class="warn h"><b>꼭 고쳐야 할 배정 ' + hard.length + '건</b><br>' + hard.map((w) => esc(w.t)).join('<br>') + '</div>' : '';
+      side += soft.length ? '<details class="warn s"' + (soft.length <= 6 ? ' open' : '') + '><summary style="cursor:pointer"><b>확인해 볼 배정 ' + soft.length + '건</b></summary>' + soft.map((w) => esc(w.t)).join('<br>') + '</details>' : '';
+      if (!hard.length && !soft.length) side += '<div class="warn" style="background:#ecfdf5;color:#047857">✓ 규칙에 어긋난 배정이 없습니다.</div>';
+      if (manual || holdIds.length) side += '<div style="margin-top:8px"><h3 style="margin:0 0 6px;font-size:15px">임시보관함 <span class="muted">' + holdIds.length + '명 · 통계 제외</span></h3><table class="t"><thead><tr><th>기존반</th><th>이름</th><th>성별</th></tr></thead><tbody class="bj-zone" data-k="hold">' +
+        (holdIds.map((id) => { const s = M.get(id); return rowOf(s, [esc(clsName(s.cls)), esc(s.name), BJ.G_LABEL[s.g]]); }).join('') || '<tr><td colspan="3" class="c muted" style="height:80px">여기로 끌어다 놓으면<br>잠시 빼 둡니다</td></tr>') + '</tbody></table></div>';
+      h += '<div class="card hold">' + side + '</div></div>';
     }
     $('view').innerHTML = h;
     $('auto').onclick = runAuto; $('man').onclick = () => { manual = !manual; drawBoard(); }; $('xls').onclick = exportXlsx;
     $('view').querySelectorAll('[data-dm]').forEach((b) => b.onclick = () => { dropMode = b.dataset.dm; drawBoard(); });
+    $('view').querySelectorAll('[data-fold]').forEach((b) => b.onclick = () => { const n = b.dataset.fold; fold[n] = !fold[n]; try { localStorage.setItem('gp_bj_fold', JSON.stringify(fold)); } catch (e) { /* 무시 */ } drawBoard(); });
     if (manual) bindDnD();
   }
   async function runAuto() {
-    if (Object.keys(res.moved).length && !confirm('수동으로 옮긴 내용이 있습니다. 처음부터 다시 배정할까요?')) return;
+    const a0 = assigned(); const anyMoved = res.orig ? S.some((x) => res.orig[x.id] !== undefined && a0[x.id] !== res.orig[x.id]) : Object.keys(res.moved).length > 0;
+    if (anyMoved && !confirm('수동으로 옮긴 내용이 있습니다. 처음부터 다시 배정할까요?')) return;
     if (!S.length) { toast('명렬표에 학생이 없습니다.'); return; }
     busy(true, '배정하는 중...'); await new Promise((r) => setTimeout(r, 30));
     try {
-      const r = BJ.autoAssign(S, cfg); res = { a: r.a, hold: [], moved: {} };
+      const r = BJ.autoAssign(S, cfg); res = { a: r.a, orig: Object.assign({}, r.a), hold: [], moved: {} };
       await BJ.saveResult(cfg.year, res); savedMark(); drawBoard();
       toast(r.warn.filter((w) => w.hard).length ? '배정했지만 꼭 고쳐야 할 배정이 남았습니다. 아래를 확인하세요.' : '배정했습니다.');
     } catch (e) { console.error(e); toast('배정 실패: ' + e.message); } finally { busy(false); }
