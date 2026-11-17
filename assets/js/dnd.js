@@ -32,6 +32,8 @@
       if (!cur || e.pointerId !== cur.id) return;
       if (!cur.on) { if (Math.abs(e.clientX - cur.x) + Math.abs(e.clientY - cur.y) < 6) return; begin(); }
       e.preventDefault();
+      // 화면 위·아래 가장자리로 끌면 저절로 스크롤(긴 목록에서 멀리 옮길 때)
+      var edge = 48; if (e.clientY < edge) window.scrollBy(0, -Math.ceil((edge - e.clientY) / 3)); else if (e.clientY > window.innerHeight - edge) window.scrollBy(0, Math.ceil((e.clientY - window.innerHeight + edge) / 3));
       cur.ghost.style.left = (e.clientX - cur.dx) + 'px'; cur.ghost.style.top = (e.clientY - cur.dy) + 'px';
       clearMarks(); cur.tgt = null; cur.zone = null;
       var t = document.elementFromPoint(e.clientX, e.clientY); if (!t) return;

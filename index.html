@@ -6,13 +6,13 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
   <title>학년 통합 관리 시스템</title>
-  <link rel="icon" href="favicon.ico?v=20261115a" sizes="any">
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=20261115a">
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=20261115a">
-  <link rel="shortcut icon" href="favicon.ico?v=20261115a">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=20261115a">
-  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon-precomposed.png?v=20261115a">
-  <link rel="manifest" href="manifest.webmanifest?v=20261115a">
+  <link rel="icon" href="favicon.ico?v=20261117b" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=20261117b">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=20261117b">
+  <link rel="shortcut icon" href="favicon.ico?v=20261117b">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=20261117b">
+  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon-precomposed.png?v=20261117b">
+  <link rel="manifest" href="manifest.webmanifest?v=20261117b">
   <meta name="theme-color" content="#4f46e5">
   <meta name="apple-mobile-web-app-title" content="학년 관리">
   <style>
@@ -41,7 +41,7 @@
     #clsSel .lbl { flex-shrink: 0; align-self: center; font-size: 11px; color: #94a3b8; margin-right: 2px; }
     @media (max-width: 900px) { #pageName { display: none; } #clsSel { justify-content: flex-start; } }
   </style>
-  <link rel="stylesheet" href="assets/css/themes.css?v=20261115a">
+  <link rel="stylesheet" href="assets/css/themes.css?v=20261117b">
 </head>
 <body>
   <header id="bar">
@@ -59,7 +59,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="assets/js/firebase-config.js?v=20261115a"></script>
+<script src="assets/js/firebase-config.js?v=20261117b"></script>
 <script>
 (function () {
   // Firebase 도구는 여기서 한 번만 불러와 연결하고, 안쪽 페이지들이 그대로 가져다 씁니다(fb-boot.js).
@@ -78,11 +78,11 @@
     ['기초 시간표', 'timetable-basic'], ['월간 시간표', 'timetable-monthly'], ['전담 시간표', 'timetable-special'],
     ['특별실 시간표', 'timetable-room'], ['반별 일정 조회', 'lookup-class'], ['강좌별 시간표 조회', 'lookup-course'],
     ['업무', null],
-    ['예산', 'budget'], ['쇼핑몰 학교 ID', 'mall-id'], ['바로가기', 'links'], ['교실배치도', 'classroom'], ['내선번호', 'extension'],
+    ['예산', 'budget'], ['쇼핑몰 학교 ID', 'mall-id'], ['바로가기', 'links'], ['교실배치도', 'classroom'], ['내선번호', 'extension'], ['반배정하기', 'banjung'],
     ['관리', null],
     ['학년 관리자', 'admin']
   ];
-  var curPage = '', MAXW = { 'timetable-basic': 0, 'timetable-monthly': 0, 'timetable-special': 0, 'timetable-room': 0, 'lookup-class': 0, 'lookup-course': 0, 'budget': 0, 'namelist': 0 },
+  var curPage = '', MAXW = { 'banjung': 0, 'timetable-basic': 0, 'timetable-monthly': 0, 'timetable-special': 0, 'timetable-room': 0, 'lookup-class': 0, 'lookup-course': 0, 'budget': 0, 'namelist': 0 },
     // 위쪽 메뉴줄은 화면 끝까지, 본문만 폭 제한 (선택자 = 본문 상자)
     INNER = { 'lookup-class': '.max-w-7xl', 'lookup-course': '.max-w-7xl', 'budget': '.max-w-7xl', 'namelist': '.page-section' },
     // 화면 넓게 보기(↔ 버튼): 1단계 = 기본 폭, 2단계 = 넓게, 3단계 = 화면 전체
@@ -118,8 +118,8 @@
       try {
         if (!d || !d.documentElement) return;
         if (THEME) d.documentElement.setAttribute('data-gp-theme', THEME); else d.documentElement.removeAttribute('data-gp-theme');
-        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261115a'; d.head.appendChild(l); }
-        if (d !== document && d.head && THEME && !d.getElementById('gp-theme-icons')) { var sc = d.createElement('script'); sc.id = 'gp-theme-icons'; sc.src = '../assets/js/theme-icons.js?v=20261115a'; d.head.appendChild(sc); }   // 디자인에 맞는 아이콘 그림 (기본 디자인일 때는 불러오지 않음)
+        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261117b'; d.head.appendChild(l); }
+        if (d !== document && d.head && THEME && !d.getElementById('gp-theme-icons')) { var sc = d.createElement('script'); sc.id = 'gp-theme-icons'; sc.src = '../assets/js/theme-icons.js?v=20261117b'; d.head.appendChild(sc); }   // 디자인에 맞는 아이콘 그림 (기본 디자인일 때는 불러오지 않음)
       } catch (e) {}
     });
     [].forEach.call(document.querySelectorAll('#themeSel button'), function (b) { b.classList.toggle('on', (b.getAttribute('data-theme') || '') === THEME); });
@@ -145,7 +145,7 @@
     if (curPage === 'admin') { w.__gpSel = null; if (w.__gpClassFocus) w.__gpClassFocus.apply(); return; }
     try { if (w.__gpClassChanged) w.__gpClassChanged(w.__gpSel); } catch (e) { /* 무시 */ }   // 예산(학급운영비) 등: 고른 반으로 거르기
     if (w.__gpClassFocus) { w.__gpClassFocus.apply(); return; }
-    if (!d.getElementById('gp-class-focus')) { var sc = d.createElement('script'); sc.id = 'gp-class-focus'; sc.src = '../assets/js/class-focus.js?v=20261115a'; d.head.appendChild(sc); }
+    if (!d.getElementById('gp-class-focus')) { var sc = d.createElement('script'); sc.id = 'gp-class-focus'; sc.src = '../assets/js/class-focus.js?v=20261117b'; d.head.appendChild(sc); }
   }
   drawClassSel();
   document.getElementById('frame').addEventListener('load', applyClass);
@@ -155,6 +155,7 @@
   MENU.forEach(function (m) {
     if (!m[1]) { var g = document.createElement('div'); g.className = 'group'; g.textContent = m[0]; drawer.appendChild(g); return; }
     var a = document.createElement('a'); a.className = 'nav-item'; a.href = '#/' + m[1]; a.dataset.page = m[1]; a.dataset.label = m[0]; drawer.appendChild(a); items.push(a);
+    if (m[1] === 'banjung') { a.id = 'navBanjung'; var bjShow = false; try { bjShow = localStorage.getItem('gp_bj_show') === '1'; } catch (e) {} a.style.display = bjShow ? '' : 'none'; }   // 관리자 › 반배정에서 켰을 때만 보임
   });
   function labelOf(a) { return a.dataset.label.replace('__GRADE__', meta.grade); }
   function applyMeta() {
@@ -174,7 +175,7 @@
     var keep = window.__gpKeepAuth === page; window.__gpKeepAuth = null;
     if (!keep && curPage && curPage !== page) { try { if (firebase.auth && firebase.auth().currentUser) firebase.auth().signOut(); } catch (e) { /* 무시 */ } }
     curPage = page;
-    frame.src = 'pages/' + page + '.html?v=20261115a';
+    frame.src = 'pages/' + page + '.html?v=20261117b';
     items.forEach(function (a) { a.classList.toggle('active', a.dataset.page === page); });
     setOpen(false); applyMeta();
   }
@@ -203,6 +204,8 @@
         if (!left) return Promise.resolve(g);
         return DB.collection(PRE + 'app_config').doc('year_' + y).get().then(function (ys) { var yd = docJson(ys); return yd && Array.isArray(yd.classNames) ? { classCount: yd.classCount || yd.classNames.length, classNames: yd.classNames } : tryYear(y - 1, left - 1); }).catch(function () { return g; });
       };
+      // 반배정하기 메뉴 보이기(관리자 › 반배정, 학년도별)
+      DB.collection(PRE + 'app_config').doc('banjung_' + next.year).get().then(function (bs) { var b = docJson(bs) || {}; var el = document.getElementById('navBanjung'); if (el) el.style.display = b.show ? '' : 'none'; try { localStorage.setItem('gp_bj_show', b.show ? '1' : '0'); } catch (e) {} }).catch(function () {});
       return tryYear(next.year, 5).then(function (cg) { return { g: cg, next: next }; });
     }).then(function (r) {
       var g = r.g, next = r.next;
@@ -218,7 +221,7 @@
 <script>
   // 새 버전 자동 확인: 브라우저가 예전 index.html 을 기억하고 있으면 version.json(캐시 없이 읽음)과 비교해 한 번 새로고침합니다.
   (function () {
-    var MINE = '20261115a';
+    var MINE = '20261117b';
     try {
       fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
         if (!j || !j.v || j.v === MINE) return;
