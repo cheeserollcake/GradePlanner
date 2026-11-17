@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>반배정하기</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261117c">
-  <script src="../assets/js/fb-boot.js?v=20261117c"></script>
-  <script src="../assets/js/firebase-config.js?v=20261117c"></script>
-  <script src="../assets/js/gas-shim.js?v=20261117c"></script>
-  <link rel="stylesheet" href="../assets/css/lock.css?v=20261117c">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261117e">
+  <script src="../assets/js/fb-boot.js?v=20261117e"></script>
+  <script src="../assets/js/firebase-config.js?v=20261117e"></script>
+  <script src="../assets/js/gas-shim.js?v=20261117e"></script>
+  <link rel="stylesheet" href="../assets/css/lock.css?v=20261117e">
   <style>
     body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;background:#f8fafc;color:#1e293b;margin:0}
     .wrap{max-width:1500px;margin:0 auto;padding:16px}
@@ -68,9 +68,9 @@
 </div>
 <div id="busy" class="busy"><div><div class="spin"></div><div id="busyMsg">처리 중...</div></div></div>
 <div id="toast" class="toast"></div>
-<script src="../assets/js/xlsx-lite.js?v=20261117c"></script>
-<script src="../assets/js/dnd.js?v=20261117c"></script>
-<script src="../assets/js/banjung.js?v=20261117c"></script>
+<script src="../assets/js/xlsx-lite.js?v=20261117e"></script>
+<script src="../assets/js/dnd.js?v=20261117e"></script>
+<script src="../assets/js/banjung.js?v=20261117e"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -186,7 +186,7 @@
     const holdIds = S.filter((s) => a[s.id] === undefined).map((s) => s.id);   // 보관함 + 아직 배정 안 된 학생
     const { st, origs } = BJ.stats(S, a, cfg);
     const warn = BJ.checkRules(S, a, cfg);
-    let h = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"><button class="btn p" id="auto">기본 배정하기</button><button class="btn ' + (manual ? 'on' : '') + '" id="man">' + (manual ? '✋ 수동 조정 끝내기' : '수동 조정하기') + '</button>' +
+    let h = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"><button class="btn p" id="auto">기본 배정하기</button><button class="btn ' + (manual ? 'on' : '') + '" id="man">' + (manual ? '✋ 수동 조정 끝내기' : '수동 조정하기') + '</button><button class="btn" id="clr" style="color:#dc2626;border-color:#fecaca">🗑 배정 삭제</button>' +
       '<span style="flex:1"></span><button class="btn g" id="xls">⬇ 엑셀로 내보내기</button></div>';
     const has = Object.keys(a).length > 0;
     if (!has) h += '<div class="card muted">아직 배정하지 않았습니다. <b>기본 배정하기</b>를 누르세요. (학생 ' + S.length + '명 · 배정할 반 ' + K + '개)</div>';
@@ -232,10 +232,19 @@
       h += '<div class="card hold">' + side + '</div></div>';
     }
     $('view').innerHTML = h;
+    $('clr').onclick = clearAll;
     $('auto').onclick = runAuto; $('man').onclick = () => { manual = !manual; drawBoard(); }; $('xls').onclick = exportXlsx;
     $('view').querySelectorAll('[data-dm]').forEach((b) => b.onclick = () => { dropMode = b.dataset.dm; drawBoard(); });
     $('view').querySelectorAll('[data-fold]').forEach((b) => b.onclick = () => { const n = b.dataset.fold; fold[n] = !fold[n]; try { localStorage.setItem('gp_bj_fold', JSON.stringify(fold)); } catch (e) { /* 무시 */ } drawBoard(); });
     if (manual) bindDnD();
+  }
+  // 배정 삭제: 배정 결과(배정반·임시보관함·옮김 표시)만 지움. 학급 기초 설정(특수·성적·분리 희망 등)은 그대로
+  async function clearAll() {
+    if (!Object.keys(res.a).length && !res.hold.length) { toast('지울 배정 내역이 없습니다.'); return; }
+    if (!confirm('배정된 내역을 모두 지울까요?\n(반 배정 결과·임시보관함·옮긴 표시가 지워집니다. 학급 기초 설정은 그대로 남습니다.)\n지운 내역은 되돌릴 수 없습니다.')) return;
+    busy(true, '지우는 중...');
+    try { res = { a: {}, orig: null, hold: [], moved: {} }; await BJ.saveResult(cfg.year, res); manual = false; savedMark(); drawBoard(); toast('배정 내역을 지웠습니다.'); }
+    catch (e) { console.error(e); toast('삭제 실패: ' + e.message); } finally { busy(false); }
   }
   async function runAuto() {
     const a0 = assigned(); const anyMoved = res.orig ? S.some((x) => res.orig[x.id] !== undefined && a0[x.id] !== res.orig[x.id]) : Object.keys(res.moved).length > 0;

@@ -188,6 +188,14 @@
   async function loadResult(year) { const r = (await GP.privGet('banjung_res_' + year, null)) || {}; return { a: r.a || {}, orig: r.orig || null, hold: Array.isArray(r.hold) ? r.hold : [], moved: r.moved || {}, at: r.at || '' }; }
   async function saveResult(year, r) { await GP.privSet('banjung_res_' + year, { a: r.a, orig: r.orig || null, hold: r.hold, moved: r.moved, at: new Date().toISOString() }); }
 
+  // 초기화: 배정 결과 지우기 + 학생 문서의 반배정 입력값(bj_*) 지우기(명렬표 정보는 그대로)
+  const BJ_FIELDS = ['bj_sur', 'bj_score', 'bj_sp', 'bj_slow', 'bj_multi', 'bj_move', 'bj_sep', 'bj_memo', 'bj_contact'];
+  async function resetAll(cfg) {
+    await saveResult(cfg.year, { a: {}, orig: null, hold: [], moved: {} });
+    const rows = await GP.getCol('data_student', true); const ops = [];
+    rows.forEach((r) => { const d = {}; BJ_FIELDS.forEach((f) => { if (r[f] !== undefined) d[f] = GP.DELETE; }); if (Object.keys(d).length) ops.push({ type: 'update', col: 'data_student', id: r._id, data: d }); });
+    if (ops.length) await GP.commit(ops);
+  }
   // ---------------------------------------------------------------- 관리자 > 반배정 탭
   async function renderAdmin(view, h) {
     const { toast, esc, BTN, BTN_P, BTN_G, INP, CARD } = h;
@@ -225,7 +233,16 @@
         (studs.length ? '<div class="overflow-x-auto"><table class="w-full border-collapse mt-2"><thead><tr><th class="border bg-slate-100 px-2 py-1 text-sm">기존반</th><th class="border bg-slate-100 px-2 py-1 text-sm">남학생: 시작 학생 → 반</th><th class="border bg-slate-100 px-2 py-1 text-sm">여학생: 시작 학생 → 반</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<p class="text-sm text-amber-700 mt-2">학년 전체 명렬표에 학생이 없습니다. 명렬표를 먼저 입력하세요.</p>') + '</div>' +
         '</div>';
       const $ = (id) => document.getElementById(id);
-      $('bjShow').onchange = () => { cfg.show = $('bjShow').checked; draw(); save(cfg.show ? '반배정하기 메뉴를 보입니다.' : '반배정하기 메뉴를 숨겼습니다.'); };
+      $('bjShow').onchange = async () => {
+        if ($('bjShow').checked) { cfg.show = true; draw(); save('반배정하기 메뉴를 보입니다.'); return; }
+        // 끄기 = 숨기기 + 이 학년도 반배정 자료 모두 초기화(설정·배정 결과·학생별 반배정 입력값)
+        if (!confirm('반배정을 끄면 기존에 입력한 값이 모두 초기화됩니다.\n\n· 임시반 이름·배정 규칙·학급 내 배정 순서\n· 반 배정 결과(임시보관함 포함)\n· 학급 기초 설정에 입력한 성·성적·특수·학습부진·다문화·전출예정·분리 희망·비고·연락처\n\n학년 전체 명렬표의 학생 정보는 지우지 않습니다. 끌까요?')) { $('bjShow').checked = true; return; }
+        try {
+          await resetAll(cfg); Object.assign(cfg, { show: false, names: defaultNames(cfg.classNames.length), rule: 'num', starts: {} });
+          await saveCfg(cfg); try { studs = await loadStudents(); } catch (e) { /* 무시 */ }
+          draw(); toast('반배정을 끄고 입력한 값을 모두 초기화했습니다.'); try { parent.postMessage('gp-meta-changed', '*'); } catch (e) { /* 단독 */ }
+        } catch (e) { console.error(e); $('bjShow').checked = true; toast('초기화 실패: ' + e.message, true); }
+      };
       view.querySelectorAll('[data-ren]').forEach((b) => b.onclick = () => { const i = +b.dataset.ren; const v = (prompt('임시반 이름', cfg.names[i]) || '').trim(); if (!v || v === cfg.names[i]) return; if (cfg.names.indexOf(v) >= 0) return toast('이미 있는 이름입니다.', true); cfg.names[i] = v; draw(); save(); });
       view.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => { const i = +b.dataset.del; if (cfg.names.length <= 1) return toast('반이 하나는 있어야 합니다.', true); if (!confirm('[' + cfg.names[i] + '] 반을 지울까요?')) return; cfg.names.splice(i, 1); draw(); save(); });
       $('bjAdd').onclick = () => { const used = new Set(cfg.names); const nx = GANADA.find((x) => !used.has(x)) || String(cfg.names.length + 1); const v = (prompt('추가할 반 이름', nx) || '').trim(); if (!v) return; if (used.has(v)) return toast('이미 있는 이름입니다.', true); cfg.names.push(v); draw(); save(); };
@@ -240,5 +257,5 @@
     draw();
   }
 
-  window.BJ = { GANADA, RULES, G_LABEL, genderOf, loadCfg, saveCfg, tempName, loadStudents, saveStudent, sortInClass, flagsOf, autoAssign, checkRules, stats, exportOrder, loadResult, saveResult, renderAdmin, defaultNames };
+  window.BJ = { GANADA, RULES, G_LABEL, genderOf, loadCfg, saveCfg, tempName, loadStudents, saveStudent, sortInClass, flagsOf, autoAssign, checkRules, stats, exportOrder, loadResult, saveResult, resetAll, renderAdmin, defaultNames };
 })();
