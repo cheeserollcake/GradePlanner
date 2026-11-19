@@ -150,9 +150,10 @@
       const sps = R.spaces; const cnt = {}; sps.forEach((s) => { cnt[s] = {}; classes.forEach((c) => { cnt[s][c] = 0; }); });
       R.items.forEach((it) => { if (cnt[it.s] && cnt[it.s][it.c] !== undefined) cnt[it.s][it.c]++; });
       const rng = (s) => { const v = classes.map((c) => cnt[s][c]); return { lo: Math.min(...v), hi: Math.max(...v) }; };
-      const head = '<tr><th class="border bg-slate-100 px-2 py-1">반</th>' + sps.map((s) => '<th class="border bg-slate-100 px-2 py-1">' + esc(s) + '</th>').join('') + '<th class="border bg-slate-100 px-2 py-1">합계</th></tr>';
-      const body = classes.map((c) => '<tr><th class="border bg-slate-50 px-2 py-1">' + esc(c) + '</th>' + sps.map((s) => { const r = rng(s), v = cnt[s][c]; const st = r.hi !== r.lo && v === r.lo ? 'background:#fef9c3' : ''; return '<td class="border px-2 py-1 text-center" style="' + st + '">' + esc(c) + ' ' + v + '회 배정</td>'; }).join('') +
-        '<td class="border px-2 py-1 text-center font-semibold">' + sps.reduce((a, s) => a + cnt[s][c], 0) + '회</td></tr>').join('');
+      // 가로 = 반, 세로 = 공간 (마지막 줄 = 반별 합계)
+      const head = '<tr><th class="border bg-slate-100 px-2 py-1">공간</th>' + classes.map((c) => '<th class="border bg-slate-100 px-2 py-1 whitespace-nowrap">' + esc(c) + '</th>').join('') + '</tr>';
+      const body = sps.map((s) => { const r = rng(s); return '<tr><th class="border bg-slate-50 px-2 py-1 whitespace-nowrap">' + esc(s) + '</th>' + classes.map((c) => { const v = cnt[s][c]; const st = r.hi !== r.lo && v === r.lo ? 'background:#fef9c3' : ''; return '<td class="border px-2 py-1 text-center whitespace-nowrap" style="' + st + '">' + v + '회 배정</td>'; }).join('') + '</tr>'; }).join('') +
+        '<tr><th class="border bg-slate-100 px-2 py-1">합계</th>' + classes.map((c) => '<td class="border px-2 py-1 text-center font-semibold bg-slate-50">' + sps.reduce((a, s) => a + cnt[s][c], 0) + '회</td>').join('') + '</tr>';
       const weekList = weekTables(R);
       const warn = (R.notes || []).length ? '<div class="text-sm text-amber-700 space-y-0.5">' + R.notes.map((x) => '<div>· ' + esc(x) + '</div>').join('') + '</div>' : '';
       return '<div class="space-y-3"><div class="text-sm"><b>' + esc(R.start) + ' ~ ' + esc(R.end) + '</b> · 배정 ' + R.items.length + '칸 <span class="text-xs text-slate-400">(아직 저장 전 · 노란 칸 = 그 공간을 가장 적게 쓴 반)</span></div>' + warn +
