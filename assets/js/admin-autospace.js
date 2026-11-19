@@ -20,7 +20,7 @@
    * 반환: { items:[{d, p, s, kind, c}], empty:[{d, p, s, why}] }
    */
   function solve(inp) {
-    const GP = window.GP; const { classes, days, periods, spaces, isOpen, booked, busy } = inp; const n = classes.length;
+    const GP = window.GP; const { classes, days, periods, spaces, isOpen, booked, busy } = inp; const n = classes.length; const usedDay = inp.usedDay || (() => false);   // usedDay: 이미 저장된 체육공간·특별실 일정이 그날 그 반에 있나
     const weeks = new Map();   // 월요일 → 그 주의 빈 칸들
     days.forEach((d) => { const day = GP.ymd(d); periods.forEach((p) => spaces.forEach((sp) => {
       if (!isOpen(d, p, sp.name) || booked.has(day + '|' + p + '|' + sp.name)) return;
@@ -39,6 +39,9 @@
       for (const sl of order) {
         const cand = classes.filter((c) => free(sl, c));
         if (!cand.length) { empty.push({ d: sl.d, p: sl.p, s: sl.s, why: '모든 반이 이 시간에 다른 일정(전담 등)이 있음' }); continue; }
+        const cand2 = cand.filter((c) => !dayCnt[c + '|' + sl.day] && !usedDay(c, sl.day));   // 규칙: 같은 반은 하루에 한 번만 (꼭 지킴)
+        if (!cand2.length) { empty.push({ d: sl.d, p: sl.p, s: sl.s, why: '남은 반이 모두 이날 이미 배정됨' }); continue; }
+        cand.length = 0; cand.push(...cand2);
         const key = (c) => [weekCnt[c], spaceCnt[sl.s][c] + total[c] / 1000, dayCnt[c + '|' + sl.day] || 0, total[c], lastUse[sl.s][c], rot(c)];
         cand.sort((a, b) => { const x = key(a), y = key(b); for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; });
         const c = cand[0];
@@ -47,14 +50,14 @@
       }
       wIdx++;
     }
-    improve(items, spaces, classes, busy, spaceCnt);
+    improve(items, spaces, classes, busy, spaceCnt, usedDay);
     items.sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : periods.indexOf(a.p) - periods.indexOf(b.p) || spaces.findIndex((x) => x.name === a.s) - spaces.findIndex((x) => x.name === b.s)));
     return { items, empty };
   }
   // 배정을 다듬어 공간별·전체 횟수 차이를 줄입니다. 주 안의 고른 배정(이번 주 0번인 반이 있는데 2번 쓰는 반이 생기지 않게)은 지킵니다.
   //  ① 바꿔 주기: 한 칸의 반을, 이번 주에 덜 쓴 다른 반으로 바꿈
   //  ② 맞바꾸기: 같은 주의 두 칸에서 반을 서로 바꿈
-  function improve(items, spaces, classes, busy, cnt) {
+  function improve(items, spaces, classes, busy, cnt, usedDay) {
     const total = {}; classes.forEach((c) => { total[c] = 0; }); items.forEach((it) => { total[it.c]++; });
     const sqv = (v) => { const m = v.reduce((a, b) => a + b, 0) / (v.length || 1); return v.reduce((a, b) => a + (b - m) * (b - m), 0); };
     const F = () => Object.keys(cnt).reduce((a, s) => a + sqv(classes.map((c) => cnt[s][c])), 0) + 0.5 * sqv(classes.map((c) => total[c]));
@@ -67,9 +70,7 @@
       at.delete(it.day + '|' + it.p + '|' + it.c); inc(dayN, it.c + '|' + it.day, -1); inc(wkN, it.wk + '|' + it.c, -1); cnt[it.s][it.c]--; total[it.c]--;
       it.c = c; at.add(it.day + '|' + it.p + '|' + c); inc(dayN, c + '|' + it.day, 1); inc(wkN, it.wk + '|' + c, 1); cnt[it.s][c]++; total[c]++;
     };
-    let strict = true;   // 처음엔 '같은 반 하루 한 번'을 지키고, 다 다듬은 뒤에도 차이가 2 이상이면 그 규칙만 풀어서 한 번 더
-    const okDay = (c, it) => !strict || !(dayN[c + '|' + it.day] || 0);
-    const spread = () => Math.max(0, ...Object.keys(cnt).map((s) => { const v = classes.map((c) => cnt[s][c]); return Math.max(...v) - Math.min(...v); }));
+    const okDay = (c, it) => !(dayN[c + '|' + it.day] || 0) && !usedDay(c, it.day);   // 같은 반 하루 한 번 (꼭 지킴)
     for (let round = 0; round < 80; round++) {
       let changed = false;
       // ① 바꿔 주기
@@ -91,10 +92,10 @@
           const same = a.day === b.day && a.p === b.p;
           if (!same && (at.has(b.day + '|' + b.p + '|' + ca) || at.has(a.day + '|' + a.p + '|' + cb))) continue;
           const before = F(); setC(a, cb); setC(b, ca);
-          if ((strict && a.day !== b.day && ((dayN[ca + '|' + b.day] || 0) > 1 || (dayN[cb + '|' + a.day] || 0) > 1)) || F() >= before - 1e-9) { setC(b, cb); setC(a, ca); } else changed = true;
+          if ((a.day !== b.day && ((dayN[ca + '|' + b.day] || 0) > 1 || (dayN[cb + '|' + a.day] || 0) > 1 || usedDay(ca, b.day) || usedDay(cb, a.day))) || F() >= before - 1e-9) { setC(b, cb); setC(a, ca); } else changed = true;
         }
       });
-      if (!changed) { if (strict && spread() >= 2) { strict = false; continue; } break; }
+      if (!changed) break;
     }
   }
 
@@ -208,17 +209,20 @@
       ['data_sub_timetable', 'data_add_timetable', 'data_gym_timetable', 'data_room_timetable'].forEach((c) => GP.invalidate(c));
       const [sub, add, gym, room, hol] = await Promise.all(['data_sub_timetable', 'data_add_timetable', 'data_gym_timetable', 'data_room_timetable'].map((c) => GP.getCol(c)).concat([APP.holidayMap()]));
       const norm = (t) => { if (classes.indexOf(t) >= 0) return t; const m = t.match(/^(\d+)\s*반?$/); if (m && +m[1] >= 1 && +m[1] <= classes.length) return classes[+m[1] - 1]; return ALL_TOKENS.test(t) ? '*' : t; };
-      const busySet = new Set(), booked = new Map();
+      const busySet = new Set(), booked = new Map(), daySet = new Set();
       const put = (d0, cls, time) => { const d = GP.toDate(d0); if (!d) return; const day = GP.ymd(d); const cl = split(cls).map(norm); if (!cl.length) return; split(time).forEach((p) => cl.forEach((c) => busySet.add(day + '|' + p + '|' + c))); };
       sub.forEach((r) => put(r.sub_date, r.sub_class, r.sub_time));
       add.forEach((r) => put(r.add_date, r.add_class, r.add_time));
       gym.forEach((r) => put(r.gym_date, r.gym_class, r.gym_time));
       room.forEach((r) => put(r.room_date, r.room_class, r.room_time));
       const mark = (d0, cls, time, place) => { const d = GP.toDate(d0); if (!d || !String(cls || '').trim()) return; split(time).forEach((p) => booked.set(GP.ymd(d) + '|' + p + '|' + String(place || '').trim(), String(cls).trim())); };
+      const dayMark = (d0, cls) => { const d = GP.toDate(d0); if (!d) return; split(cls).map(norm).forEach((c) => daySet.add(GP.ymd(d) + '|' + c)); };
+      gym.forEach((r) => dayMark(r.gym_date, r.gym_class)); room.forEach((r) => dayMark(r.room_date, r.room_class));
       gym.forEach((r) => mark(r.gym_date, r.gym_class, r.gym_time, r.gym_place));
       room.forEach((r) => mark(r.room_date, r.room_class, r.room_time, r.room_place));
       known = { booked, hol };
-      return { busy: (c, day, p) => busySet.has(day + '|' + p + '|' + c) || busySet.has(day + '|' + p + '|*'), booked, hol };
+      const usedDay = (c, day) => daySet.has(day + '|' + c);
+      return { usedDay, busy: (c, day, p) => busySet.has(day + '|' + p + '|' + c) || busySet.has(day + '|' + p + '|*'), booked, hol };
     }
 
     async function run() {
@@ -233,14 +237,14 @@
       const btn = el.querySelector('[data-asp-act="run"]'); if (btn) { btn.disabled = true; btn.textContent = '배정하는 중...'; }
       try {
         const times = ctx.times;
-        const { busy, booked, hol } = await loadBusy();
+        const { busy, booked, hol, usedDay } = await loadBusy();
         const days = GP.eachDay(a, b).filter((d) => d.getDay() >= 1 && d.getDay() <= 5 && !hol.get(GP.ymd(d)) && inTerm(d));
-        const r = solve({ classes, days, periods: times, spaces: sp, isOpen, booked, busy });
+        const r = solve({ classes, days, periods: times, spaces: sp, isOpen, booked, busy, usedDay });
         // 안내: 한 주에 칸이 반 수보다 적은 주, 비운 칸
         const notes = []; const wk = new Map(); r.items.forEach((it) => { const k = GP.ymd(GP.mondayOf(it.d)); wk.set(k, (wk.get(k) || new Set()).add(it.c)); });
         const short = [...wk.entries()].filter(([, s]) => s.size < classes.length).map(([k]) => fmt(GP.toDate(k)));
         if (short.length) notes.push('열린 칸이 반 수보다 적어 모든 반이 들어가지 못한 주: ' + short.slice(0, 6).join(', ') + (short.length > 6 ? ' 외 ' + (short.length - 6) + '주' : '') + ' (이런 주는 다음 주에 못 들어간 반이 먼저 배정됩니다)');
-        if (r.empty.length) notes.push('모든 반이 다른 일정과 겹쳐 비워 둔 칸 ' + r.empty.length + '개: ' + r.empty.slice(0, 5).map((x) => fmt(x.d) + ' ' + x.p + ' ' + x.s).join(', ') + (r.empty.length > 5 ? ' …' : ''));
+        if (r.empty.length) notes.push('넣을 반이 없어 비워 둔 칸 ' + r.empty.length + '개(다른 일정과 겹치거나 그날 이미 배정된 반만 남음): ' + r.empty.slice(0, 5).map((x) => fmt(x.d) + ' ' + x.p + ' ' + x.s).join(', ') + (r.empty.length > 5 ? ' …' : ''));
         if (!r.items.length) notes.push('배정할 수 있는 칸이 없습니다. 기간 안에 개방된 칸이 있는지, 이미 시간표가 다 찼는지 확인하세요.');
         S.result = { start: S.start, end: S.end, spaces: sp.map((x) => x.name), items: r.items.map((x) => ({ day: x.day, p: x.p, s: x.s, kind: x.kind, c: x.c })), notes, made: new Date().toISOString() };
         S.result.items.forEach((x) => { x.d = GP.toDate(x.day); });
