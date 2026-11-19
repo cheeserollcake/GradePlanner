@@ -65,7 +65,7 @@
   $('lock').onclick = () => { GP.logout().then(() => location.reload()); };
 
   { const st = document.createElement('style'); st.textContent = 'input.no-spin::-webkit-outer-spin-button,input.no-spin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}input.no-spin{-moz-appearance:textfield}'; document.head.appendChild(st); }
-  const TABS = [['year', '학년도 설정'], ['time', '시간표 설정'], ['basic', '학년 기초 설정'], ['assign', '시간표 배정'], ['space', '공간 개방 설정'], ['budget', '예산 설정'], ['data', '비밀번호/데이터 관리'], ['banjung', '반배정']];
+  const TABS = [['year', '학년도 설정'], ['time', '시간표 설정'], ['basic', '학년 기초 설정'], ['space', '공간 개방 설정'], ['assign', '시간표 배정'], ['budget', '예산 설정'], ['data', '비밀번호/데이터 관리'], ['banjung', '반배정']];
   let tab = 'year';
   const TABS_KEYS = TABS.map((t) => t[0]);
   // 예산 페이지에서 비밀번호를 확인하고 넘어온 경우에는 다시 묻지 않습니다.
@@ -680,7 +680,19 @@
 
     const drawLists = () => {
       $('lists').innerHTML = listEditor('체육 공간', gym, 'gym') + listEditor('특별실', room, 'room');
-      $('lists').querySelectorAll('[data-l]').forEach((el) => el.onchange = () => { arr(el.dataset.l)[+el.dataset.i].value = el.value; saveList(el.dataset.l); });
+      $('lists').querySelectorAll('[data-l]').forEach((el) => {
+        el.onchange = () => { arr(el.dataset.l)[+el.dataset.i].value = el.value; saveList(el.dataset.l); };
+        // Enter: 지금 칸을 저장하고 다음 칸으로 (마지막 칸이면 새 칸을 하나 만들어 줌)
+        el.onkeydown = (e) => {
+          if (e.key !== 'Enter' || e.isComposing) return; e.preventDefault();
+          const key = el.dataset.l, i = +el.dataset.i, a = arr(key); if (!el.value.trim()) return;
+          const all = [...$('lists').querySelectorAll('[data-l="' + key + '"]')];
+          if (i < all.length - 1) { all[i + 1].focus(); return; }   // 다음 칸이 있으면 그리로 (벗어날 때 저장됨)
+          const changed = a[i].value !== el.value; a[i].value = el.value; el.onchange = null;
+          a.push({ orig: '', value: '' }); drawLists(); if (changed) saveList(key);
+          [...$('lists').querySelectorAll('[data-l="' + key + '"]')].pop().focus();
+        };
+      });
       $('lists').querySelectorAll('[data-ldel]').forEach((b) => b.onclick = async () => {
         const key = b.dataset.ldel, item = arr(key)[+b.dataset.i]; if (!item) return;
         arr(key).splice(+b.dataset.i, 1); if (item.orig) removedNames.push(item.orig); drawLists();
@@ -709,7 +721,7 @@
       });
       cfg = await GP.loadOpen(openYear);
       arr(key).forEach((x) => { if (x.value.trim()) x.orig = x.value.trim(); });
-      drawTables();
+      drawTables(); drawAuto();
     });
 
     const drawTables = () => {
@@ -749,8 +761,13 @@
       box.querySelectorAll('[data-orph]').forEach((b) => b.onclick = async () => { const o = list[+b.dataset.orph]; const rows = await GP.listSpaceData(o.place); if (rows.length) await spaceDataDialog(o.place, rows); drawOrphans(); });
       const all = $('orphAll'); if (all) all.onclick = () => { if (!confirm('남은 데이터 ' + list.reduce((a, o) => a + o.count, 0) + '건을 모두 삭제할까요?')) return; autosave(() => GP.purgeSpaceData(null), '삭제했습니다.').then(drawOrphans); };
     };
-    view.innerHTML = '<div class="space-y-5"><div id="orphans"></div><div id="lists" class="grid md:grid-cols-2 gap-5"></div><div id="tables" class="space-y-5"></div></div>';
+    // 공간 자동 배정 (개방 설정 아래)
+    let autoUi = null;
+    const drawAuto = () => { if (autoUi) autoUi.redraw(); };
+    view.innerHTML = '<div class="space-y-5"><div id="orphans"></div><div id="lists" class="grid md:grid-cols-2 gap-5"></div><div id="tables" class="space-y-5"></div><div id="autoSpace"></div></div>';
     drawLists(); drawTables(); drawOrphans();
+    if (window.GPAutoSpace) autoUi = await window.GPAutoSpace.render({ el: $('autoSpace'), toast, esc, BTN, BTN_P, BTN_G, INP, CARD, times,
+      getSpaces: () => ({ gym: gym.map((x) => (x.orig || '').trim()).filter(Boolean), room: room.map((x) => (x.orig || '').trim()).filter(Boolean) }), getCfg: () => cfg });
   }
 
   // ================================================================ 4) 비밀번호 / 데이터 관리
