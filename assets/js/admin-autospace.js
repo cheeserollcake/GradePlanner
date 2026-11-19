@@ -117,6 +117,14 @@
     const subRows = await GP.getCol('data_sub_timetable');
     const hasSub = subRows.some((r) => { const d = GP.toDate(r.sub_date); return d && d >= yr.start && d <= yr.end && String(r.sub_class || '').trim(); });
 
+    const sems = await APP.getSemesterRows(year); const s1 = sems['1학기'], s2 = sems['2학기'];
+    const semKey = (d) => (s2 && d >= s2.start && d <= s2.end ? 'sem2' : s1 && d >= s1.start && d <= s1.end ? 'sem1' : (d.getMonth() >= 2 && d.getMonth() <= 6 ? 'sem1' : 'sem2'));   // 특별실 사용 시간표와 같은 방식
+    const inTerm = (d) => (!s1 && !s2) || (s1 && d >= s1.start && d <= s1.end) || (s2 && d >= s2.start && d <= s2.end);   // 방학은 건너뜀
+    const ex = (list, day, p, s) => (list || []).some((e) => e.date === day && String(e.period).trim() === p && e.space === s);
+    const isOpen = (d, p, s) => { const cfg = ctx.getCfg(); const day = GP.ymd(d), k = DAYK[(d.getDay() + 6) % 7] + '|' + p + '|' + s; return (!!(cfg[semKey(d)] || {})[k] || ex(cfg.exceptions, day, p, s)) && !ex(cfg.closeExceptions, day, p, s); };
+    let known = { booked: new Map(), hol: new Map() };   // 표에 같이 보여 줄 이미 저장된 칸
+    const PALETTE = ['#CFE2F3', '#FCE5CD', '#D9EAD3', '#FFFEB5', '#E4D7F5'];
+    const colorOf = (name) => { const cfg = ctx.getCfg(); const sp = ctx.getSpaces(); const i = Math.max(sp.gym.indexOf(name), sp.room.indexOf(name), 0); return (cfg.colors || {})[name] || PALETTE[i % PALETTE.length]; };
     const allSpaces = () => { const sp = ctx.getSpaces(); return sp.gym.map((n) => ({ name: n, kind: 'gym' })).concat(sp.room.map((n) => ({ name: n, kind: 'room' }))); };
     const fmt = (d) => (d.getMonth() + 1) + '/' + d.getDate() + '(' + DAYN[(d.getDay() + 6) % 7] + ')';
 
@@ -145,15 +153,37 @@
       const head = '<tr><th class="border bg-slate-100 px-2 py-1">반</th>' + sps.map((s) => '<th class="border bg-slate-100 px-2 py-1">' + esc(s) + '</th>').join('') + '<th class="border bg-slate-100 px-2 py-1">합계</th></tr>';
       const body = classes.map((c) => '<tr><th class="border bg-slate-50 px-2 py-1">' + esc(c) + '</th>' + sps.map((s) => { const r = rng(s), v = cnt[s][c]; const st = r.hi !== r.lo && v === r.lo ? 'background:#fef9c3' : ''; return '<td class="border px-2 py-1 text-center" style="' + st + '">' + esc(c) + ' ' + v + '회 배정</td>'; }).join('') +
         '<td class="border px-2 py-1 text-center font-semibold">' + sps.reduce((a, s) => a + cnt[s][c], 0) + '회</td></tr>').join('');
-      // 주별 내역
-      const byWeek = new Map(); R.items.forEach((it) => { const d = GP.toDate(it.day); const k = GP.ymd(GP.mondayOf(d)); if (!byWeek.has(k)) byWeek.set(k, []); byWeek.get(k).push(it); });
-      const weekList = [...byWeek.entries()].map(([k, list]) => { const mon = GP.toDate(k); const used = new Set(list.map((x) => x.c));
-        return '<div class="border rounded-lg p-2"><div class="text-xs font-semibold text-slate-500 mb-1">' + fmt(mon) + ' 주 · ' + list.length + '칸 · ' + used.size + '/' + classes.length + '개 반</div><div class="flex flex-wrap gap-1">' +
-          list.map((x) => '<span class="text-xs rounded px-1.5 py-0.5 bg-slate-100">' + fmt(GP.toDate(x.day)) + ' ' + esc(x.p) + ' ' + esc(x.s) + ' <b>' + esc(x.c) + '</b></span>').join('') + '</div></div>'; }).join('');
+      const weekList = weekTables(R);
       const warn = (R.notes || []).length ? '<div class="text-sm text-amber-700 space-y-0.5">' + R.notes.map((x) => '<div>· ' + esc(x) + '</div>').join('') + '</div>' : '';
       return '<div class="space-y-3"><div class="text-sm"><b>' + esc(R.start) + ' ~ ' + esc(R.end) + '</b> · 배정 ' + R.items.length + '칸 <span class="text-xs text-slate-400">(아직 저장 전 · 노란 칸 = 그 공간을 가장 적게 쓴 반)</span></div>' + warn +
         '<div class="overflow-x-auto"><table class="border-collapse text-sm">' + head + body + '</table></div>' +
-        '<details class="text-sm"><summary class="cursor-pointer font-semibold text-slate-600">주별 배정 내역 보기</summary><div class="space-y-2 mt-2 max-h-96 overflow-y-auto">' + (weekList || '<p class="text-slate-400">배정된 칸이 없습니다.</p>') + '</div></details></div>';
+        '<details class="text-sm" open><summary class="cursor-pointer font-semibold text-slate-600">주별 배정 내역 <span class="text-xs font-normal text-slate-400">특별실 사용 시간표 모양 · 진한 글씨 = 이번에 배정, 흐린 글씨 = 이미 저장된 일정, 색칸 = 개방, 흰칸 = 닫힘</span></summary>' +
+          '<div class="mt-2 overflow-auto border rounded" style="max-height:75vh">' + (weekList || '<p class="text-slate-400">배정된 칸이 없습니다.</p>') + '</div></details></div>';
+    }
+    // 주별 표: 월~금 5칸, 날마다 [교시 × 고른 공간] 표 (특별실 사용 시간표와 같은 모양)
+    function weekTables(R) {
+      const a = parseDay(R.start), b = parseDay(R.end); if (!a || !b) return '';
+      const sps = R.spaces, times = ctx.times; const mine = new Map(R.items.map((x) => [x.day + '|' + x.p + '|' + x.s, x.c]));
+      const cols = 'minmax(38px,1.25fr) repeat(' + sps.length + ', minmax(0,1fr))';
+      const cell = 'display:flex;align-items:center;justify-content:center;text-align:center;overflow:hidden;word-break:break-all;line-height:1.05;border-right:1px solid #e2e8f0;padding:0 1px;';
+      const day = (d) => {
+        const ymd = GP.ymd(d), hd = known.hol.get(ymd), out = d < a || d > b;
+        const head = '<div class="text-center font-bold rounded py-0.5 mb-1 ' + (hd ? 'text-red-500' : 'text-slate-600 bg-slate-100') + '" style="font-size:12px">' + (d.getMonth() + 1) + '/' + d.getDate() + (hd ? ' (휴)' : '') + '</div>';
+        if (hd) return '<div class="p-1 border-r">' + head + '<div class="text-center text-red-400 font-bold py-6" style="font-size:12px">휴일</div></div>';
+        if (out) return '<div class="p-1 border-r" style="opacity:.45">' + head + '<div class="text-center text-slate-400 py-6" style="font-size:12px">기간 밖</div></div>';
+        const vac = !inTerm(d);
+        const hrow = '<div style="display:grid;grid-template-columns:' + cols + ';height:30px;font-size:10px;font-weight:700;background:#e2e8f0;border-bottom:1px solid #cbd5e1"><div style="' + cell + '">교시</div>' +
+          sps.map((s) => '<div style="' + cell + 'background:' + colorOf(s) + '">' + esc(s) + '</div>').join('') + '</div>';
+        const rows = times.map((p) => '<div style="display:grid;grid-template-columns:' + cols + ';height:24px;font-size:11px;border-bottom:1px solid #e2e8f0"><div style="' + cell + 'font-weight:700;background:#fff">' + esc(p) + '</div>' +
+          sps.map((s) => { const k = ymd + '|' + p + '|' + s, m = mine.get(k), old = known.booked.get(k), open = !vac && isOpen(d, p, s);
+            const bg = open || m || old ? 'background:' + colorOf(s) + ';' : 'background:#fff;';
+            const txt = m ? '<b style="color:#1e1b4b">' + esc(m) + '</b>' : old ? '<span style="color:#64748b">' + esc(old) + '</span>' : '';
+            return '<div style="' + cell + bg + (m ? 'box-shadow:inset 0 0 0 2px #6366f1;' : '') + '">' + txt + '</div>'; }).join('') + '</div>').join('');
+        return '<div class="p-1 border-r">' + head + '<div style="border:1px solid #cbd5e1;border-radius:4px;overflow:hidden">' + hrow + rows + '</div></div>';
+      };
+      const weeks = []; for (let m = GP.mondayOf(a); m <= b; m = GP.addDays(m, 7)) weeks.push(m);
+      return '<div style="min-width:' + Math.max(640, 5 * (40 + sps.length * 26 + 10)) + 'px"><div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr))" class="bg-slate-100 rounded-t font-bold text-center text-slate-600 py-1">' + DAYN.map((x) => '<div>' + x + '</div>').join('') + '</div>' +
+        weeks.map((m) => '<div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr))" class="border-b">' + [0, 1, 2, 3, 4].map((i) => day(GP.addDays(m, i))).join('') + '</div>').join('') + '</div>';
     }
     function bind() {
       const $ = (id) => document.getElementById(id);
@@ -177,15 +207,16 @@
       ['data_sub_timetable', 'data_add_timetable', 'data_gym_timetable', 'data_room_timetable'].forEach((c) => GP.invalidate(c));
       const [sub, add, gym, room, hol] = await Promise.all(['data_sub_timetable', 'data_add_timetable', 'data_gym_timetable', 'data_room_timetable'].map((c) => GP.getCol(c)).concat([APP.holidayMap()]));
       const norm = (t) => { if (classes.indexOf(t) >= 0) return t; const m = t.match(/^(\d+)\s*반?$/); if (m && +m[1] >= 1 && +m[1] <= classes.length) return classes[+m[1] - 1]; return ALL_TOKENS.test(t) ? '*' : t; };
-      const busySet = new Set(), booked = new Set();
+      const busySet = new Set(), booked = new Map();
       const put = (d0, cls, time) => { const d = GP.toDate(d0); if (!d) return; const day = GP.ymd(d); const cl = split(cls).map(norm); if (!cl.length) return; split(time).forEach((p) => cl.forEach((c) => busySet.add(day + '|' + p + '|' + c))); };
       sub.forEach((r) => put(r.sub_date, r.sub_class, r.sub_time));
       add.forEach((r) => put(r.add_date, r.add_class, r.add_time));
       gym.forEach((r) => put(r.gym_date, r.gym_class, r.gym_time));
       room.forEach((r) => put(r.room_date, r.room_class, r.room_time));
-      const mark = (d0, cls, time, place) => { const d = GP.toDate(d0); if (!d || !String(cls || '').trim()) return; split(time).forEach((p) => booked.add(GP.ymd(d) + '|' + p + '|' + String(place || '').trim())); };
+      const mark = (d0, cls, time, place) => { const d = GP.toDate(d0); if (!d || !String(cls || '').trim()) return; split(time).forEach((p) => booked.set(GP.ymd(d) + '|' + p + '|' + String(place || '').trim(), String(cls).trim())); };
       gym.forEach((r) => mark(r.gym_date, r.gym_class, r.gym_time, r.gym_place));
       room.forEach((r) => mark(r.room_date, r.room_class, r.room_time, r.room_place));
+      known = { booked, hol };
       return { busy: (c, day, p) => busySet.has(day + '|' + p + '|' + c) || busySet.has(day + '|' + p + '|*'), booked, hol };
     }
 
@@ -200,12 +231,7 @@
       if (S.result && !confirm('이미 자동 배정한 임시 결과가 있습니다. 새로 배정할까요?')) return;
       const btn = el.querySelector('[data-asp-act="run"]'); if (btn) { btn.disabled = true; btn.textContent = '배정하는 중...'; }
       try {
-        const cfg = ctx.getCfg(); const times = ctx.times; const sems = await APP.getSemesterRows(year);
-        const s1 = sems['1학기'], s2 = sems['2학기'];
-        const semKey = (d) => (s2 && d >= s2.start && d <= s2.end ? 'sem2' : s1 && d >= s1.start && d <= s1.end ? 'sem1' : (d.getMonth() >= 2 && d.getMonth() <= 6 ? 'sem1' : 'sem2'));   // 특별실 사용 시간표와 같은 방식
-        const inTerm = (d) => (!s1 && !s2) || (s1 && d >= s1.start && d <= s1.end) || (s2 && d >= s2.start && d <= s2.end);   // 방학은 건너뜀
-        const ex = (list, day, p, s) => (list || []).some((e) => e.date === day && String(e.period).trim() === p && e.space === s);
-        const isOpen = (d, p, s) => { const day = GP.ymd(d), k = DAYK[(d.getDay() + 6) % 7] + '|' + p + '|' + s; return (!!(cfg[semKey(d)] || {})[k] || ex(cfg.exceptions, day, p, s)) && !ex(cfg.closeExceptions, day, p, s); };
+        const times = ctx.times;
         const { busy, booked, hol } = await loadBusy();
         const days = GP.eachDay(a, b).filter((d) => d.getDay() >= 1 && d.getDay() <= 5 && !hol.get(GP.ymd(d)) && inTerm(d));
         const r = solve({ classes, days, periods: times, spaces: sp, isOpen, booked, busy });
@@ -238,7 +264,7 @@
       toast(ops.length + '칸을 특별실 사용 시간표에 저장했습니다.' + (skip ? ' (그사이 채워진 ' + skip + '칸은 건너뜀)' : ''));
     }
 
-    if (S.result) (S.result.items || []).forEach((x) => { x.d = GP.toDate(x.day); });
+    if (S.result) { (S.result.items || []).forEach((x) => { x.d = GP.toDate(x.day); }); try { await loadBusy(); } catch (e) { /* 표만 덜 채워짐 */ } }
     draw();
     return { redraw: draw };
   }
