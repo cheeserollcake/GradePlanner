@@ -568,3 +568,7 @@ input[type=date]::-webkit-date-and-time-value{text-align:left;min-height:1.25rem
 input[type=date]::-webkit-datetime-edit{padding:0}
 input::placeholder,textarea::placeholder{color:#9ca3af;opacity:1}
 .bg-opacity-40{--tw-bg-opacity:.4}
+
+/* 글자 입력칸은 한글 입력으로 시작 (ime-mode 를 지원하는 브라우저에서만 적용, 숫자·날짜·비밀번호 칸 제외) */
+input:not([type]), input[type="text"], input[type="search"], textarea { ime-mode: active; }
+input[type="number"], input[type="date"], input[type="password"], input[type="email"], input[type="url"], input[type="tel"], input[inputmode="numeric"], input[inputmode="decimal"] { ime-mode: inactive; }

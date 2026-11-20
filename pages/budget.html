@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>예산</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261119d">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261120a">
   <script>window.__GP_PAGE__ = 'budget';</script>
-  <script src="../assets/js/fb-boot.js?v=20261119d"></script>
-  <script src="../assets/js/firebase-config.js?v=20261119d"></script>
-  <script src="../assets/js/gas-shim.js?v=20261119d"></script>
-  <script src="../assets/js/app-data.js?v=20261119d"></script>
-  <script src="../assets/js/dnd.js?v=20261119d"></script>
-  <script src="../assets/js/xlsx-lite.js?v=20261119d"></script>
-  <script src="../assets/js/gsheet-export.js?v=20261119d"></script>
+  <script src="../assets/js/fb-boot.js?v=20261120a"></script>
+  <script src="../assets/js/firebase-config.js?v=20261120a"></script>
+  <script src="../assets/js/gas-shim.js?v=20261120a"></script>
+  <script src="../assets/js/app-data.js?v=20261120a"></script>
+  <script src="../assets/js/dnd.js?v=20261120a"></script>
+  <script src="../assets/js/xlsx-lite.js?v=20261120a"></script>
+  <script src="../assets/js/gsheet-export.js?v=20261120a"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     /* ---- 구글 스프레드시트 느낌의 표 ---- */
@@ -84,7 +84,7 @@
     .colx { position:absolute; right:2px; top:1px; font-size:11px; color:#9aa0a6; display:none; line-height:1; }
     .sheet th:hover .colx { display:block; } .colx:hover { color:#b91c1c; }
   </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261119d">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261120a">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
   <div class="max-w-7xl mx-auto space-y-4">
@@ -850,7 +850,7 @@ function drawFilt() {
 }
 function aPool() {
   const saved = ((lists && lists.budgetHeaders) || []).filter((h) => HIDDEN_HEADS.indexOf(h) < 0);
-  return [...new Set(DEFAULT_HEADS.concat([SUP_HEAD], saved, typedHeads))].filter((h) => aList.indexOf(h) < 0);
+  return [...new Set(DEFAULT_HEADS.concat([SUP_HEAD, '완료상태'], saved, typedHeads))].filter((h) => aList.indexOf(h) < 0);
 }
 function drawOrder() {
   const chip = 'dchip dnd-handle inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm font-semibold select-none ';
@@ -888,7 +888,7 @@ $('aOk').onclick = async () => {
   const fail = (m) => { $('aErr').textContent = m; $('aErr').classList.remove('hidden'); };
   if (!aList.length) return fail('열을 하나 이상 넣어 주세요.');
   const saveTyped = async () => {
-    const mine = typedHeads.filter((h) => aList.indexOf(h) >= 0 && DEFAULT_HEADS.indexOf(h) < 0 && h !== SUP_HEAD);
+    const mine = typedHeads.filter((h) => aList.indexOf(h) >= 0 && DEFAULT_HEADS.indexOf(h) < 0 && h !== SUP_HEAD && h !== '완료상태');
     if (!mine.length) return;   // 새로 만든 열 이름은 저장해 두어 다음 예산 페이지에서도 고를 수 있게 함
     try { const cur = (await GP.readList('list_budget_header')).map((i) => ({ value: i.value, extra: {} })); await GP.writeList('list_budget_header', cur.concat(mine.filter((h) => !cur.some((c) => c.value === h)).map((h) => ({ value: h, extra: {} })))); lists = await GP.getLists(); } catch (e) { console.warn('열 이름을 저장하지 못했습니다', e); }
   };

@@ -1493,6 +1493,18 @@
     await commit([{ type: 'set', col: 'data_mall', id: String(rowIndex), data: mallDoc(f) }]);
     return { success: true, message: '저장되었습니다.' };
   };
+  // 일괄 업로드: 같은 쇼핑몰 + 같은 아이디가 이미 있으면 그 줄을 새 내용으로 바꾸고, 없으면 새로 추가
+  SERVER.addMallMany = async function (list) {
+    const rows = await getCol('data_mall', true); let next = rows.reduce((m, r) => Math.max(m, Number(r._id) || 0), 5);
+    const keyOf = (m, i) => str(m).trim().toLowerCase() + '|' + str(i).trim();
+    const have = new Map(rows.map((r) => [keyOf(r.mall, r.id), r._id]));
+    const ops = []; let add = 0, upd = 0;
+    (list || []).forEach((f) => { const doc = mallDoc(f); const k = keyOf(doc.mall, doc.id); const old = have.get(k);
+      if (old) { ops.push({ type: 'set', col: 'data_mall', id: String(old), data: doc }); upd++; }
+      else { next++; ops.push({ type: 'set', col: 'data_mall', id: String(next), data: doc }); have.set(k, String(next)); add++; } });
+    for (let i = 0; i < ops.length; i += 400) await commit(ops.slice(i, i + 400));
+    return { success: true, add, upd };
+  };
   SERVER.deleteData = async function (rowIndex) {
     await commit([{ type: 'delete', col: 'data_mall', id: String(rowIndex) }]);
     return { success: true, message: '삭제되었습니다.' };

@@ -1,12 +1,15 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
   <head>
   <script>window.__GP_PAGE__ = 'p11';</script>
-  <script src="../assets/js/fb-boot.js?v=20261119d"></script>
+  <script src="../assets/js/fb-boot.js?v=20261120a"></script>
   
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261119d">
-  <script src="../assets/js/firebase-config.js?v=20261119d"></script>
-  <script src="../assets/js/gas-shim.js?v=20261119d"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261120a">
+  <script src="../assets/js/firebase-config.js?v=20261120a"></script>
+  <script src="../assets/js/gas-shim.js?v=20261120a"></script>
+  <script src="../assets/js/xlsx-lite.js?v=20261120a"></script>
+  <script src="../assets/js/ext-viewer.js?v=20261120a"></script>
+  <script src="../assets/js/bulk-upload.js?v=20261120a"></script>
 
     
     <meta charset="utf-8">
@@ -92,6 +95,11 @@
         height: 90vh;
       }
 
+      .bulk-bar { display: flex; gap: 8px; flex-wrap: wrap; }
+      .bulk-btn { border: 1px solid #d1d5db; background: #fff; color: #374151; border-radius: 8px; padding: 7px 12px; font-size: .85rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+      .bulk-btn:hover { background: #f3f4f6; }
+      .bulk-btn.up { background: var(--primary-color); border-color: var(--primary-color); color: #fff; }
+      .bulk-btn.up:hover { background: var(--primary-hover); }
       .header-bar {
         display: flex;
         justify-content: space-between;
@@ -400,7 +408,7 @@
         .list-section { overflow-x: auto; overflow-y: visible; flex-grow: 0; }
       }
     </style>
-  <link rel="stylesheet" href="../assets/css/lock.css?v=20261119d">  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109c">
+  <link rel="stylesheet" href="../assets/css/lock.css?v=20261120a">  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109c">
 </head>
   <body>
 
@@ -411,6 +419,7 @@
     <div id="main-app" class="clean-panel">
       <div class="header-bar">
         <div class="app-title">💳 쇼핑몰 학교 ID</div>
+        <div class="bulk-bar"><button type="button" class="bulk-btn" onclick="mallTemplate()">업로드 양식 받기</button><button type="button" class="bulk-btn up" onclick="mallUpload()">⬆ 일괄 업로드</button></div>
       </div>
 
       <div class="input-section">
@@ -559,6 +568,27 @@
       document.addEventListener('DOMContentLoaded', function() {
         initConfig(); 
       });
+
+      // ---------------- 일괄 업로드 ----------------
+      const MALL_COLS = [
+        { key: 'mallName', label: '쇼핑몰', alias: ['쇼핑몰이름', '사이트', '업체'], req: 1, w: 18, ex: '학교장터' },
+        { key: 'mallId', label: '아이디', alias: ['id', '아이디id'], req: 1, w: 18, ex: 'school123' },
+        { key: 'mallPw', label: '비밀번호', alias: ['pw', '비번', 'password'], req: 1, w: 18, ex: 'pass0123' },
+        { key: 'siteUrl', label: '사이트 주소', alias: ['주소', 'url', '사이트주소', '링크'], w: 32, ex: 'www.s2b.kr' },
+        { key: 'note', label: '비고', alias: ['메모'], w: 30, ex: '담당: 행정실' }];
+      function mallTemplate() { BulkUpload.template({ file: '쇼핑몰ID_업로드_양식', sheet: '쇼핑몰 ID', cols: MALL_COLS }); }
+      async function mallUpload() {
+        let recs; try { recs = await BulkUpload.pick({ cols: MALL_COLS }); } catch (e) { return alert('파일을 읽지 못했습니다: ' + (e.message || e)); }
+        if (recs === null) return;
+        const ok = recs.filter((r) => r.mallName && r.mallId && r.mallPw), bad = recs.length - ok.length;
+        if (!ok.length) return alert('올릴 내용을 찾지 못했습니다.\n[업로드 양식 받기]로 받은 양식에 쇼핑몰·아이디·비밀번호를 채워서 올려 주세요.' + (bad ? '\n(필수 칸이 빈 줄 ' + bad + '개는 건너뜁니다)' : ''));
+        const have = new Set(globalTableData.map((d) => String(d.mall).trim().toLowerCase() + '|' + String(d.id).trim()));
+        const upd = ok.filter((r) => have.has(r.mallName.trim().toLowerCase() + '|' + r.mallId.trim())).length;
+        if (!confirm(ok.length + '건을 올립니다.\n- 새로 추가: ' + (ok.length - upd) + '건\n- 같은 쇼핑몰·아이디가 있어 내용 바꿈: ' + upd + '건' + (bad ? '\n- 필수 칸(쇼핑몰·아이디·비밀번호)이 빈 줄 ' + bad + '개는 건너뜀' : '') + '\n\n계속할까요?')) return;
+        document.getElementById('loader').style.display = 'block';
+        google.script.run.withSuccessHandler(function (r) { alert('올렸습니다. (추가 ' + r.add + '건, 바꿈 ' + r.upd + '건)'); loadData(); })
+          .withFailureHandler(function (e) { document.getElementById('loader').style.display = 'none'; onFailure(e); }).addMallMany(ok);
+      }
 
       function loadData() {
         document.getElementById('loader').style.display = 'block';
