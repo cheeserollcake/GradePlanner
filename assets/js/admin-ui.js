@@ -909,7 +909,10 @@
       '<div class="' + CARD + ' border-red-200"><h2 class="font-bold text-lg text-red-700">데이터 삭제</h2><p class="text-sm text-slate-500">선택한 학년도(2월 1일~다음 해 2월 말일)의 데이터 중 삭제할 항목을 팝업에서 골라 지웁니다.<br>학년도를 바꾸면 명렬표·기초시간표·예산·강좌·이미지·교실배치도·내선번호는 새 학년도에서 빈 화면으로 보이고, 이전 데이터는 여기서 삭제하기 전까지 남아 있습니다.<br><b>삭제되지 않음:</b> 쇼핑몰 ID, 바로가기, 비밀번호, 학급·과목·교시·공간 목록</p>' +
       '<div class="flex gap-2 items-center"><select id="delYear" class="' + INP + '">' + years.map((y) => '<option value="' + y + '">' + y + '학년도</option>').join('') + '</select><button id="delBtn" class="' + BTN + ' bg-red-600 text-white hover:bg-red-700">과거 데이터 삭제</button></div></div>' +
       '<div class="' + CARD + '"><h2 class="font-bold text-lg">임시 저장 데이터 새로고침</h2><p class="text-sm text-slate-500">속도와 사용량을 줄이려고 기기에 저장해 둔 데이터는 앱에서 저장할 때마다 자동으로 갱신됩니다. 파이어베이스 콘솔에서 데이터를 직접 고쳤다면 이 버튼으로 모든 기기가 새로 받게 하세요.</p><button id="resetCache" class="' + BTN_G + '">모든 기기 데이터 새로고침</button></div></div>' +
-      '<div id="dm" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50"><div class="bg-white rounded-2xl p-5 w-full max-w-md space-y-3 max-h-[92vh] overflow-y-auto"><h3 class="font-bold text-lg text-red-700">삭제할 항목 선택</h3>' +
+      '<style>@keyframes gpSpin{to{transform:rotate(360deg)}}.gp-spin{width:44px;height:44px;border-radius:50%;border:4px solid #fee2e2;border-top-color:#dc2626;animation:gpSpin .8s linear infinite}.gp-bar{height:8px;border-radius:999px;background:#fee2e2;overflow:hidden}.gp-bar>i{display:block;height:100%;width:0;background:#dc2626;border-radius:999px;transition:width .3s}</style>' +
+      '<div id="dm" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50"><div class="bg-white rounded-2xl p-5 w-full max-w-md space-y-3 max-h-[92vh] overflow-y-auto" style="position:relative">' +
+      '<div id="dmBusy" role="status" aria-live="polite" style="display:none;position:absolute;inset:0;z-index:5;background:rgba(255,255,255,.94);border-radius:1rem;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center">' +
+      '<div class="gp-spin"></div><div id="dmBusyT" class="font-semibold text-slate-700">삭제하는 중...</div><div class="gp-bar" style="width:80%"><i id="dmBusyBar"></i></div><div class="text-xs text-slate-400">끝날 때까지 창을 닫거나 페이지를 나가지 마세요.</div></div><h3 class="font-bold text-lg text-red-700">삭제할 항목 선택</h3>' +
       '<p class="text-sm text-slate-600"><b id="dmY"></b> 데이터 중 지울 항목을 체크하세요. <b>삭제하면 복구할 수 없습니다.</b></p>' +
       '<div class="flex gap-2 text-xs"><button id="dmAll" type="button" class="' + BTN_G + ' !py-1">전체 선택</button><button id="dmNone" type="button" class="' + BTN_G + ' !py-1">전체 해제</button></div>' +
       '<div id="dmList" class="space-y-1 border rounded-lg p-2 max-h-72 overflow-y-auto text-sm"><p class="text-slate-400 p-2">확인 중...</p></div>' +
@@ -939,11 +942,18 @@
     };
     $('dmAll').onclick = () => { modal.querySelectorAll('[data-dk]:not(:disabled)').forEach((c) => { c.checked = true; }); refresh(); };
     $('dmNone').onclick = () => { modal.querySelectorAll('[data-dk]').forEach((c) => { c.checked = false; }); refresh(); };
-    $('dmNo').onclick = () => show(false); $('dmIn').oninput = refresh;
+    $('dmNo').onclick = () => { if (!deleting) show(false); }; $('dmIn').oninput = refresh;
+    const busy = (on, t, f) => { const b = $('dmBusy'); if (!b) return; const pn = b.parentElement; if (on && pn.style.overflow !== 'hidden') { pn.scrollTop = 0; pn.style.overflow = 'hidden'; } else if (!on) pn.style.overflow = ''; b.style.display = on ? 'flex' : 'none'; if (t) $('dmBusyT').textContent = t; if (f !== undefined) $('dmBusyBar').style.width = Math.round(f * 100) + '%'; };
+    let deleting = false;
     $('dmYes').onclick = () => guard(async () => {
-      const keys = picked(); if (!keys.length) return;
-      const s = await APP.deleteYear(parseInt($('delYear').value, 10), keys); show(false);
-      toast('삭제 완료 (' + Object.keys(s).map((k) => k + ' ' + s[k]).join(', ') + ')'); renderData();
+      const keys = picked(); if (!keys.length || deleting) return;
+      deleting = true; $('dmYes').disabled = true; $('dmNo').disabled = true; busy(true, '삭제를 시작합니다...', 0);
+      try {
+        const s = await APP.deleteYear(parseInt($('delYear').value, 10), keys, (t, f) => busy(true, t, f));
+        busy(true, '삭제를 마쳤습니다.', 1); await new Promise((r) => setTimeout(r, 400)); show(false);
+        toast('삭제 완료 (' + Object.keys(s).map((k) => k + ' ' + s[k]).join(', ') + ')'); renderData();
+      } finally { deleting = false; busy(false); $('dmNo').disabled = false; refresh(); }
     });
+    window.addEventListener('beforeunload', (e) => { if (deleting) { e.preventDefault(); e.returnValue = ''; } });
   }
 })();

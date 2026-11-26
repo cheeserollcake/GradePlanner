@@ -374,11 +374,19 @@
     return plan;
   }
   async function previewDelete(year) { return (await planYear(year)).map((x) => ({ key: x.key, label: x.label, count: x.count })); }
-  async function deleteYear(year, keys) {   // keys: 지울 항목(없으면 전부)
+  async function deleteYear(year, keys, onStep) {   // keys: 지울 항목(없으면 전부), onStep(글, 진행 0~1): 진행 상황 알림
+    const step = (t, f) => { try { if (onStep) onStep(t, f); } catch (e) { /* 무시 */ } };
+    step('지울 데이터를 다시 확인하는 중...', 0.05);
     const plan = (await planYear(year)).filter((x) => !keys || keys.indexOf(x.key) >= 0); const ops = []; const summary = {};
     plan.forEach((x) => { if (x.count < 0) return; ops.push(...x.ops); summary[x.label] = x.count; });
-    await commit(ops);
-    for (const x of plan) if (x.after) await x.after();
+    const afters = plan.filter((x) => x.after && x.count > 0);
+    const total = ops.length + afters.length || 1; let done = 0;
+    for (let i = 0; i < ops.length; i += 400) {   // 400건씩 나눠 지우며 진행률 표시
+      const part = ops.slice(i, i + 400); step('삭제하는 중... (' + Math.min(i + part.length, ops.length) + ' / ' + ops.length + '건)', 0.1 + 0.85 * done / total);
+      await commit(part); done += part.length;
+    }
+    for (const x of afters) { step('파일 삭제하는 중... (' + x.label + ')', 0.1 + 0.85 * done / total); await x.after(); done++; }
+    step('마무리하는 중...', 1);
     return summary;
   }
 

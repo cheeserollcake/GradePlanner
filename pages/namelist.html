@@ -3,17 +3,17 @@
   <head>
   <meta charset="UTF-8">
   <script>window.__GP_PAGE__ = 'p03';</script>
-  <script src="../assets/js/fb-boot.js?v=20261126c"></script>
+  <script src="../assets/js/fb-boot.js?v=20261126e"></script>
   
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261126c">
-  <script src="../assets/js/firebase-config.js?v=20261126c"></script>
-  <script src="../assets/js/gas-shim.js?v=20261126c"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261126e">
+  <script src="../assets/js/firebase-config.js?v=20261126e"></script>
+  <script src="../assets/js/gas-shim.js?v=20261126e"></script>
 
     
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- React 및 라이브러리 (unpkg 차단 및 Babel 호환성 문제로 cdnjs 및 Babel 7로 변경) -->
-  <script src="../assets/js/react.min.js?v=20261126c"></script>
+  <script src="../assets/js/react.min.js?v=20261126e"></script>
     
     <!-- 스타일 정의 -->
     <style>
@@ -134,7 +134,7 @@
       .xl-step { width:2rem; height:2rem; border:1px solid #cbd5e1; border-radius:.4rem; background:#fff; font-weight:700; }
       .xl-bar button:disabled { opacity:.5; cursor:wait; }
     </style>
-  <link rel="stylesheet" href="../assets/css/lock.css?v=20261126c">  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109c">
+  <link rel="stylesheet" href="../assets/css/lock.css?v=20261126e">  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109c">
 </head>
   <body>
 
@@ -156,7 +156,7 @@
         <div style="background:#fff;border-radius:1rem;padding:1.25rem;width:100%;max-width:26rem;max-height:92vh;overflow:auto" class="xl-box">
           <h3 style="font-weight:700;font-size:1.1rem;margin-bottom:.75rem">명렬표 내보내기</h3>
           <div class="xl-sec"><div class="xl-t">내려받을 명렬표</div>
-            <label><input type="radio" name="xl-scope" value="grade" checked> 학년 전체 명렬표 (한 시트)</label>
+            <label><input type="radio" name="xl-scope" value="grade" checked> 학년 전체 명렬표 (시트 2개: 반별 배치 + 전체 이어붙이기)</label>
             <label><input type="radio" name="xl-scope" value="class"> 반별 명렬표 : <select id="xl-class"></select></label></div>
           <div class="xl-sec"><div class="xl-t">포함할 항목</div>
             <div class="xl-grid"><label><input type="checkbox" class="xl-f" value="no" checked> 번호</label><label><input type="checkbox" class="xl-f" value="name" checked> 이름</label><label><input type="checkbox" class="xl-f" value="gender" checked> 성별</label><label><input type="checkbox" class="xl-f" value="note" checked> 기타</label><label><input type="checkbox" class="xl-f" value="birth"> 생년월일</label></div>
@@ -172,9 +172,9 @@
       <div id="root-class"></div>
     </div>
 
-    <script src="../assets/js/xlsx-lite.js?v=20261126c"></script>
-    <script src="../assets/js/ext-viewer.js?v=20261126c"></script>
-    <script src="../assets/js/gsheet-export.js?v=20261126c"></script>
+    <script src="../assets/js/xlsx-lite.js?v=20261126e"></script>
+    <script src="../assets/js/ext-viewer.js?v=20261126e"></script>
+    <script src="../assets/js/gsheet-export.js?v=20261126e"></script>
     <script>
       (function () {
         const $ = (id) => document.getElementById(id);
@@ -232,11 +232,22 @@
           }
           return { name: '학년 전체 명렬표', widths: wd, rows, merges };
         }
+        function listSheet(all, fields, nChk) {   // 모든 반을 빈 줄 없이 이어붙인 한 표 (반 열 + 고른 항목). 반마다 진한/연한 초록을 번갈아 칠함
+          const head = [cell('반', 'totalLabel')].concat(headers(fields, nChk)), rows = [head];
+          for (let n = 1; n <= CC; n++) {
+            const bg = n % 2 ? '#B6D7A8' : '#D9EAD3';
+            (all[n - 1] || []).filter((r) => String(r[1] == null ? '' : r[1]).trim()).forEach((r) => {
+              const line = [cell(n, 'center')].concat(rowCells(r, fields, nChk)); line.forEach((c) => { c.s = 'center'; c.bg = bg; }); rows.push(line);
+            });
+          }
+          if (rows.length === 1) throw new Error('명단이 입력된 반이 없습니다.');
+          return { name: '전체 명단 이어붙이기', widths: [6].concat(widths(fields, nChk)), freezeRow: 1, rows };
+        }
         async function build() {
           const fields = [...document.querySelectorAll('.xl-f:checked')].map((x) => x.value), nChk = Number(chk.value) || 0;
           if (!fields.length && !nChk) throw new Error('내려받을 항목을 하나 이상 선택하세요.');
           const scope = document.querySelector('input[name=xl-scope]:checked').value;
-          if (scope === 'grade') { const all = []; for (let n = 1; n <= CC; n++) all.push(await getClass(n)); return { sheets: [gradeSheet(all, fields, nChk)], file: '학년_전체_명렬표' }; }
+          if (scope === 'grade') { const all = []; for (let n = 1; n <= CC; n++) all.push(await getClass(n)); return { sheets: [gradeSheet(all, fields, nChk), listSheet(all, fields, nChk)], file: '학년_전체_명렬표' }; }
           if ($('xl-class').value === 'all') {
             const sheets = []; for (let n = 1; n <= CC; n++) { const d = await getClass(n); if (d.some((r) => String(r[1]).trim())) sheets.push(classSheet(n, d, fields, nChk)); }
             if (!sheets.length) throw new Error('명단이 입력된 반이 없습니다.'); return { sheets, file: '반별_명렬표_전체' };
