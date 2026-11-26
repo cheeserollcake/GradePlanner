@@ -301,11 +301,11 @@
       });
     }
     const slotCard = () => '<div class="' + CARD + '" style="height:100%;box-sizing:border-box"><h2 class="font-bold text-lg">주간시수배정 <span class="text-xs font-normal text-slate-400">체크한 칸에만 기초시간표 과목을 넣을 수 있습니다</span></h2>' +
-      '<table class="w-full text-center border-collapse text-sm" style="table-layout:fixed"><thead><tr><th class="border bg-slate-100 p-1"></th>' +
+      '<div class="overflow-x-auto"><table class="w-full text-center border-collapse text-sm" style="table-layout:fixed;min-width:' + (60 + SLOT_DAYS.length * 34) + 'px"><colgroup><col style="width:4.5em"></colgroup><thead><tr><th class="border bg-slate-100 p-1"></th>' +
       SLOT_DAYS.map((d, c) => '<th class="border bg-slate-100 p-1"><button data-sday="' + (c + 1) + '" title="요일 전체 선택/해제" class="font-bold w-full">' + d + '</button></th>').join('') + '</tr></thead><tbody>' +
-      times.map((t, r) => '<tr><th class="border bg-slate-50 p-1 text-xs"><button data-sper="' + (r + 1) + '" title="교시 전체 선택/해제" class="font-semibold w-full">' + esc(t) + '</button></th>' +
+      times.map((t, r) => '<tr><th class="border bg-slate-50 p-1 text-xs" style="overflow-wrap:anywhere"><button data-sper="' + (r + 1) + '" title="교시 전체 선택/해제" class="font-semibold w-full">' + esc(t) + '</button></th>' +
         SLOT_DAYS.map((d, c) => '<td class="border p-1"><input type="checkbox" class="w-4 h-4" data-slot="' + (c + 1) + '_' + (r + 1) + '" ' + (off.has((c + 1) + '_' + (r + 1)) ? '' : 'checked') + '></td>').join('') + '</tr>').join('') +
-      '</tbody></table></div>';
+      '</tbody></table></div></div>';
     const range = () => APP.yearRange(g.year);
     const rr = () => { const r = range(); return { min: ymd(r.start), max: ymd(r.end) }; };
     const blankHr = (c) => ({ className: c, teacher: '', terms: ['1학기', '2학기'], period: null });
@@ -418,9 +418,9 @@
         '<div class="space-y-2"><h3 class="font-semibold text-sm text-slate-600">전담교사</h3>' + (spHtml || '<p class="text-sm text-slate-400">등록된 전담교사가 없습니다. (과목은 시간표 설정에서 \'전담\'으로 체크한 과목만 선택됩니다.)</p>') +
         '<button id="addSp" class="' + BTN_G + '">+ 전담교사 추가</button></div></div></div>';
       const periodCard = '<div class="' + CARD + '" style="height:100%;box-sizing:border-box"><h2 class="font-bold text-lg">교시 설정</h2><div class="space-y-2">' +
-        times.map((t, i) => '<div class="flex gap-2"><input data-ti="' + i + '" value="' + esc(t) + '" class="' + INP + ' flex-1"><button data-tins="' + i + '" title="이 교시 아래에 새 교시 끼워넣기" class="text-slate-400 hover:text-blue-600 text-xs whitespace-nowrap">↳끼워넣기</button><button data-tdel="' + i + '" class="text-slate-400 hover:text-red-600">✕</button></div>').join('') +
+        times.map((t, i) => '<div class="flex items-center gap-1.5 min-w-0"><input data-ti="' + i + '" value="' + esc(t) + '" size="6" class="' + INP + ' flex-1 min-w-0 w-0" style="min-width:4.5em"><button data-tins="' + i + '" title="이 교시 아래에 새 교시 끼워넣기" class="shrink-0 text-slate-400 hover:text-blue-600 text-xs whitespace-nowrap px-1">↳끼워넣기</button><button data-tdel="' + i + '" title="이 교시 삭제" class="shrink-0 text-slate-400 hover:text-red-600 px-1">✕</button></div>').join('') +
         '</div><button id="addTime" class="' + BTN_G + '">+ 교시 추가</button></div>';
-      view.innerHTML = '<div class="space-y-5">' + (part === 'year' ? yearCard + '<div class="grid md:grid-cols-3 gap-5"><div>' + periodCard + '</div><div class="min-w-0 md:col-span-2">' + slotCard() + '</div></div>' + evCard : classCard) + '</div>';
+      view.innerHTML = '<div class="space-y-5">' + (part === 'year' ? yearCard + '<style>.gp-prow{display:flex;flex-direction:column;gap:1.25rem}.gp-pcol{min-width:0}.gp-scol{min-width:0;flex:1 1 0}@media (min-width:768px){.gp-prow{flex-direction:row;align-items:stretch}.gp-pcol{flex:0 0 15.5rem;width:15.5rem}}</style><div class="gp-prow"><div class="gp-pcol">' + periodCard + '</div><div class="gp-scol">' + slotCard() + '</div></div>' + evCard : classCard) + '</div>';
       bind();
     });
 

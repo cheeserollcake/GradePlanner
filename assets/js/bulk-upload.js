@@ -52,8 +52,9 @@
       }
       if (h < 0) { if (!g.some((r) => r.some((c) => str(c)))) continue; h = -1; map = {}; cols.forEach((_, i) => { map[i] = i; }); }
       const out = [];
-      g.slice(h + 1).forEach((r) => {
+      g.slice(h + 1).forEach((r, j) => {
         const rec = {}; cols.forEach((c, i) => { rec[c.key] = map[i] === undefined ? '' : str(r[map[i]]); });
+        Object.defineProperty(rec, '__row', { value: h + 2 + j });   // 엑셀에서 보이는 행 번호
         if (!cols.some((c) => rec[c.key])) return;   // 빈 줄
         if (str(r[map[0]]).indexOf(EX + ')') === 0) return;   // 양식의 작성 예시 줄
         out.push(rec);
