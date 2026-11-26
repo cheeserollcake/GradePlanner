@@ -184,6 +184,7 @@
     };
   }
 
-  const api = { build, toBlob, toBytes, toSheetsRequest, colName, XLSX_MIME };
+  const zipBlob = (files) => new Blob(zip(files), { type: 'application/zip' });   // [{name, bytes}] → zip 파일
+  const api = { build, toBlob, toBytes, toSheetsRequest, colName, XLSX_MIME, zipBlob };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.XlsxLite = api;
 })(typeof window !== 'undefined' ? window : globalThis);

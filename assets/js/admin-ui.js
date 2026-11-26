@@ -906,6 +906,7 @@
       '<label class="text-sm font-semibold">새 페이지 접근 비밀번호<span class="block text-xs font-normal text-slate-400">명렬표·내선번호·쇼핑몰 ID·특별실 비밀번호</span><input id="pwAccess" type="password" autocomplete="new-password" class="' + INP + ' w-full mt-1"></label>' +
       '<label class="text-sm font-semibold">새 관리자 비밀번호<span class="block text-xs font-normal text-slate-400">이 관리자 페이지 접근용</span><input id="pwAdmin" type="password" autocomplete="new-password" class="' + INP + ' w-full mt-1"></label></div>' +
       '<div class="text-right"><button id="savePw" class="' + BTN_P + '">비밀번호 변경</button></div></div>' +
+      '<div id="iconCard"></div>' +
       '<div class="' + CARD + ' border-red-200"><h2 class="font-bold text-lg text-red-700">데이터 삭제</h2><p class="text-sm text-slate-500">선택한 학년도(2월 1일~다음 해 2월 말일)의 데이터 중 삭제할 항목을 팝업에서 골라 지웁니다.<br>학년도를 바꾸면 명렬표·기초시간표·예산·강좌·이미지·교실배치도·내선번호는 새 학년도에서 빈 화면으로 보이고, 이전 데이터는 여기서 삭제하기 전까지 남아 있습니다.<br><b>삭제되지 않음:</b> 쇼핑몰 ID, 바로가기, 비밀번호, 학급·과목·교시·공간 목록</p>' +
       '<div class="flex gap-2 items-center"><select id="delYear" class="' + INP + '">' + years.map((y) => '<option value="' + y + '">' + y + '학년도</option>').join('') + '</select><button id="delBtn" class="' + BTN + ' bg-red-600 text-white hover:bg-red-700">과거 데이터 삭제</button></div></div>' +
       '<div class="' + CARD + '"><h2 class="font-bold text-lg">임시 저장 데이터 새로고침</h2><p class="text-sm text-slate-500">속도와 사용량을 줄이려고 기기에 저장해 둔 데이터는 앱에서 저장할 때마다 자동으로 갱신됩니다. 파이어베이스 콘솔에서 데이터를 직접 고쳤다면 이 버튼으로 모든 기기가 새로 받게 하세요.</p><button id="resetCache" class="' + BTN_G + '">모든 기기 데이터 새로고침</button></div></div>' +
@@ -925,6 +926,7 @@
       $('pwCur').value = ''; $('pwAccess').value = ''; $('pwAdmin').value = '';
     }, '비밀번호가 변경되었습니다.');
     renderSecCard();
+    if (window.GPIcon) window.GPIcon.render($('iconCard'), { toast, esc, BTN, BTN_P, BTN_G, INP, CARD });   // 웹앱 아이콘
     $('resetCache').onclick = () => guard(() => GP.resetCaches(), '모든 기기가 다음에 열 때 데이터를 새로 받습니다.');
     const modal = $('dm'); const show = (v) => { modal.classList.toggle('hidden', !v); modal.classList.toggle('flex', v); };
     const picked = () => [...modal.querySelectorAll('[data-dk]:checked')].map((c) => c.dataset.dk);

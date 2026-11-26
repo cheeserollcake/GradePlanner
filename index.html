@@ -6,13 +6,13 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
   <title>학년 통합 관리 시스템</title>
-  <link rel="icon" href="favicon.ico?v=20261126e" sizes="any">
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=20261126e">
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=20261126e">
-  <link rel="shortcut icon" href="favicon.ico?v=20261126e">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=20261126e">
-  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon-precomposed.png?v=20261126e">
-  <link rel="manifest" href="manifest.webmanifest?v=20261126e">
+  <link rel="icon" href="favicon.ico?v=20261126f" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=20261126f">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=20261126f">
+  <link rel="shortcut icon" href="favicon.ico?v=20261126f">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=20261126f">
+  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon-precomposed.png?v=20261126f">
+  <link rel="manifest" href="manifest.webmanifest?v=20261126f">
   <meta name="theme-color" content="#4f46e5">
   <meta name="apple-mobile-web-app-title" content="학년 관리">
   <style>
@@ -41,7 +41,7 @@
     #clsSel .lbl { flex-shrink: 0; align-self: center; font-size: 11px; color: #94a3b8; margin-right: 2px; }
     @media (max-width: 900px) { #pageName { display: none; } #clsSel { justify-content: flex-start; } }
   </style>
-  <link rel="stylesheet" href="assets/css/themes.css?v=20261126e">
+  <link rel="stylesheet" href="assets/css/themes.css?v=20261126f">
 </head>
 <body>
   <header id="bar">
@@ -59,13 +59,50 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="assets/js/firebase-config.js?v=20261126e"></script>
+<script src="assets/js/firebase-config.js?v=20261126f"></script>
 <script>
 (function () {
   // Firebase 도구는 여기서 한 번만 불러와 연결하고, 안쪽 페이지들이 그대로 가져다 씁니다(fb-boot.js).
   try { firebase.initializeApp(window.FIREBASE_CONFIG); firebase.firestore().settings({ experimentalAutoDetectLongPolling: true, ignoreUndefinedProperties: true }); } catch (e) { console.warn('firebase init failed', e); }
   // 비밀번호 페이지 로그인은 이 창의 메모리에만 둡니다(새로고침·창 닫기 시 풀림, 기기에 남지 않음).
   try { if (firebase.auth) firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) { console.warn('auth init failed', e); }
+  // 웹앱 아이콘: 관리자가 바꾼 아이콘(gp_global/app_icon)이 있으면 탭·홈 화면 아이콘과 앱 정보(매니페스트)를 그 그림으로 바꿔 끼움.
+  //  기기에 저장해 둔 사본으로 바로 바꾸고, 바뀐 번호(gp_global/icon_meta, 작은 문서)가 다를 때만 그림을 새로 받음.
+  (function () {
+    var KEY = 'gp_app_icon', links = [].slice.call(document.querySelectorAll('link[rel~="icon"], link[rel^="apple-touch-icon"], link[rel="manifest"]'));
+    links.forEach(function (l) { l.setAttribute('data-def', l.getAttribute('href')); });
+    function apply(ic) {
+      links.forEach(function (l) {
+        var rel = l.getAttribute('rel'), sz = l.getAttribute('sizes');
+        if (!ic) { l.setAttribute('href', l.getAttribute('data-def')); return; }
+        if (rel === 'manifest') {
+          var base = new URL('./', location.href).href;
+          var m = { name: '학년 통합 관리 시스템', short_name: '학년 관리', id: base, start_url: base, scope: base, display: 'standalone', background_color: '#f8fafc', theme_color: '#4f46e5',
+            icons: [{ src: ic.i192, sizes: '192x192', type: ic.i192.slice(5, ic.i192.indexOf(';')) }, { src: ic.i512, sizes: '512x512', type: ic.i512.slice(5, ic.i512.indexOf(';')) }, { src: ic.m512, sizes: '512x512', type: ic.m512.slice(5, ic.m512.indexOf(';')), purpose: 'maskable' }] };
+          l.setAttribute('href', 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify(m)));
+        } else if (/apple-touch-icon/.test(rel)) l.setAttribute('href', ic.i180);
+        else l.setAttribute('href', sz === '192x192' ? ic.i192 : ic.i32);
+      });
+    }
+    var cached = null; try { cached = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { cached = null; }
+    if (cached && cached.i192) apply(cached);
+    window.__gpCheckIcon = function () {
+      var db; try { db = firebase.firestore(); } catch (e) { return; }
+      db.collection('gp_global').doc('icon_meta').get().then(function (ms) {
+        var meta = ms && ms.exists ? ms.data() : null, v = meta && meta.v;
+        if (!meta || !meta.custom) { if (cached) { cached = null; try { localStorage.removeItem(KEY); } catch (e) {} apply(null); } return; }
+        if (cached && cached.v === v) return;
+        return db.collection('gp_global').doc('app_icon').get().then(function (ds) {
+          var ic = ds && ds.exists ? ds.data() : null; if (!ic || !ic.i192) return;
+          cached = { v: ic.v || v, i32: ic.i32, i180: ic.i180, i192: ic.i192, i512: ic.i512, m512: ic.m512 || ic.i512 };
+          try { localStorage.setItem(KEY, JSON.stringify(cached)); } catch (e) {}
+          apply(cached);
+        });
+      }).catch(function (e) { console.warn('icon load failed', e); });
+    };
+    window.addEventListener('message', function (e) { if (e.data === 'gp-icon-changed') window.__gpCheckIcon(); });
+    window.addEventListener('load', function () { setTimeout(window.__gpCheckIcon, 600); });
+  })();
   // 지금 학년(학년별 자료): 기기에 기억한 값으로 먼저 열고, 서버 값(gp_global/state)과 다르면 맞춰서 다시 엶
   try { window.__gpGradeState = JSON.parse(localStorage.getItem('gp_grade') || 'null'); } catch (e) { window.__gpGradeState = null; }
   var gradePrefix = function (st) { return st && st.base && st.grade && Number(st.grade) !== Number(st.base) ? 'g' + Number(st.grade) + '__' : ''; };
@@ -118,8 +155,8 @@
       try {
         if (!d || !d.documentElement) return;
         if (THEME) d.documentElement.setAttribute('data-gp-theme', THEME); else d.documentElement.removeAttribute('data-gp-theme');
-        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261126e'; d.head.appendChild(l); }
-        if (d !== document && d.head && THEME && !d.getElementById('gp-theme-icons')) { var sc = d.createElement('script'); sc.id = 'gp-theme-icons'; sc.src = '../assets/js/theme-icons.js?v=20261126e'; d.head.appendChild(sc); }   // 디자인에 맞는 아이콘 그림 (기본 디자인일 때는 불러오지 않음)
+        if (d !== document && d.head && !d.getElementById('gp-theme-css')) { var l = d.createElement('link'); l.id = 'gp-theme-css'; l.rel = 'stylesheet'; l.href = '../assets/css/themes.css?v=20261126f'; d.head.appendChild(l); }
+        if (d !== document && d.head && THEME && !d.getElementById('gp-theme-icons')) { var sc = d.createElement('script'); sc.id = 'gp-theme-icons'; sc.src = '../assets/js/theme-icons.js?v=20261126f'; d.head.appendChild(sc); }   // 디자인에 맞는 아이콘 그림 (기본 디자인일 때는 불러오지 않음)
       } catch (e) {}
     });
     [].forEach.call(document.querySelectorAll('#themeSel button'), function (b) { b.classList.toggle('on', (b.getAttribute('data-theme') || '') === THEME); });
@@ -145,7 +182,7 @@
     if (curPage === 'admin') { w.__gpSel = null; if (w.__gpClassFocus) w.__gpClassFocus.apply(); return; }
     try { if (w.__gpClassChanged) w.__gpClassChanged(w.__gpSel); } catch (e) { /* 무시 */ }   // 예산(학급운영비) 등: 고른 반으로 거르기
     if (w.__gpClassFocus) { w.__gpClassFocus.apply(); return; }
-    if (!d.getElementById('gp-class-focus')) { var sc = d.createElement('script'); sc.id = 'gp-class-focus'; sc.src = '../assets/js/class-focus.js?v=20261126e'; d.head.appendChild(sc); }
+    if (!d.getElementById('gp-class-focus')) { var sc = d.createElement('script'); sc.id = 'gp-class-focus'; sc.src = '../assets/js/class-focus.js?v=20261126f'; d.head.appendChild(sc); }
   }
   drawClassSel();
   document.getElementById('frame').addEventListener('load', applyClass);
@@ -175,7 +212,7 @@
     var keep = window.__gpKeepAuth === page; window.__gpKeepAuth = null;
     if (!keep && curPage && curPage !== page) { try { if (firebase.auth && firebase.auth().currentUser) firebase.auth().signOut(); } catch (e) { /* 무시 */ } }
     curPage = page;
-    frame.src = 'pages/' + page + '.html?v=20261126e';
+    frame.src = 'pages/' + page + '.html?v=20261126f';
     items.forEach(function (a) { a.classList.toggle('active', a.dataset.page === page); });
     setOpen(false); applyMeta();
   }
@@ -221,7 +258,7 @@
 <script>
   // 새 버전 자동 확인: 브라우저가 예전 index.html 을 기억하고 있으면 version.json(캐시 없이 읽음)과 비교해 한 번 새로고침합니다.
   (function () {
-    var MINE = '20261126e';
+    var MINE = '20261126f';
     try {
       fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
         if (!j || !j.v || j.v === MINE) return;
