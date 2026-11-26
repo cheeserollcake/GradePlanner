@@ -928,11 +928,14 @@
     const refresh = () => { $('dmYes').disabled = $('dmIn').value.trim() !== '과거 데이터 삭제' || !picked().length; };
     $('delBtn').onclick = async () => {
       const y = parseInt($('delYear').value, 10); $('dmY').textContent = y + '학년도'; $('dmIn').value = ''; $('dmYes').disabled = true; $('dmList').innerHTML = '<p class="text-slate-400 p-2">확인 중...</p>'; show(true);
+      const slow = setTimeout(() => { const l = $('dmList'); if (l && /확인 중/.test(l.textContent)) l.innerHTML = '<p class="text-slate-400 p-2">확인 중... 데이터가 많으면 조금 걸립니다(최대 20초쯤).</p>'; }, 4000);
       try {
-        const items = await APP.previewDelete(y);
-        $('dmList').innerHTML = items.map((it) => '<label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 ' + (it.count ? '' : 'text-slate-400') + '"><input type="checkbox" data-dk="' + it.key + '" ' + (it.count ? 'checked' : 'disabled') + ' class="w-4 h-4"><span class="flex-1">' + esc(it.label) + '</span><span class="text-xs">' + it.count + '건</span></label>').join('');
+        const items = await APP.previewDelete(y); clearTimeout(slow);
+        if ($('dmY').textContent !== y + '학년도') return;   // 그 사이 다른 학년도를 다시 연 경우
+        $('dmList').innerHTML = items.map((it) => { const unk = it.count < 0;
+          return '<label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 ' + (it.count > 0 ? '' : 'text-slate-400') + '"' + (unk ? ' title="시간 안에 개수를 확인하지 못해 이번에는 지울 수 없습니다. 잠시 뒤 다시 열어 보세요."' : '') + '><input type="checkbox" data-dk="' + it.key + '" ' + (it.count > 0 ? 'checked' : 'disabled') + ' class="w-4 h-4"><span class="flex-1">' + esc(it.label) + '</span><span class="text-xs">' + (unk ? '확인 못 함' : it.count + '건') + '</span></label>'; }).join('');
         modal.querySelectorAll('[data-dk]').forEach((c) => c.onchange = refresh); refresh();
-      } catch (e) { console.error(e); $('dmList').innerHTML = '<p class="text-red-600 p-2">확인하지 못했습니다: ' + esc(String(e.message || e)) + '</p>'; }
+      } catch (e) { clearTimeout(slow); console.error(e); $('dmList').innerHTML = '<p class="text-red-600 p-2">확인하지 못했습니다: ' + esc(String(e.message || e)) + '</p>'; }
     };
     $('dmAll').onclick = () => { modal.querySelectorAll('[data-dk]:not(:disabled)').forEach((c) => { c.checked = true; }); refresh(); };
     $('dmNone').onclick = () => { modal.querySelectorAll('[data-dk]').forEach((c) => { c.checked = false; }); refresh(); };

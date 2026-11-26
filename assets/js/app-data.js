@@ -320,6 +320,7 @@
     if (!G.storage) {   // 이 페이지에는 Storage 도구를 미리 넣지 않았으므로 필요할 때만 불러옴(속도)
       try { await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js'; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); }); G.storage = firebase.storage(); } catch (e) { return []; }
     }
+    try { G.storage.setMaxOperationRetryTime(8000); } catch (e) { /* 무시 */ }   // 저장소가 없거나 막혀 있으면 오래 다시 시도하지 않음
     const hit = [];
     const list = await G.storage.ref(folder).listAll();
     for (const it of list.items) { const m = await it.getMetadata(); if (inRange(toDate(new Date(m.timeCreated)), r)) hit.push(it); }
@@ -351,21 +352,31 @@
     add('budget', bud.length + shr.length + cards.length, bud.map((x) => ({ type: 'delete', col: 'data_budget', id: x._id })).concat(shr.map((x) => ({ type: 'delete', col: 'data_sheet_rows', id: x._id }))).concat(cards.map((x) => ({ type: 'delete', col: 'data_basic', id: x._id }))));
     const sup = (await getCol('data_supply')).filter((x) => { const m = str(x.supply_year).match(/\d{4}/); return !!m && parseInt(m[0], 10) === year; }); add('supply', sup.length, sup.map((x) => ({ type: 'delete', col: 'data_supply', id: x._id })));
     const ovs = (await getCol('data_overview')).filter((x) => x._id === 'r5_' + year); add('overview', ovs.length, ovs.map((x) => ({ type: 'delete', col: 'data_overview', id: x._id })));
-    const docsIn = async (col) => { try { return (await GP.db.collection(col).get()).docs.filter((d) => created(new Date(d.data().createdAt || 0))); } catch (e) { return []; } };
-    const imgs = await docsIn('data_images'); add('images', imgs.length, [], async () => { for (const d of imgs) await d.ref.delete(); });
-    const atts = await docsIn('data_files'); add('atts', atts.length, [], async () => { for (const d of atts) await d.ref.delete(); });
+    // 시간이 오래 걸릴 수 있는 확인(이미지·첨부파일·Storage)은 제한 시간을 두고 한꺼번에 돌립니다. 시간이 넘으면 그 항목만 '확인 못 함'.
+    const LIMIT = 15000, TIMEOUT = {};
+    const within = (p) => Promise.race([p, new Promise((res) => setTimeout(() => res(TIMEOUT), LIMIT))]);
+    const iso = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const docsIn = async (col) => {   // 그 학년도 기간에 만든 문서만 서버에서 골라 받음(전부 내려받지 않음). 안 되면 전체를 받아 거름
+      try { const q = GP.db.collection(col).where('createdAt', '>=', iso(r.start)).where('createdAt', '<', iso(addDays(r.end, 1))); return (await q.get()).docs.filter((d) => created(new Date(d.data().createdAt || 0))); }
+      catch (e) { try { return (await GP.db.collection(col).get()).docs.filter((d) => created(new Date(d.data().createdAt || 0))); } catch (e2) { return []; } }
+    };
+    const stFiles = (folders) => Promise.all(folders.map((f) => storageFilesIn(f, r).catch(() => []))).then((a) => [].concat(...a));
+    const [imgs, atts, cls, oth] = await Promise.all([within(docsIn('data_images')), within(docsIn('data_files')), within(stFiles(['classroom'])), within(stFiles(['special_room', 'extension', 'budget']))]);
+    const timedOut = (x) => x === TIMEOUT;
+    if (timedOut(imgs)) add('images', -1); else add('images', imgs.length, [], async () => { for (const d of imgs) await d.ref.delete(); });
+    if (timedOut(atts)) add('atts', -1); else add('atts', atts.length, [], async () => { for (const d of atts) await d.ref.delete(); });
     const ext = await getCfg('ext_file', null); const extHit = !!(ext && ext.updatedAt && created(new Date(ext.updatedAt)));
     add('ext', extHit ? 1 : 0, extHit ? [{ type: 'delete', col: 'app_config', id: 'ext_file' }].concat((ext.chunks || []).map((id) => ({ type: 'delete', col: 'data_files', id }))) : []);
     const cf = await getCfg('classroom_file', null); const cfHit = !!(cf && cf.updatedAt && created(new Date(cf.updatedAt)));
-    const cls = await storageFilesIn('classroom', r).catch(() => []);
-    add('classroom', cls.length + (cfHit ? 1 : 0), cfHit ? [{ type: 'delete', col: 'app_config', id: 'classroom_file' }].concat((cf.chunks || []).map((id) => ({ type: 'delete', col: 'data_files', id }))) : [], async () => { for (const it of cls) await it.delete(); });
-    const oth = []; for (const folder of ['special_room', 'extension', 'budget']) (await storageFilesIn(folder, r).catch(() => [])).forEach((it) => oth.push(it)); add('files', oth.length, [], async () => { for (const it of oth) await it.delete(); });
+    const clsList = timedOut(cls) ? [] : cls;
+    add('classroom', cls === TIMEOUT && !cfHit ? -1 : clsList.length + (cfHit ? 1 : 0), cfHit ? [{ type: 'delete', col: 'app_config', id: 'classroom_file' }].concat((cf.chunks || []).map((id) => ({ type: 'delete', col: 'data_files', id }))) : [], async () => { for (const it of clsList) await it.delete(); });
+    if (timedOut(oth)) add('files', -1); else add('files', oth.length, [], async () => { for (const it of oth) await it.delete(); });
     return plan;
   }
   async function previewDelete(year) { return (await planYear(year)).map((x) => ({ key: x.key, label: x.label, count: x.count })); }
   async function deleteYear(year, keys) {   // keys: 지울 항목(없으면 전부)
     const plan = (await planYear(year)).filter((x) => !keys || keys.indexOf(x.key) >= 0); const ops = []; const summary = {};
-    plan.forEach((x) => { ops.push(...x.ops); summary[x.label] = x.count; });
+    plan.forEach((x) => { if (x.count < 0) return; ops.push(...x.ops); summary[x.label] = x.count; });
     await commit(ops);
     for (const x of plan) if (x.after) await x.after();
     return summary;
