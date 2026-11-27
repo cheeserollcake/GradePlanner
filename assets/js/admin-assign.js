@@ -134,8 +134,7 @@
         '<div class="min-w-0 border rounded-lg bg-white p-2 text-xs leading-relaxed overflow-y-auto" style="flex:2 1 0;min-height:5.5rem;max-height:' + (40 + periods.length * 29) + 'px" data-msg="' + w + '"></div>' +
         '<div class="asg-side flex-col gap-2 shrink-0" style="width:9rem">' + (w === 0 ? btns : '') + '</div></div>').join('<div style="height:14px"></div>');
       const help = '<p class="text-xs text-slate-400">칸에 반 번호를 띄어 써서 입력합니다(예: <b>1 2 3</b> → 1반, 2반, 3반). 다른 일정과 겹치면 칸이 분홍색으로 바뀌고 오른쪽 안내 창에 무엇과 겹치는지 나옵니다. 회색 칸은 휴일이거나 조건에서 고르지 않은 요일·교시입니다(입력은 가능, 자동 배치는 건너뜀).</p>';
-      view.innerHTML = '<div class="space-y-5">' + cond + month + countBox + '<div class="' + CARD + '"><h3 class="font-bold">배정할 시간표 <span class="text-xs font-normal text-slate-400">5주</span></h3><div class="asg-top">' + btns + '</div>' + help + grid + '</div><div id="aBulk"></div></div>';
-      if (window.GPBulkTT) window.GPBulkTT.render(document.getElementById('aBulk'), { toast, esc, BTN, BTN_P, BTN_G, INP, CARD, onSaved: async () => { const y = window.scrollY; await loadEvents(); draw(); window.scrollTo(0, y); } });   // 맨 아래: 시간표 일괄 업로드
+      view.innerHTML = '<div class="space-y-5">' + cond + month + countBox + '<div class="' + CARD + '"><h3 class="font-bold">배정할 시간표 <span class="text-xs font-normal text-slate-400">5주</span></h3><div class="asg-top">' + btns + '</div>' + help + grid + '</div></div>';
       // 월간 일정: 첫 주 높이만큼만 보이게
       const m = document.getElementById('aMonth'), first = m.querySelector('.mw'); if (first) m.style.maxHeight = (first.offsetHeight + 12) + 'px';
       W.forEach((_, w) => paintWeek(w));

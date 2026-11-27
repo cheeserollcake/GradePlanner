@@ -120,28 +120,27 @@
     return head + list;
   }
 
-  function render(el, h) {
-    const { toast, BTN_G, BTN_P, CARD } = h;
-    const box = (side, title, desc, cols) => '<div class="border rounded-lg p-3 bg-slate-50 flex flex-col gap-2 min-w-0">' +
-      '<div class="font-bold">' + title + '</div><p class="text-xs text-slate-500 leading-relaxed">' + desc + '</p>' +
-      '<div class="text-xs text-slate-500">양식 열: ' + cols.map((c) => '<b>' + c.label + '</b>').join(' · ') + '</div>' +
-      '<div class="flex flex-wrap gap-2"><button data-bt="tpl-' + side + '" class="' + BTN_G + '">업로드 양식 받기</button><button data-bt="up-' + side + '" class="' + BTN_P + '">⬆ 일괄 업로드</button></div>' +
-      '<div data-bt-res="' + side + '" class="text-xs leading-relaxed bg-white border rounded p-2"' + (last[side] ? '' : ' style="display:none"') + '>' + last[side] + '</div></div>';
-    el.innerHTML = '<div class="' + CARD + '"><h3 class="font-bold">시간표 일괄 업로드 <span class="text-xs font-normal text-slate-400">엑셀(.xlsx)·CSV 파일 · 양식의 2번째 줄(예시)은 건너뜁니다</span></h3>' +
-      '<div class="grid md:grid-cols-2 gap-3">' +
-      box('gym', '체육 공간 시간표 일괄 업로드', '특별실 시간표의 체육 공간에 들어갑니다(월간 시간표·반별 일정 조회에도 표시). 한 칸(날짜·교시·공간)에 이미 반이 있으면 새 내용으로 바뀝니다. 반은 "1반, 2반"처럼 여러 개 적을 수 있습니다.', GYM_COLS) +
-      box('add', '강좌 일정 일괄 업로드', '강좌별 시간표 조회, 홈·개요의 학년 강사 일정, 월간 시간표, 반별 일정 조회에 나옵니다. 학급·교시는 쉼표로 여러 개 적을 수 있습니다(예: 6반, 7반 / 1교시, 3교시 → 모든 조합).', ADD_COLS) +
-      '</div><p class="text-xs text-slate-400 mt-2">날짜는 <b>2026년 05월 11일 (월)</b> 형식(2026-05-11도 됨). 휴일·주말·지금 학년도 밖 날짜, 없는 반·교시·공간이 적힌 줄은 건너뛰고 이유를 알려 줍니다.</p></div>';
-    const run = async (side, fn) => {
-      const b = el.querySelector('[data-bt="up-' + side + '"]'); b.disabled = true; const t = b.textContent; b.textContent = '올리는 중...';
-      try { const ok = await fn(toast); if (ok) { const r = el.querySelector('[data-bt-res="' + side + '"]'); r.innerHTML = last[side]; r.style.display = ''; if (h.onSaved) h.onSaved(); } }
+  // 한 칸(체육 공간 또는 강좌 일정)을 el 안에 그림. 관리자 > 시간표 설정 > 시간표 일괄 업로드 에서 씀
+  const INFO = {
+    gym: { title: '체육 공간 시간표', cols: GYM_COLS, file: '체육공간_시간표_업로드_양식', sheet: '체육 공간 시간표', fn: uploadGym,
+      desc: '한 줄에 한 칸: 날짜 · 반 · 교시 · 공간이름. 특별실 시간표의 체육 공간에 들어가고 월간 시간표·반별 일정 조회에도 나옵니다. 같은 날짜·교시·공간에 이미 반이 있으면 새 내용으로 바뀝니다. 반은 "1반, 2반"처럼 여러 개 적을 수 있습니다.' },
+    add: { title: '강좌 일정', cols: ADD_COLS, file: '강좌일정_업로드_양식', sheet: '강좌 일정', fn: uploadAdd,
+      desc: '한 줄에 강좌 하나: 날짜 · 학급 · 교시 · 강좌명. 학급·교시는 쉼표로 여러 개(예: 6반, 7반 / 1교시, 3교시 → 모든 조합). 강좌별 시간표 조회, 홈·개요의 학년 강사 일정, 월간 시간표, 반별 일정 조회에 나옵니다. 이미 있는 일정과 같으면 건너뜁니다.' }
+  };
+  function renderBox(el, side, h) {
+    const { toast, BTN_G } = h, o = INFO[side];
+    el.innerHTML = '<h3 class="font-semibold">' + o.title + '</h3><p class="text-sm text-slate-500">' + o.desc + '</p>' +
+      '<p class="text-xs text-slate-400">날짜는 <b>2026년 05월 11일 (월)</b> 형식(2026-05-11도 됨). 휴일·주말·학년도 밖 날짜와 없는 반·교시' + (side === 'gym' ? '·공간' : '') + '이 적힌 줄은 건너뛰고 이유를 알려 줍니다.</p>' +
+      '<div class="flex flex-wrap gap-2"><button data-bt="tpl" class="' + BTN_G + '">양식 다운로드 (.xlsx)</button><button data-bt="up" class="' + BTN_G + '">엑셀·CSV 업로드</button></div>' +
+      '<div data-bt="res" class="text-xs leading-relaxed bg-white border rounded p-2"' + (last[side] ? '' : ' style="display:none"') + '>' + last[side] + '</div>';
+    const q = (k) => el.querySelector('[data-bt="' + k + '"]');
+    q('tpl').onclick = () => { window.BulkUpload.template({ file: o.file, sheet: o.sheet, cols: o.cols }); toast('양식을 내려받았습니다.'); };
+    q('up').onclick = async () => {
+      const b = q('up'); b.disabled = true; const t = b.textContent; b.textContent = '올리는 중...';
+      try { const ok = await o.fn(toast); if (ok) { const r = q('res'); r.innerHTML = last[side]; r.style.display = ''; } }
       catch (e) { console.warn(e); toast('업로드하지 못했습니다: ' + (e && e.message ? e.message : e), true); }
       finally { b.disabled = false; b.textContent = t; }
     };
-    el.querySelector('[data-bt="tpl-gym"]').onclick = () => window.BulkUpload.template({ file: '체육공간_시간표_업로드_양식', sheet: '체육 공간 시간표', cols: GYM_COLS });
-    el.querySelector('[data-bt="tpl-add"]').onclick = () => window.BulkUpload.template({ file: '강좌일정_업로드_양식', sheet: '강좌 일정', cols: ADD_COLS });
-    el.querySelector('[data-bt="up-gym"]').onclick = () => run('gym', uploadGym);
-    el.querySelector('[data-bt="up-add"]').onclick = () => run('add', uploadAdd);
   }
-  window.GPBulkTT = { render };
+  window.GPBulkTT = { renderBox };
 })();

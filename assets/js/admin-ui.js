@@ -126,15 +126,13 @@
   }
 
 
-  // ---------------- 전담·강좌별 시간표 일괄 업로드 ----------------
+  // ---------------- 시간표 일괄 업로드: 전담 시간표 · 체육 공간(admin-bulktt.js) · 강좌 일정(admin-bulktt.js) ----------------
   const bulkHtml = () => '<div class="' + CARD + ' mt-5"><h2 class="font-bold text-lg">시간표 일괄 업로드 <span class="text-xs font-normal text-slate-400">양식을 내려받아 고친 뒤 올리면 한꺼번에 등록됩니다</span></h2>' +
-    '<div class="grid lg:grid-cols-2 gap-5">' +
+    '<style>.gp-bulk3{display:grid;gap:1.25rem;grid-template-columns:minmax(0,1fr)}.gp-bulk3>div{display:flex;flex-direction:column}.gp-bulk3>div>.flex-wrap{margin-top:auto;padding-top:.25rem}@media (min-width:1024px){.gp-bulk3{grid-template-columns:repeat(3,minmax(0,1fr))}}@media (min-width:640px) and (max-width:1023px){.gp-bulk3{grid-template-columns:repeat(2,minmax(0,1fr))}}</style><div class="gp-bulk3">' +
     '<div class="space-y-2 border rounded-xl p-4"><h3 class="font-semibold">전담 시간표</h3>' +
     '<p class="text-sm text-slate-500">전담 시간표 페이지와 같은 모양의 엑셀(.xlsx)입니다. 전담(과목·담당학급)·학기마다 시트가 하나씩 있고, 양식은 비어 있습니다. 칸에 학급 번호(예: 3 · 3반 · 과(6-3))를 적으면 등록되고, 비워 둔 칸은 지금 등록된 내용을 그대로 둡니다. 시트 이름과 표 모양은 바꾸지 마세요.</p>' +
     '<div class="flex flex-wrap gap-2"><button id="spTpl" class="' + BTN_G + '">양식 다운로드 (.xlsx)</button><label class="' + BTN_G + ' cursor-pointer">엑셀 업로드<input id="spUp" type="file" accept=".xlsx" class="hidden"></label></div></div>' +
-    '<div class="space-y-2 border rounded-xl p-4"><h3 class="font-semibold">강좌별 시간표 조회</h3>' +
-    '<p class="text-sm text-slate-500">한 줄에 강좌 하나: 날짜 · 학급 · 교시 · 강좌명. 학급과 교시는 쉼표로 여러 개 적을 수 있습니다(예: 1,2,3 / 4,5). 이미 있는 일정과 같으면 건너뜁니다. 엑셀(.xlsx)과 CSV 모두 올릴 수 있습니다.</p>' +
-    '<div class="flex flex-wrap gap-2"><button id="coTpl" class="' + BTN_G + '">양식 다운로드 (.xlsx)</button><label class="' + BTN_G + ' cursor-pointer">엑셀·CSV 업로드<input id="coUp" type="file" accept=".xlsx,.csv,text/csv" class="hidden"></label></div></div>' +
+    '<div id="bulkGym" class="space-y-2 border rounded-xl p-4"></div><div id="bulkAdd" class="space-y-2 border rounded-xl p-4"></div>' +
     '</div></div>';
   const saveXlsx = (sheets, fileName) => {
     const a = document.createElement('a'); a.href = URL.createObjectURL(XlsxLite.toBlob(sheets)); a.download = fileName; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
@@ -213,41 +211,8 @@
       toast('전담 시간표 ' + list.length + '칸을 반영했습니다.');
     });
 
-    // ---- 강좌별 시간표 조회 (추가 일정)
-    $('coTpl').onclick = () => guard(async () => {
-      const y = (await APP.getGeneral()).year;
-      saveXlsx([
-        { name: '강좌 일정', widths: [14, 18, 14, 30], freezeRow: 1, rows: [['날짜', '학급', '교시', '강좌명'].map((v) => ({ v, s: 'header' }))] },
-        { name: '작성 예시', widths: [14, 18, 14, 30], rows: [['날짜', '학급', '교시', '강좌명'].map((v) => ({ v, s: 'header' })), [y + '-11-02', '1,4,8', '4,5', '심폐소생술'], [y + '-11-09', '2반', '3', '우쿨렐레'], ['※ 이 시트는 읽지 않습니다. "강좌 일정" 시트에 같은 형식으로 적어 주세요.', '', '', '']].map((r, i) => r.map((v) => (i === 0 ? v : { v, s: 'text' }))) }
-      ], '강좌별시간표_양식.xlsx'); toast('양식을 내려받았습니다.');
-    });
-    $('coUp').onchange = (ev) => guard(async () => {
-      const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
-      let rows;
-      if (/\.xlsx$/i.test(f.name)) { const sh = (await ExtViewer.parseXlsx(new Uint8Array(await f.arrayBuffer()))); const s0 = sh.find((x) => x.name === '강좌 일정') || sh[0]; rows = []; for (let r = 0; r < s0.rows; r++) rows.push([0, 1, 2, 3].map((c) => cellOf(s0, r, c))); rows = rows.filter((r) => r.some((x) => x)); }
-      else rows = parseCSV(await readCsvFile(f));
-      const g = await APP.getGeneral(); const classes = g.classNames; const times = (await GP.readList('list_time')).map((i) => i.value);
-      const body = rows.length && /날짜|일자/.test(str(rows[0][0])) ? rows.slice(1) : rows;
-      const serial = (v) => (/^\d{5}$/.test(v) ? (() => { const d = new Date(Math.round((Number(v) - 25569) * 86400000)); return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); })() : null);
-      const tuples = [], bad = [];
-      body.forEach((c, i) => {
-        const line = (i + 2) + '행'; const raw = str(c[0]).trim(); const d = serial(raw) || toDate(raw); const name = str(c[3]).trim();
-        const cls = str(c[1]).split(/[,，、\s]+/).map((x) => x.trim()).filter(Boolean).map((x) => (/^\d+$/.test(x) ? (classes[+x - 1] || x + '반') : (classes.indexOf(x) < 0 && /^\d+반$/.test(x) && classes[parseInt(x, 10) - 1] ? classes[parseInt(x, 10) - 1] : x)));   // 학급 번호는 관리자에서 정한 학급 이름으로
-        const per = str(c[2]).split(/[,，、]+/).map((x) => x.trim()).filter(Boolean).map((x) => (/^\d+$/.test(x) ? (times[+x - 1] || x + '교시') : (/^\d+교시$/.test(x) ? (times[parseInt(x, 10) - 1] || x) : x)));
-        if (!d) return bad.push(line + ': 날짜를 읽을 수 없습니다. ("' + raw + '")');
-        if (!cls.length) return bad.push(line + ': 학급이 비어 있습니다.'); const wrong = cls.filter((x) => classes.indexOf(x) < 0); if (wrong.length) return bad.push(line + ': 없는 학급 ' + wrong.join(', '));
-        if (!per.length) return bad.push(line + ': 교시가 비어 있습니다.'); if (!name) return bad.push(line + ': 강좌명이 비어 있습니다.');
-        cls.forEach((k) => per.forEach((p) => tuples.push({ d, cls: k, per: p, name })));
-      });
-      if (bad.length) { alert('올릴 수 없는 줄이 있습니다. 고친 뒤 다시 올려 주세요.\n\n' + bad.slice(0, 15).join('\n') + (bad.length > 15 ? '\n… 외 ' + (bad.length - 15) + '건' : '')); return; }
-      if (!tuples.length) throw new Error('등록할 줄이 없습니다.');
-      const exist = new Set((await GP.getCol('data_add_timetable')).map((r) => { const d = GP.toDate(r.add_date); return d ? [GP.ymd(d), str(r.add_class).trim(), str(r.add_time).trim(), str(r.add_name).trim()].join('|') : ''; }));
-      const ops = []; const seen = new Set();
-      tuples.forEach((t) => { const k = [GP.ymd(t.d), t.cls, t.per, t.name].join('|'); if (exist.has(k) || seen.has(k)) return; seen.add(k); ops.push({ type: 'set', col: 'data_add_timetable', id: GP.newId('data_add_timetable'), data: { add_date: GP.appDate(t.d), add_class: t.cls, add_time: t.per, add_name: t.name } }); });
-      if (!ops.length) { toast('모두 이미 등록된 일정입니다.'); return; }
-      if (!confirm('강좌 일정 ' + ops.length + '건을 등록합니다. (이미 있는 ' + (tuples.length - ops.length) + '건은 건너뜀)\n\n계속할까요?')) return;
-      await GP.commit(ops); toast('강좌별 시간표 ' + ops.length + '건을 등록했습니다.');
-    });
+    // ---- 체육 공간 · 강좌 일정 (양식·업로드는 admin-bulktt.js)
+    if (window.GPBulkTT) { const hh = { toast, esc, BTN, BTN_P, BTN_G, INP, CARD }; window.GPBulkTT.renderBox($('bulkGym'), 'gym', hh); window.GPBulkTT.renderBox($('bulkAdd'), 'add', hh); }
   }
 
   // ================================================================ 2) 학년 기초 설정
