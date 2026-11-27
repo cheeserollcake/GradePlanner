@@ -335,23 +335,26 @@
   ];
   async function planYear(year) {
     const r = yearRange(year); const created = (d) => !!d && inRange(toDate(d), r); const cur = await G.curYear(); const plan = [];
-    const add = (key, count, ops, after) => plan.push({ key, label: YEAR_ITEMS.find((x) => x[0] === key)[1], count, ops: ops || [], after });
+    // ex: { rows: 엑셀로 내려받을 줄 목록, files: async () => [{ name, dataUrl | blob }] (내려받을 파일) }
+    const add = (key, count, ops, after, ex) => plan.push(Object.assign({ key, label: YEAR_ITEMS.find((x) => x[0] === key)[1], count, ops: ops || [], after, rows: [], files: null }, ex || {}));
     const dateCol = { school: ['data_task_school', 'task_school_date_start'], memo: ['data_task_memo', 'task_memo_date_start'], add: ['data_add_timetable', 'add_date'], sub: ['data_sub_timetable', 'sub_date'], gym: ['data_gym_timetable', 'gym_date'], room: ['data_room_timetable', 'room_date'] };
-    for (const [k, [c, f]] of Object.entries(dateCol)) { const hit = (await getCol(c)).filter((x) => inRange(toDate(x[f]), r)); add(k, hit.length, hit.map((x) => ({ type: 'delete', col: c, id: x._id }))); }
+    for (const [k, [c, f]] of Object.entries(dateCol)) { const hit = (await getCol(c)).filter((x) => inRange(toDate(x[f]), r)); add(k, hit.length, hit.map((x) => ({ type: 'delete', col: c, id: x._id })), null, { rows: hit }); }
     const basic = await getCol('data_basic'); const semRows = basic.filter((x) => str(x.semester).trim() && inRange(toDate(x.semester_start_date), r)); const holRows = basic.filter((x) => str(x.holiday).trim() && inRange(toDate(x.holiday_start_date), r));
     const sops = []; semRows.forEach((x) => sops.push(...basicStripOps([x], ['semester', 'semester_start_date', 'semester_end_date']))); holRows.forEach((x) => { if (!semRows.includes(x)) sops.push(...basicStripOps([x], ['holiday', 'holiday_start_date', 'holiday_end_date'])); });
-    add('sem', semRows.length + holRows.length, sops);
-    const cfgs = (await getCol('app_config')).filter((x) => x._id === 'year_' + year || x._id === 'space_open_' + year); add('cfg', cfgs.length, cfgs.map((x) => ({ type: 'delete', col: 'app_config', id: x._id })));
+    add('sem', semRows.length + holRows.length, sops, null, { rows: semRows.map((x) => ({ 구분: '학기', 이름: x.semester, 시작일: x.semester_start_date, 종료일: x.semester_end_date }))
+      .concat(holRows.map((x) => ({ 구분: '방학·휴일', 이름: x.holiday, 시작일: x.holiday_start_date, 종료일: x.holiday_end_date }))) });
+    const cfgs = (await getCol('app_config')).filter((x) => x._id === 'year_' + year || x._id === 'space_open_' + year); add('cfg', cfgs.length, cfgs.map((x) => ({ type: 'delete', col: 'app_config', id: x._id })), null, { rows: cfgRows(cfgs) });
     const groups = await getCfg('course_groups', []); const mineG = (g) => (g.year === undefined || g.year === null ? cur : Number(g.year)) === year; const keepG = groups.filter((g) => !mineG(g));
-    add('groups', groups.length - keepG.length, groups.length !== keepG.length ? [{ type: 'set', col: 'app_config', id: 'course_groups', data: { json: JSON.stringify(keepG), updatedAt: new Date().toISOString() } }] : []);
+    add('groups', groups.length - keepG.length, groups.length !== keepG.length ? [{ type: 'set', col: 'app_config', id: 'course_groups', data: { json: JSON.stringify(keepG), updatedAt: new Date().toISOString() } }] : [], null, { rows: groups.filter(mineG) });
     const yeared = async (col) => (await G.getColAll(col)).filter((x) => (x._year === undefined || x._year === null ? cur : Number(x._year)) === year);
-    const stu = await yeared('data_student'); add('student', stu.length, stu.map((x) => ({ type: 'delete', col: 'data_student', id: x._id })));
-    const btt = await yeared('data_basic_timetable'); add('basictt', btt.length, btt.map((x) => ({ type: 'delete', col: 'data_basic_timetable', id: x._id })));
+    const stu = await yeared('data_student'); add('student', stu.length, stu.map((x) => ({ type: 'delete', col: 'data_student', id: x._id })), null, { rows: stu });
+    const btt = await yeared('data_basic_timetable'); add('basictt', btt.length, btt.map((x) => ({ type: 'delete', col: 'data_basic_timetable', id: x._id })), null, { rows: btt });
     const bud = await yeared('data_budget'), shr = await yeared('data_sheet_rows');
     const cards = (await getCol('data_basic')).filter((x) => str(x.list_budget).trim() && Number(x.list_budget_year) === year && Object.keys(x).every((k) => k === '_id' || /^list_budget/.test(k)));   // 그 학년도 예산 카드(다른 값이 섞인 줄은 건드리지 않음)
-    add('budget', bud.length + shr.length + cards.length, bud.map((x) => ({ type: 'delete', col: 'data_budget', id: x._id })).concat(shr.map((x) => ({ type: 'delete', col: 'data_sheet_rows', id: x._id }))).concat(cards.map((x) => ({ type: 'delete', col: 'data_basic', id: x._id }))));
-    const sup = (await getCol('data_supply')).filter((x) => { const m = str(x.supply_year).match(/\d{4}/); return !!m && parseInt(m[0], 10) === year; }); add('supply', sup.length, sup.map((x) => ({ type: 'delete', col: 'data_supply', id: x._id })));
-    const ovs = (await getCol('data_overview')).filter((x) => x._id === 'r5_' + year); add('overview', ovs.length, ovs.map((x) => ({ type: 'delete', col: 'data_overview', id: x._id })));
+    add('budget', bud.length + shr.length + cards.length, bud.map((x) => ({ type: 'delete', col: 'data_budget', id: x._id })).concat(shr.map((x) => ({ type: 'delete', col: 'data_sheet_rows', id: x._id }))).concat(cards.map((x) => ({ type: 'delete', col: 'data_basic', id: x._id }))), null,
+      { rows: bud.map((x) => Object.assign({ 구분: '예산 내역' }, x)).concat(shr.map((x) => Object.assign({ 구분: '추가한 예산 페이지' }, x)), cards.map((x) => Object.assign({ 구분: '예산 카드' }, x))) });
+    const sup = (await getCol('data_supply')).filter((x) => { const m = str(x.supply_year).match(/\d{4}/); return !!m && parseInt(m[0], 10) === year; }); add('supply', sup.length, sup.map((x) => ({ type: 'delete', col: 'data_supply', id: x._id })), null, { rows: sup });
+    const ovs = (await getCol('data_overview')).filter((x) => x._id === 'r5_' + year); add('overview', ovs.length, ovs.map((x) => ({ type: 'delete', col: 'data_overview', id: x._id })), null, { rows: cfgRows(ovs) });
     // 시간이 오래 걸릴 수 있는 확인(이미지·첨부파일·Storage)은 제한 시간을 두고 한꺼번에 돌립니다. 시간이 넘으면 그 항목만 '확인 못 함'.
     const LIMIT = 15000, TIMEOUT = {};
     const within = (p) => Promise.race([p, new Promise((res) => setTimeout(() => res(TIMEOUT), LIMIT))]);
@@ -363,15 +366,79 @@
     const stFiles = (folders) => Promise.all(folders.map((f) => storageFilesIn(f, r).catch(() => []))).then((a) => [].concat(...a));
     const [imgs, atts, cls, oth] = await Promise.all([within(docsIn('data_images')), within(docsIn('data_files')), within(stFiles(['classroom'])), within(stFiles(['special_room', 'extension', 'budget']))]);
     const timedOut = (x) => x === TIMEOUT;
-    if (timedOut(imgs)) add('images', -1); else add('images', imgs.length, [], async () => { for (const d of imgs) await d.ref.delete(); });
-    if (timedOut(atts)) add('atts', -1); else add('atts', atts.length, [], async () => { for (const d of atts) await d.ref.delete(); });
+    const docFiles = (list) => ({ rows: list.map((d) => ({ 파일이름: d.data().name || d.id, 올린날짜: d.data().createdAt || '' })), files: async () => list.map((d) => ({ name: d.data().name || d.id, dataUrl: d.data().dataUrl || '' })).filter((f) => f.dataUrl) });
+    if (timedOut(imgs)) add('images', -1); else add('images', imgs.length, [], async () => { for (const d of imgs) await d.ref.delete(); }, docFiles(imgs));
+    if (timedOut(atts)) add('atts', -1); else add('atts', atts.length, [], async () => { for (const d of atts) await d.ref.delete(); }, docFiles(atts));
     const ext = await getCfg('ext_file', null); const extHit = !!(ext && ext.updatedAt && created(new Date(ext.updatedAt)));
-    add('ext', extHit ? 1 : 0, extHit ? [{ type: 'delete', col: 'app_config', id: 'ext_file' }].concat((ext.chunks || []).map((id) => ({ type: 'delete', col: 'data_files', id }))) : []);
+    add('ext', extHit ? 1 : 0, extHit ? [{ type: 'delete', col: 'app_config', id: 'ext_file' }].concat((ext.chunks || []).map((id) => ({ type: 'delete', col: 'data_files', id }))) : [], null,
+      extHit ? { rows: [{ 파일이름: ext.name || '', 올린날짜: ext.updatedAt || '' }], files: async () => [await chunkFile(ext)].filter(Boolean) } : null);
     const cf = await getCfg('classroom_file', null); const cfHit = !!(cf && cf.updatedAt && created(new Date(cf.updatedAt)));
     const clsList = timedOut(cls) ? [] : cls;
-    add('classroom', cls === TIMEOUT && !cfHit ? -1 : clsList.length + (cfHit ? 1 : 0), cfHit ? [{ type: 'delete', col: 'app_config', id: 'classroom_file' }].concat((cf.chunks || []).map((id) => ({ type: 'delete', col: 'data_files', id }))) : [], async () => { for (const it of clsList) await it.delete(); });
-    if (timedOut(oth)) add('files', -1); else add('files', oth.length, [], async () => { for (const it of oth) await it.delete(); });
+    add('classroom', cls === TIMEOUT && !cfHit ? -1 : clsList.length + (cfHit ? 1 : 0), cfHit ? [{ type: 'delete', col: 'app_config', id: 'classroom_file' }].concat((cf.chunks || []).map((id) => ({ type: 'delete', col: 'data_files', id }))) : [], async () => { for (const it of clsList) await it.delete(); },
+      { rows: (cfHit ? [{ 파일이름: cf.name || '', 올린날짜: cf.updatedAt || '' }] : []).concat(clsList.map((it) => ({ 파일이름: it.name, 올린날짜: '' }))), files: async () => [cfHit ? await chunkFile(cf) : null].concat(await stFetch(clsList)).filter(Boolean) });
+    if (timedOut(oth)) add('files', -1); else add('files', oth.length, [], async () => { for (const it of oth) await it.delete(); }, { rows: oth.map((it) => ({ 파일이름: it.name, 위치: it.fullPath })), files: async () => (await stFetch(oth)).filter(Boolean) });
     return plan;
+  }
+  // 설정 문서(json)를 '문서 · 항목 · 값' 줄로 풀어 씀
+  function cfgRows(docs) {
+    const out = [];
+    docs.forEach((d) => { let j = null; try { j = d.json ? JSON.parse(d.json) : null; } catch (e) { j = null; }
+      const o = j && typeof j === 'object' ? j : Object.fromEntries(Object.entries(d).filter(([k]) => k !== '_id'));
+      Object.keys(o).forEach((k) => out.push({ 문서: d._id, 항목: k, 값: o[k] })); });
+    return out;
+  }
+  async function chunkFile(meta) {   // data_files 에 조각으로 나눠 둔 파일(내선번호·교실 배치도)을 다시 합침
+    if (!meta || !meta.chunks || !meta.chunks.length) return null;
+    const parts = await Promise.all(meta.chunks.map((id) => GP.db.collection('data_files').doc(id).get()));
+    return { name: meta.name || 'file', dataUrl: 'data:' + (meta.mimeType || 'application/octet-stream') + ';base64,' + parts.map((d) => (d.exists ? d.data().data : '')).join('') };
+  }
+  async function stFetch(items) {   // 예전 방식(Storage) 파일: 받을 수 없으면 건너뜀
+    return Promise.all((items || []).map(async (it) => { try { const u = await it.getDownloadURL(); const res = await fetch(u); if (!res.ok) return null; return { name: it.name, blob: await res.blob() }; } catch (e) { return null; } }));
+  }
+  // ---- 고른 항목 내려받기: 데이터는 엑셀 한 파일(항목마다 시트), 이미지·파일이 있으면 함께 zip 으로 묶음
+  const FIELD = { task_school_name: '행사명', task_school_date_start: '시작일', task_school_date_end: '종료일', task_memo_name: '일정', task_memo_date_start: '시작일', task_memo_date_end: '종료일',
+    add_date: '날짜', add_class: '학급', add_time: '교시', add_name: '강좌명', sub_date: '날짜', sub_class: '학급', sub_time: '교시', sub_name: '과목',
+    gym_date: '날짜', gym_class: '반', gym_time: '교시', gym_place: '공간', room_date: '날짜', room_class: '반', room_time: '교시', room_place: '공간',
+    student_class: '반', student_num: '번호', student_name: '이름', student_gender: '성별', student_birth: '생년월일', student_memo: '기타',
+    budget_name: '예산', budget_product: '품명', budget_spec: '규격', budget_price: '단가', budget_num: '수량', budget_link: '링크', budget_memo: '비고', budget_progress: '진행', budget_pumui: '품의',
+    supply_year: '학년도', supply_semester: '학기', supply_sub: '과목', supply_product: '품명', supply_spec: '규격', supply_unit: '단위', supply_price: '단가', supply_class: '학급', supply_class_num: '학급 수량', supply_link: '링크',
+    list_budget: '예산 카드', list_budget_amount: '금액', list_budget_header: '머리글', list_budget_year: '학년도' };
+  const SKIP = { _id: 1, _year: 1, dataUrl: 1, data: 1 };
+  function sheetOf(it) {
+    const cols = []; it.rows.forEach((r) => Object.keys(r).forEach((k) => { if (!SKIP[k] && cols.indexOf(k) < 0) cols.push(k); }));
+    const val = (v) => { if (v === undefined || v === null) return ''; if (typeof v === 'number') return v; let t = typeof v === 'object' ? JSON.stringify(v) : String(v); if (t.length > 32000) t = t.slice(0, 32000) + '…(너무 길어 잘림)'; return t; };
+    const name = it.label.replace(/[\[\]:*?\/\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 31);
+    return { name, freezeRow: 1, widths: cols.map((k) => Math.min(40, Math.max(8, (FIELD[k] || k).length * 2 + 4, ...it.rows.slice(0, 50).map((r) => String(val(r[k])).length + 2)))),
+      rows: [cols.map((k) => ({ v: FIELD[k] || k, s: 'header' }))].concat(it.rows.map((r) => cols.map((k) => ({ v: val(r[k]), s: typeof r[k] === 'number' ? 'int' : 'text' })))) };
+  }
+  async function exportYear(year, keys, onStep) {
+    const step = (t, f) => { try { if (onStep) onStep(t, f); } catch (e) { /* 무시 */ } };
+    step('내려받을 데이터를 모으는 중...', 0.05);
+    const plan = (await planYear(year)).filter((x) => keys.indexOf(x.key) >= 0 && x.count > 0);
+    const sheets = plan.filter((x) => x.rows && x.rows.length).map(sheetOf);
+    const used = new Set(); sheets.forEach((sh) => { let n = sh.name, i = 2; while (used.has(n)) n = sh.name.slice(0, 28) + ' ' + i++; used.add(n); sh.name = n; });
+    const files = [], missed = []; const withFiles = plan.filter((x) => x.files); let k = 0;
+    for (const it of withFiles) {
+      step('파일을 모으는 중... (' + it.label + ')', 0.1 + 0.7 * (k++ / Math.max(1, withFiles.length)));
+      const folder = it.label.replace(/[\\/:*?"<>|]/g, ' ').trim(); const names = new Set();
+      let list = []; try { list = await it.files(); } catch (e) { console.warn(e); }
+      if (list.length < it.count && it.key !== 'classroom') missed.push(it.label + ' ' + (it.count - list.length) + '개');
+      for (const f of list) {
+        let bytes = null;
+        if (f.blob) bytes = new Uint8Array(await f.blob.arrayBuffer());
+        else if (f.dataUrl) { const b = atob(f.dataUrl.split(',')[1] || ''); bytes = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) bytes[i] = b.charCodeAt(i); }
+        if (!bytes) continue;
+        let nm = String(f.name || 'file').replace(/[\\/:*?"<>|]/g, '_'); if (!/\.[a-z0-9]{2,5}$/i.test(nm) && f.dataUrl) { const m = f.dataUrl.match(/^data:([^;,]+)/); const ext = m ? ({ 'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp', 'application/pdf': '.pdf' })[m[1]] || '' : ''; nm += ext; }
+        let fin = nm, n = 2; while (names.has(fin)) { fin = nm.replace(/(\.[^.]+)?$/, ' (' + n++ + ')$1'); } names.add(fin);
+        files.push({ name: folder + '/' + fin, bytes });
+      }
+    }
+    if (!sheets.length && !files.length) throw new Error('내려받을 내용이 없습니다.');
+    step('파일을 만드는 중...', 0.9);
+    const base = year + '학년도_데이터';
+    if (!files.length) return { blob: new Blob([window.XlsxLite.toBytes(sheets)], { type: window.XlsxLite.XLSX_MIME }), name: base + '.xlsx', missed };
+    const all = (sheets.length ? [{ name: base + '.xlsx', bytes: window.XlsxLite.toBytes(sheets) }] : []).concat(files);
+    return { blob: window.XlsxLite.zipBlob(all), name: base + '.zip', missed };
   }
   async function previewDelete(year) { return (await planYear(year)).map((x) => ({ key: x.key, label: x.label, count: x.count })); }
   async function deleteYear(year, keys, onStep) {   // keys: 지울 항목(없으면 전부), onStep(글, 진행 0~1): 진행 상황 알림
@@ -391,5 +458,5 @@
   }
 
   window.APP = { baseDate, dday, fmtDate, setYear, getVacations, renderDayCards, yearRange, yearOf, inRange, getGeneral, saveGeneral, holidayMap, buildSchedule, getDayState, saveDay, SEM_NAMES, getSemesterRows, saveSemesters,
-    listBaseItems, addBaseItems, updateBaseItem, deleteBaseItem, clearSemester, entryApplies, homeroomFor, syncTeachers, teacherNames, setTeacherNames, ensureTeachers, detectYears, deleteYear, previewDelete, migrateYearTags };
+    listBaseItems, addBaseItems, updateBaseItem, deleteBaseItem, clearSemester, entryApplies, homeroomFor, syncTeachers, teacherNames, setTeacherNames, ensureTeachers, detectYears, deleteYear, exportYear, previewDelete, migrateYearTags };
 })();

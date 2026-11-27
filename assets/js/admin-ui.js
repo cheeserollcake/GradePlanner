@@ -872,18 +872,19 @@
       '<label class="text-sm font-semibold">새 관리자 비밀번호<span class="block text-xs font-normal text-slate-400">이 관리자 페이지 접근용</span><input id="pwAdmin" type="password" autocomplete="new-password" class="' + INP + ' w-full mt-1"></label></div>' +
       '<div class="text-right"><button id="savePw" class="' + BTN_P + '">비밀번호 변경</button></div></div>' +
       '<div id="iconCard"></div>' +
-      '<div class="' + CARD + ' border-red-200"><h2 class="font-bold text-lg text-red-700">데이터 삭제</h2><p class="text-sm text-slate-500">선택한 학년도(2월 1일~다음 해 2월 말일)의 데이터 중 삭제할 항목을 팝업에서 골라 지웁니다.<br>학년도를 바꾸면 명렬표·기초시간표·예산·강좌·이미지·교실배치도·내선번호는 새 학년도에서 빈 화면으로 보이고, 이전 데이터는 여기서 삭제하기 전까지 남아 있습니다.<br><b>삭제되지 않음:</b> 쇼핑몰 ID, 바로가기, 비밀번호, 학급·과목·교시·공간 목록</p>' +
-      '<div class="flex gap-2 items-center"><select id="delYear" class="' + INP + '">' + years.map((y) => '<option value="' + y + '">' + y + '학년도</option>').join('') + '</select><button id="delBtn" class="' + BTN + ' bg-red-600 text-white hover:bg-red-700">과거 데이터 삭제</button></div></div>' +
+      '<div class="' + CARD + ' border-red-200"><h2 class="font-bold text-lg">데이터 삭제 및 다운로드</h2><p class="text-sm text-slate-500">선택한 학년도(2월 1일~다음 해 2월 말일)의 데이터 중 항목을 팝업에서 골라 <b>내려받거나</b>(엑셀, 이미지·파일이 있으면 zip) <b>지웁니다</b>. 지우기 전에 먼저 내려받아 보관해 두면 안전합니다.<br>학년도를 바꾸면 명렬표·기초시간표·예산·강좌·이미지·교실배치도·내선번호는 새 학년도에서 빈 화면으로 보이고, 이전 데이터는 여기서 삭제하기 전까지 남아 있습니다.<br><b>삭제되지 않음:</b> 쇼핑몰 ID, 바로가기, 비밀번호, 학급·과목·교시·공간 목록</p>' +
+      '<div class="flex gap-2 items-center"><select id="delYear" class="' + INP + '">' + years.map((y) => '<option value="' + y + '">' + y + '학년도</option>').join('') + '</select><button id="delBtn" class="' + BTN_P + '">삭제·다운로드할 항목 고르기</button></div></div>' +
       '<div class="' + CARD + '"><h2 class="font-bold text-lg">임시 저장 데이터 새로고침</h2><p class="text-sm text-slate-500">속도와 사용량을 줄이려고 기기에 저장해 둔 데이터는 앱에서 저장할 때마다 자동으로 갱신됩니다. 파이어베이스 콘솔에서 데이터를 직접 고쳤다면 이 버튼으로 모든 기기가 새로 받게 하세요.</p><button id="resetCache" class="' + BTN_G + '">모든 기기 데이터 새로고침</button></div></div>' +
       '<style>@keyframes gpSpin{to{transform:rotate(360deg)}}.gp-spin{width:44px;height:44px;border-radius:50%;border:4px solid #fee2e2;border-top-color:#dc2626;animation:gpSpin .8s linear infinite}.gp-bar{height:8px;border-radius:999px;background:#fee2e2;overflow:hidden}.gp-bar>i{display:block;height:100%;width:0;background:#dc2626;border-radius:999px;transition:width .3s}</style>' +
       '<div id="dm" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50"><div class="bg-white rounded-2xl p-5 w-full max-w-md space-y-3 max-h-[92vh] overflow-y-auto" style="position:relative">' +
       '<div id="dmBusy" role="status" aria-live="polite" style="display:none;position:absolute;inset:0;z-index:5;background:rgba(255,255,255,.94);border-radius:1rem;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center">' +
-      '<div class="gp-spin"></div><div id="dmBusyT" class="font-semibold text-slate-700">삭제하는 중...</div><div class="gp-bar" style="width:80%"><i id="dmBusyBar"></i></div><div class="text-xs text-slate-400">끝날 때까지 창을 닫거나 페이지를 나가지 마세요.</div></div><h3 class="font-bold text-lg text-red-700">삭제할 항목 선택</h3>' +
-      '<p class="text-sm text-slate-600"><b id="dmY"></b> 데이터 중 지울 항목을 체크하세요. <b>삭제하면 복구할 수 없습니다.</b></p>' +
+      '<div class="gp-spin"></div><div id="dmBusyT" class="font-semibold text-slate-700">삭제하는 중...</div><div class="gp-bar" style="width:80%"><i id="dmBusyBar"></i></div><div class="text-xs text-slate-400">끝날 때까지 창을 닫거나 페이지를 나가지 마세요.</div></div><h3 class="font-bold text-lg">삭제·다운로드할 항목 선택</h3>' +
+      '<p class="text-sm text-slate-600"><b id="dmY"></b> 데이터 중 내려받거나 지울 항목을 체크하세요.</p>' +
       '<div class="flex gap-2 text-xs"><button id="dmAll" type="button" class="' + BTN_G + ' !py-1">전체 선택</button><button id="dmNone" type="button" class="' + BTN_G + ' !py-1">전체 해제</button></div>' +
       '<div id="dmList" class="space-y-1 border rounded-lg p-2 max-h-72 overflow-y-auto text-sm"><p class="text-slate-400 p-2">확인 중...</p></div>' +
-      '<p class="text-sm text-slate-600">계속하려면 아래에 <b>과거 데이터 삭제</b> 를 입력하세요.</p><input id="dmIn" class="' + INP + ' w-full" placeholder="과거 데이터 삭제">' +
-      '<div class="flex justify-end gap-2"><button id="dmNo" class="' + BTN_G + '">취소</button><button id="dmYes" disabled class="' + BTN + ' bg-red-600 text-white disabled:opacity-40">선택한 항목 삭제</button></div></div></div>';
+      '<div class="flex flex-wrap items-center justify-between gap-2"><span class="text-xs text-slate-500">데이터는 엑셀(항목마다 시트), 이미지·파일은 함께 zip 으로 받습니다.</span><button id="dmDl" type="button" disabled class="' + BTN_P + ' disabled:opacity-40">⬇ 선택한 항목 다운로드</button></div>' +
+      '<div class="border-t pt-3 space-y-2"><p class="text-sm text-slate-600"><b class="text-red-700">지우기:</b> 계속하려면 아래에 <b>과거 데이터 삭제</b> 를 입력하세요. <b>삭제하면 복구할 수 없습니다.</b></p><input id="dmIn" class="' + INP + ' w-full" placeholder="과거 데이터 삭제"></div>' +
+      '<div class="flex justify-end gap-2"><button id="dmNo" class="' + BTN_G + '">닫기</button><button id="dmYes" disabled class="' + BTN + ' bg-red-600 text-white disabled:opacity-40">선택한 항목 삭제</button></div></div></div>';
     $('savePw').onclick = () => guard(async () => {
       const c = $('pwCur').value, a = $('pwAccess').value.trim(), b = $('pwAdmin').value.trim(); if (!a && !b) throw new Error('새 비밀번호를 입력하세요.');
       if (!c) throw new Error('지금 관리자 비밀번호를 입력하세요.');
@@ -895,9 +896,9 @@
     $('resetCache').onclick = () => guard(() => GP.resetCaches(), '모든 기기가 다음에 열 때 데이터를 새로 받습니다.');
     const modal = $('dm'); const show = (v) => { modal.classList.toggle('hidden', !v); modal.classList.toggle('flex', v); };
     const picked = () => [...modal.querySelectorAll('[data-dk]:checked')].map((c) => c.dataset.dk);
-    const refresh = () => { $('dmYes').disabled = $('dmIn').value.trim() !== '과거 데이터 삭제' || !picked().length; };
+    const refresh = () => { $('dmYes').disabled = $('dmIn').value.trim() !== '과거 데이터 삭제' || !picked().length; $('dmDl').disabled = !picked().length; };
     $('delBtn').onclick = async () => {
-      const y = parseInt($('delYear').value, 10); $('dmY').textContent = y + '학년도'; $('dmIn').value = ''; $('dmYes').disabled = true; $('dmList').innerHTML = '<p class="text-slate-400 p-2">확인 중...</p>'; show(true);
+      const y = parseInt($('delYear').value, 10); $('dmY').textContent = y + '학년도'; $('dmIn').value = ''; $('dmYes').disabled = true; $('dmDl').disabled = true; $('dmList').innerHTML = '<p class="text-slate-400 p-2">확인 중...</p>'; show(true);
       const slow = setTimeout(() => { const l = $('dmList'); if (l && /확인 중/.test(l.textContent)) l.innerHTML = '<p class="text-slate-400 p-2">확인 중... 데이터가 많으면 조금 걸립니다(최대 20초쯤).</p>'; }, 4000);
       try {
         const items = await APP.previewDelete(y); clearTimeout(slow);
@@ -910,7 +911,7 @@
     $('dmAll').onclick = () => { modal.querySelectorAll('[data-dk]:not(:disabled)').forEach((c) => { c.checked = true; }); refresh(); };
     $('dmNone').onclick = () => { modal.querySelectorAll('[data-dk]').forEach((c) => { c.checked = false; }); refresh(); };
     $('dmNo').onclick = () => { if (!deleting) show(false); }; $('dmIn').oninput = refresh;
-    const busy = (on, t, f) => { const b = $('dmBusy'); if (!b) return; const pn = b.parentElement; if (on && pn.style.overflow !== 'hidden') { pn.scrollTop = 0; pn.style.overflow = 'hidden'; } else if (!on) pn.style.overflow = ''; b.style.display = on ? 'flex' : 'none'; if (t) $('dmBusyT').textContent = t; if (f !== undefined) $('dmBusyBar').style.width = Math.round(f * 100) + '%'; };
+    const busy = (on, t, f, mode) => { const b = $('dmBusy'); if (!b) return; const pn = b.parentElement; if (on && pn.style.overflow !== 'hidden') { pn.scrollTop = 0; pn.style.overflow = 'hidden'; } else if (!on) pn.style.overflow = ''; b.style.display = on ? 'flex' : 'none'; const dl = mode === 'dl'; b.querySelector('.gp-spin').style.borderColor = dl ? '#e0e7ff' : ''; b.querySelector('.gp-spin').style.borderTopColor = dl ? '#4f46e5' : ''; $('dmBusyBar').style.background = dl ? '#4f46e5' : ''; b.querySelector('.gp-bar').style.background = dl ? '#e0e7ff' : ''; if (t) $('dmBusyT').textContent = t; if (f !== undefined) $('dmBusyBar').style.width = Math.round(f * 100) + '%'; };
     let deleting = false;
     $('dmYes').onclick = () => guard(async () => {
       const keys = picked(); if (!keys.length || deleting) return;
@@ -919,6 +920,16 @@
         const s = await APP.deleteYear(parseInt($('delYear').value, 10), keys, (t, f) => busy(true, t, f));
         busy(true, '삭제를 마쳤습니다.', 1); await new Promise((r) => setTimeout(r, 400)); show(false);
         toast('삭제 완료 (' + Object.keys(s).map((k) => k + ' ' + s[k]).join(', ') + ')'); renderData();
+      } finally { deleting = false; busy(false); $('dmNo').disabled = false; refresh(); }
+    });
+    $('dmDl').onclick = () => guard(async () => {
+      const keys = picked(); if (!keys.length || deleting) return;
+      deleting = true; $('dmYes').disabled = true; $('dmDl').disabled = true; $('dmNo').disabled = true; busy(true, '내려받을 데이터를 모으는 중...', 0, 'dl');
+      try {
+        const r = await APP.exportYear(parseInt($('delYear').value, 10), keys, (t, f) => busy(true, t, f, 'dl'));
+        const a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = r.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+        busy(true, '다운로드를 마쳤습니다.', 1, 'dl'); await new Promise((res) => setTimeout(res, 400));
+        toast(r.name + ' 파일을 내려받았습니다.' + (r.missed && r.missed.length ? ' (받지 못한 파일: ' + r.missed.join(', ') + ')' : ''), !!(r.missed && r.missed.length));
       } finally { deleting = false; busy(false); $('dmNo').disabled = false; refresh(); }
     });
     window.addEventListener('beforeunload', (e) => { if (deleting) { e.preventDefault(); e.returnValue = ''; } });
