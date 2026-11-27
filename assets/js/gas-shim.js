@@ -1197,6 +1197,20 @@
       return JSON.stringify({ success: true, data, currentSemester: s2 && today >= s2.start ? 2 : 1 });
     } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
   };
+  // 한 전담(과목(교사))의 한 학기 시간표를 통째로 지움: 그 화면 표에 보이는 칸(학기 주차 안·그 교사의 담당학급·교시)만
+  SERVER.clearSpecialTimetable = async function (label, semNo) {
+    try {
+      invalidate('data_sub_timetable');
+      const g = await generalCfg(); const tab = (await specialTabs(g)).get(label); const sems = await semestersOfYear(g.year);
+      const sem = sems.find((x) => x.name === semNo + '학기'); if (!tab || !sem) return JSON.stringify({ success: false, error: '전담 정보나 학기 기간을 찾지 못했습니다.' });
+      const classes = tabClasses(g, tab, semNo, sems), times = await periodLabels();
+      const from = firstMonday(sem); let last = from; while (addDays(last, 7) <= sem.end) last = addDays(last, 7); const to = addDays(last, 4);
+      const ops = (await getCol('data_sub_timetable')).filter((r) => { const d = toDate(r.sub_date); return d && d >= from && d <= to && str(r.sub_name) === tab.subject && classes.indexOf(str(r.sub_class)) >= 0 && times.indexOf(str(r.sub_time)) >= 0; })
+        .map((r) => ({ type: 'delete', col: 'data_sub_timetable', id: r._id }));
+      await commit(ops); invalidate('data_sub_timetable');
+      return JSON.stringify({ success: true, count: ops.length });
+    } catch (e) { return JSON.stringify({ success: false, error: e.toString() }); }
+  };
   SERVER.saveSpaceName = async function (label, space) {
     try {
       const g = await loadGeneral(); const m = str(label).match(/^(.*)\((.*)\)$/); if (!m) return JSON.stringify({ success: false });
