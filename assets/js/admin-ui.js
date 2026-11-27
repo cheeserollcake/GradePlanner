@@ -509,10 +509,10 @@
       view.querySelectorAll('[data-eedit]').forEach((b) => b.onclick = () => { editItem = items[+b.dataset.eedit]; draw(); });
       view.querySelectorAll('[data-edel]').forEach((b) => b.onclick = () => { if (confirm('이 일정을 삭제할까요?')) guard(async () => { await APP.deleteBaseItem(items[+b.dataset.edel]); await loadYearData(); draw(); }, '삭제되었습니다.'); });
       $('tpl').onclick = () => {   // 입력할 시트 + 작성 예시 시트
-        const H = ['학교 행사', '시작 날짜', '종료 날짜', '휴일 여부'].map((v) => ({ v, s: 'header' })), W = [26, 14, 14, 10];
+        const H = ['시작일', '종료일', '일정', '휴일 여부'].map((v) => ({ v, s: 'header' })), W = [14, 14, 26, 10];
         saveXlsx([
           { name: '기초 일정', widths: W, freezeRow: 1, rows: [H] },
-          { name: '작성 예시', widths: W, rows: [H, ['개학식', g.year + '-03-02', '', ''], ['중간고사', g.year + '-04-20', g.year + '-04-24', ''], ['전국동시지방선거', (g.year + 1) + '-06-03', '', '휴일'],
+          { name: '작성 예시', widths: W, rows: [H, [g.year + '-03-02', '', '개학식', ''], [g.year + '-04-20', g.year + '-04-24', '중간고사', ''], [(g.year + 1) + '-06-03', '', '전국동시지방선거', '휴일'],
             ['※ 이 시트는 읽지 않습니다. [기초 일정] 시트에 같은 형식으로 적어 주세요. 하루짜리 일정은 종료 날짜를 비우고, 쉬는 날은 휴일 여부에 "휴일"이라고 적습니다. 이미 등록된 일정(이름·날짜가 같은 것)은 건너뜁니다.']] }
         ], '기초일정_양식.xlsx'); toast('양식을 내려받았습니다.');
       };
@@ -521,9 +521,14 @@
         if (/\.xlsx$/i.test(f.name)) {   // 엑셀: [기초 일정] 시트(없으면 '작성 예시'가 아닌 첫 시트)
           const sh = await ExtViewer.parseXlsx(new Uint8Array(await f.arrayBuffer())); const s0 = sh.find((x) => x.name === '기초 일정') || sh.find((x) => x.name !== '작성 예시') || sh[0];
           const serial = (v) => (/^\d{5}$/.test(v) ? (() => { const d = new Date(Math.round((Number(v) - 25569) * 86400000)); return GP.ymd(new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())); })() : v);
-          rows = []; for (let i = 0; i < s0.rows; i++) rows.push([0, 1, 2, 3].map((c) => { const v = cellOf(s0, i, c); return c === 1 || c === 2 ? serial(v) : v; })); rows = rows.filter((x) => x.some((v) => v));
+          rows = []; for (let i = 0; i < s0.rows; i++) rows.push([0, 1, 2, 3].map((c) => serial(cellOf(s0, i, c))));   // 날짜 칸 위치는 머리글로 찾으므로 엑셀 날짜 숫자는 어느 칸이든 바꿈 rows = rows.filter((x) => x.some((v) => v));
         } else rows = parseCSV(await readCsvFile(f));
-        const body = rows.length && /학교|행사|일정/.test(rows[0][0]) ? rows.slice(1) : rows; const ok = [], bad = [];
+        // 머리글로 열을 찾음: 새 양식(시작일·종료일·일정·휴일 여부)과 예전 양식(학교 행사·시작 날짜·종료 날짜·휴일 여부) 모두
+        const hd = (rows[0] || []).map((v) => str(v).replace(/\s+/g, ''));
+        const fi = (re) => hd.findIndex((v) => re.test(v));
+        let body = rows, map = [0, 1, 2, 3];
+        if (hd.some((v) => /시작|종료|행사|일정|휴일/.test(v))) { body = rows.slice(1); const iS = fi(/시작/), iE = fi(/종료/), iN = fi(/행사|일정|이름/), iH = fi(/휴일/); map = [iN < 0 ? 0 : iN, iS < 0 ? 1 : iS, iE < 0 ? 2 : iE, iH < 0 ? 3 : iH]; }
+        body = body.map((c) => map.map((i) => c[i])); const ok = [], bad = [];
         const have = new Set(items.map((x) => [str(x.name).trim(), x.start ? GP.ymd(x.start) : '', GP.ymd(x.end || x.start)].join('|'))); let dup = 0;   // 이미 있는 일정은 건너뜀(기존 일정은 지우지 않음)
         body.forEach((c, i) => {
           const name = str(c[0]).trim(), a = toDate(c[1]), b = toDate(c[2]);
@@ -887,10 +892,8 @@
       '<p class="text-sm text-slate-600"><b id="dmY"></b> 데이터 중 내려받거나 지울 항목을 체크하세요.</p>' +
       '<div class="flex gap-2 text-xs"><button id="dmAll" type="button" class="' + BTN_G + ' !py-1">전체 선택</button><button id="dmNone" type="button" class="' + BTN_G + ' !py-1">전체 해제</button></div>' +
       '<div id="dmList" class="space-y-1 border rounded-lg p-2 max-h-72 overflow-y-auto text-sm"><p class="text-slate-400 p-2">확인 중...</p></div>' +
-      '<div id="dmHow" class="border rounded-lg p-2 text-sm bg-slate-50" style="display:none"><div class="font-semibold mb-1">예산·학습준비물 받는 방식</div><div class="flex flex-wrap" style="gap:.4rem 1.2rem">' +
-      [['orig', '원본', '예산 페이지 아래 표 그대로'], ['submit', '제출용', '연번·품명·규격·수량·단위·예상단가·예상금액·관련교과·비고 + 합계'], ['receive', '수령확인용', '연번·품명·규격·수량·단위·신청 학급']]
-        .map((o, i) => '<label class="inline-flex items-center" style="gap:.3rem" title="' + o[2] + '"><input type="radio" name="dmHow" value="' + o[0] + '"' + (i === 0 ? ' checked' : '') + '>' + o[1] + '</label>').join('') + '</div></div>' +
-      '<div class="flex flex-wrap items-center justify-between gap-2"><span class="text-xs text-slate-500">업로드 양식이 있는 항목은 그 양식 모양으로, 이미지·파일은 함께 zip 으로 받습니다.</span><button id="dmDl" type="button" disabled class="' + BTN_P + ' disabled:opacity-40">⬇ 선택한 항목 다운로드</button></div>' +
+      '<div class="flex flex-wrap items-center justify-between gap-2"><span class="text-xs text-slate-500">업로드 양식이 있는 항목은 그 양식 모양으로 받습니다. 학습준비물은 원본·제출용·수령확인용 시트가 모두 들어갑니다. 이미지·파일은 엑셀과 함께 zip 으로 받습니다(구글 스프레드시트에는 표만).</span>' +
+      '<div class="flex flex-wrap gap-2"><button id="dmDl" type="button" disabled class="' + BTN_P + ' disabled:opacity-40">⬇ 엑셀로 다운로드</button><button id="dmGs" type="button" disabled class="' + BTN + ' bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-40">구글 스프레드시트로 내보내기</button></div></div>' +
       '<div class="border-t pt-3 space-y-2"><p class="text-sm text-slate-600"><b class="text-red-700">지우기:</b> 계속하려면 아래에 <b>과거 데이터 삭제</b> 를 입력하세요. <b>삭제하면 복구할 수 없습니다.</b></p><input id="dmIn" class="' + INP + ' w-full" placeholder="과거 데이터 삭제"></div>' +
       '<div class="flex justify-end gap-2"><button id="dmNo" class="' + BTN_G + '">닫기</button><button id="dmYes" disabled class="' + BTN + ' bg-red-600 text-white disabled:opacity-40">선택한 항목 삭제</button></div></div></div>';
     $('savePw').onclick = () => guard(async () => {
@@ -904,17 +907,16 @@
     $('resetCache').onclick = () => guard(() => GP.resetCaches(), '모든 기기가 다음에 열 때 데이터를 새로 받습니다.');
     const modal = $('dm'); const show = (v) => { modal.classList.toggle('hidden', !v); modal.classList.toggle('flex', v); };
     const picked = () => [...modal.querySelectorAll('[data-dk]:checked')].map((c) => c.dataset.dk);
-    const NO_DL = ['cfg'];   // 담임·전담교사, 공간 개방 설정은 내려받지 않음
-    const refresh = () => { const p = picked(); $('dmYes').disabled = $('dmIn').value.trim() !== '과거 데이터 삭제' || !p.length; $('dmDl').disabled = !p.some((k) => NO_DL.indexOf(k) < 0);
-      $('dmHow').style.display = p.some((k) => k === 'budget' || k === 'supply') ? '' : 'none'; };
+    const NO_DL = ['cfg', 'groups'];   // 담임·전담교사, 공간 개방 설정 · 강좌별 시간표 범주는 내려받지 않음
+    const refresh = () => { const p = picked(); $('dmYes').disabled = $('dmIn').value.trim() !== '과거 데이터 삭제' || !p.length; $('dmDl').disabled = $('dmGs').disabled = !p.some((k) => NO_DL.indexOf(k) < 0); };
     $('delBtn').onclick = async () => {
-      const y = parseInt($('delYear').value, 10); $('dmY').textContent = y + '학년도'; $('dmIn').value = ''; $('dmYes').disabled = true; $('dmDl').disabled = true; $('dmList').innerHTML = '<p class="text-slate-400 p-2">확인 중...</p>'; show(true);
+      const y = parseInt($('delYear').value, 10); $('dmY').textContent = y + '학년도'; $('dmIn').value = ''; $('dmYes').disabled = true; $('dmDl').disabled = true; $('dmGs').disabled = true; $('dmList').innerHTML = '<p class="text-slate-400 p-2">확인 중...</p>'; show(true);
       const slow = setTimeout(() => { const l = $('dmList'); if (l && /확인 중/.test(l.textContent)) l.innerHTML = '<p class="text-slate-400 p-2">확인 중... 데이터가 많으면 조금 걸립니다(최대 20초쯤).</p>'; }, 4000);
       try {
         const items = await APP.previewDelete(y); clearTimeout(slow);
         if ($('dmY').textContent !== y + '학년도') return;   // 그 사이 다른 학년도를 다시 연 경우
         $('dmList').innerHTML = items.map((it) => { const unk = it.count < 0;
-          return '<label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 ' + (it.count > 0 ? '' : 'text-slate-400') + '"' + (unk ? ' title="시간 안에 개수를 확인하지 못해 이번에는 지울 수 없습니다. 잠시 뒤 다시 열어 보세요."' : '') + '><input type="checkbox" data-dk="' + it.key + '" ' + (it.count > 0 ? 'checked' : 'disabled') + ' class="w-4 h-4"><span class="flex-1">' + esc(it.label) + (it.key === 'cfg' ? ' <span class="text-xs text-slate-400">(삭제만, 다운로드 안 함)</span>' : '') + '</span><span class="text-xs">' + (unk ? '확인 못 함' : it.count + '건') + '</span></label>'; }).join('');
+          return '<label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 ' + (it.count > 0 ? '' : 'text-slate-400') + '"' + (unk ? ' title="시간 안에 개수를 확인하지 못해 이번에는 지울 수 없습니다. 잠시 뒤 다시 열어 보세요."' : '') + '><input type="checkbox" data-dk="' + it.key + '" ' + (it.count > 0 ? 'checked' : 'disabled') + ' class="w-4 h-4"><span class="flex-1">' + esc(it.label) + (it.key === 'cfg' || it.key === 'groups' ? ' <span class="text-xs text-slate-400">(삭제만, 다운로드 안 함)</span>' : '') + '</span><span class="text-xs">' + (unk ? '확인 못 함' : it.count + '건') + '</span></label>'; }).join('');
         modal.querySelectorAll('[data-dk]').forEach((c) => c.onchange = refresh); refresh();
       } catch (e) { clearTimeout(slow); console.error(e); $('dmList').innerHTML = '<p class="text-red-600 p-2">확인하지 못했습니다: ' + esc(String(e.message || e)) + '</p>'; }
     };
@@ -936,11 +938,25 @@
       const keys = picked(); if (!keys.length || deleting) return;
       deleting = true; $('dmYes').disabled = true; $('dmDl').disabled = true; $('dmNo').disabled = true; busy(true, '내려받을 데이터를 모으는 중...', 0, 'dl');
       try {
-        const how = (modal.querySelector('input[name=dmHow]:checked') || {}).value || 'orig';
-        const r = await APP.exportYear(parseInt($('delYear').value, 10), keys, (t, f) => busy(true, t, f, 'dl'), { budgetHow: how, subSheets: () => spSheets(true) });
+        const r = await APP.exportYear(parseInt($('delYear').value, 10), keys, (t, f) => busy(true, t, f, 'dl'), { subSheets: () => spSheets(true) });
         const a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = r.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
         busy(true, '다운로드를 마쳤습니다.', 1, 'dl'); await new Promise((res) => setTimeout(res, 400));
         toast(r.name + ' 파일을 내려받았습니다.' + (r.missed && r.missed.length ? ' (받지 못한 파일: ' + r.missed.join(', ') + ')' : ''), !!(r.missed && r.missed.length));
+      } finally { deleting = false; busy(false); $('dmNo').disabled = false; refresh(); }
+    });
+    $('dmGs').onclick = () => guard(async () => {
+      const keys = picked(); if (!keys.length || deleting) return;
+      if (!window.GSheet) throw new Error('구글 스프레드시트 도구를 불러오지 못했습니다.');
+      deleting = true; $('dmYes').disabled = true; $('dmDl').disabled = true; $('dmGs').disabled = true; $('dmNo').disabled = true; busy(true, '보낼 표를 모으는 중...', 0, 'dl');
+      try {
+        const y = parseInt($('delYear').value, 10);
+        const r = await APP.exportYear(y, keys, (t, f) => busy(true, t, f * 0.6, 'dl'), { subSheets: () => spSheets(true), sheetsOnly: true });
+        const out = await GSheet.create(y + '학년도 데이터', r.sheets, (t) => busy(true, t, 0.8, 'dl'));
+        busy(true, '스프레드시트를 만들었습니다.', 1, 'dl'); await new Promise((res) => setTimeout(res, 400));
+        try { window.open(out.url, '_blank', 'noopener'); } catch (e) { /* 팝업 막힘 */ }
+        toast('구글 스프레드시트를 만들었습니다(내 구글 드라이브).' + (r.fileItems ? ' 이미지·파일 ' + r.fileItems + '개는 엑셀 다운로드로 받아 주세요.' : ''));
+        const l = document.getElementById('dmGsLink'); if (l) l.remove();
+        $('dmGs').insertAdjacentHTML('afterend', '<a id="dmGsLink" href="' + esc(out.url) + '" target="_blank" rel="noopener" class="text-sm font-semibold text-indigo-600 underline self-center">스프레드시트 열기</a>');
       } finally { deleting = false; busy(false); $('dmNo').disabled = false; refresh(); }
     });
     window.addEventListener('beforeunload', (e) => { if (deleting) { e.preventDefault(); e.returnValue = ''; } });

@@ -2,11 +2,11 @@
 <html lang="ko">
 <head>
   <script>window.__GP_PAGE__ = 'p09';</script>
-  <script src="../assets/js/fb-boot.js?v=20261127h"></script>
+  <script src="../assets/js/fb-boot.js?v=20261127i"></script>
   
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127h">
-  <script src="../assets/js/firebase-config.js?v=20261127h"></script>
-  <script src="../assets/js/gas-shim.js?v=20261127h"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127i">
+  <script src="../assets/js/firebase-config.js?v=20261127i"></script>
+  <script src="../assets/js/gas-shim.js?v=20261127i"></script>
 
     <meta charset="UTF-8">
     <title>강좌별 시간표 조회</title>
@@ -81,7 +81,7 @@
         }
         .custom-select:focus { outline: none; border-color: #3b82f6; }
     </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261127h">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261127i">
 </head>
 <body class="text-gray-800 pb-10">
 
@@ -118,6 +118,10 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
+                </button>
+                <!-- 다운로드 버튼: 고른 강좌를 몇 월치 받을지 고름 -->
+                <button onclick="openDownload()" class="px-3 py-2 bg-white border-2 border-gray-200 rounded-lg hover:bg-blue-50 text-blue-600 font-bold text-sm shadow-sm flex items-center gap-1" title="고른 강좌 내려받기 (엑셀·구글 스프레드시트)">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>다운로드
                 </button>
             </div>
         </div>
@@ -409,16 +413,7 @@
                                 } else {
                                     const dayEvents = eventsByDate[exactDate] || [];
 
-                                    const matchedEvents = dayEvents.filter(ev => {
-                                        if (!String(ev.period).split(',').map(x => x.trim()).includes((window.__PN && window.__PN[p - 1]) || (p + '교시'))) return false;   // 교시 이름 기준
-                                        if (!selectedCourse) return false;
-
-                                        if (selectedCourse === '__ALL__') return true;
-                                        if (groupSet) return groupSet.has(ev.course);
-                                        if (isAll) return true;
-                                        if (isPartial) return ev.course.includes(selectedCourse);
-                                        return ev.course === selectedCourse;
-                                    });
+                                    const matchedEvents = dayEvents.filter(ev => String(ev.period).split(',').map(x => x.trim()).includes((window.__PN && window.__PN[p - 1]) || (p + '교시')) && courseMatches(ev, selectedCourse));   // 교시 이름 기준
 
                                     if (matchedEvents.length > 0) {
                                         const clsNo = (x) => { const m = String(x).match(/\d+/); return m ? parseInt(m[0], 10) : 9999; };
@@ -446,6 +441,16 @@
             }
         }
 
+        // 고른 강좌(전체 · 범주 · 강좌)에 해당하는 일정인지 — 화면과 다운로드가 같은 기준을 씀
+        function courseMatches(ev, sel) {
+            if (!sel) return false;
+            if (sel === '__ALL__') return true;
+            if (sel.startsWith('group::')) { const g = globalGroups.find(gr => 'group::' + gr.name === sel); return !!g && g.courses.indexOf(ev.course) >= 0; }
+            if (sel === globalSpecials.all) return true;
+            const partial = [globalSpecials.partial1, globalSpecials.partial2, globalSpecials.partial3, globalSpecials.partial4, globalSpecials.partial5, globalSpecials.partial6, globalSpecials.partial7].filter(k => k);
+            if (partial.includes(sel)) return String(ev.course).includes(sel);
+            return ev.course === sel;
+        }
         function formatDateJS(dateObj) {
             const y = dateObj.getFullYear();
             const m = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -459,5 +464,124 @@
         }
     </script>
 <div id="group-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex justify-center items-center p-4"><div class="bg-white rounded-xl shadow-xl w-full max-w-md p-4 max-h-[90vh] overflow-y-auto"><div class="flex justify-between items-center mb-3"><h3 class="font-bold">강좌 범주 관리</h3><button onclick="closeGroupModal()" class="text-gray-400 text-lg">✕</button></div><div id="group-modal-body"></div></div></div>
+<script src="../assets/js/xlsx-lite.js?v=20261127i"></script>
+<script src="../assets/js/gsheet-export.js?v=20261127i"></script>
+<script>
+// ======================= 다운로드 (엑셀 / 구글 스프레드시트) =======================
+//  시트1 달력: 화면처럼 월별 달력 + 교시 칸 (반, 강좌)
+//  시트2 목록: 날짜 / 반 / 교시 / 강좌이름 (같은 날짜·교시·강좌면 반을 묶고, 반 구성이 같으면 교시도 묶음)
+//  시트3 주간 시간표: 전담 시간표처럼 주·기간 열 + 요일·교시 머리글, 칸에는 반만
+(function () {
+  const MONTHS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2];
+  const DAYK = ['월', '화', '수', '목', '금'];
+  const PN = () => (window.__PN && window.__PN.length ? window.__PN : [1, 2, 3, 4, 5, 6].map(n => n + '교시'));
+  const yOf = (m) => (window.__YEAR__ || new Date().getFullYear()) + (m <= 2 ? 1 : 0);
+  const pad = (n) => String(n).padStart(2, '0');
+  const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const addD = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  const monOf = (d) => addD(d, -((d.getDay() + 6) % 7));
+  const clsNo = (x) => { const m = String(x).match(/\d+/); return m ? parseInt(m[0], 10) : 9999; };
+  const byCls = (a, b) => clsNo(a) - clsNo(b) || String(a).localeCompare(String(b));
+  const selName = (sel) => sel === '__ALL__' ? '전체' : sel.startsWith('group::') ? sel.slice(7) : sel;
+  const perList = (ev) => String(ev.period).split(',').map(x => x.trim()).filter(Boolean);
+  function eventsOf(sel, months) {   // 고른 달의 해당 일정 [{d, date, classNm, period, course}]
+    const set = new Set(months.map(m => yOf(m) + '-' + pad(m))), out = [];
+    Object.keys(eventsByDate).forEach(k => { if (!set.has(k.slice(0, 7))) return; eventsByDate[k].forEach(ev => { if (courseMatches(ev, sel)) perList(ev).forEach(p => out.push({ date: k, classNm: ev.classNm, period: p, course: ev.course })); }); });
+    return out;
+  }
+  const C = (v, s, bg) => { const c = { v: v == null ? '' : v, s: s || 'center' }; if (bg) c.bg = bg; return c; };
+  function calendarSheet(sel, months) {
+    const pn = PN(), rows = [], merges = []; const evs = eventsOf(sel, months); const at = {};
+    evs.forEach(e => { const k = e.date + '|' + e.period; (at[k] = at[k] || new Map()); const m = at[k]; if (!m.has(e.course)) m.set(e.course, []); if (m.get(e.course).indexOf(e.classNm) < 0) m.get(e.course).push(e.classNm); });
+    months.forEach((mo, mi) => {
+      const y = yOf(mo), first = new Date(y, mo - 1, 1), start = monOf(first);
+      if (mi) rows.push([]);
+      merges.push('A' + (rows.length + 1) + ':F' + (rows.length + 1)); rows.push([C(y + '년 ' + mo + '월 · ' + selName(sel), 'titleC')].concat([1, 2, 3, 4, 5].map(() => C('', 'titleC'))));
+      rows.push(['구분'].concat(DAYK.map(d => d + '요일')).map(v => C(v, 'totalLabel')));
+      for (let w = 0; w < 6; w++) {
+        const days = DAYK.map((_, i) => addD(start, w * 7 + i)); if (w && !days.some(d => d.getMonth() === mo - 1)) break;
+        rows.push([C('날짜', 'totalLabel')].concat(days.map(d => d.getMonth() === mo - 1 ? C(d.getDate() + '일', 'totalLabel') : C('', 'center', '#F3F4F6'))));
+        pn.forEach((p, pi) => {
+          const band = pi % 2 === 0 ? (w % 2 ? '#FFF2CC' : '#CFE2F3') : '';
+          rows.push([C(p, 'center', band || '#F8FAFC')].concat(days.map(d => {
+            if (d.getMonth() !== mo - 1) return C('', 'center', '#F3F4F6');
+            const k = ymd(d), hol = globalHolidays[k]; if (hol) return C(hol, 'center', '#FCE7F3');
+            const m = at[k + '|' + p]; if (!m) return C('', 'center', band);
+            return C([...m.entries()].map(([c, cls]) => cls.sort(byCls).join(', ') + ' ' + c).join('\n'), 'center', band);
+          })));
+        });
+      }
+    });
+    return { name: '달력', widths: [9, 24, 24, 24, 24, 24], freezeRow: 0, merges, rows };
+  }
+  function listSheet(sel, months) {
+    const pn = PN(), pi = (p) => { const i = pn.indexOf(p); return i < 0 ? 999 : i; };
+    const byP = new Map(); eventsOf(sel, months).forEach(e => { const k = e.date + '|' + e.period + '|' + e.course; let g = byP.get(k); if (!g) { g = { date: e.date, p: e.period, course: e.course, cls: [] }; byP.set(k, g); } if (g.cls.indexOf(e.classNm) < 0) g.cls.push(e.classNm); });
+    const merged = new Map(); byP.forEach(g => { const cls = g.cls.sort(byCls).join(', '), k = g.date + '|' + g.course + '|' + cls; let m = merged.get(k); if (!m) { m = { date: g.date, course: g.course, cls, ps: [] }; merged.set(k, m); } if (m.ps.indexOf(g.p) < 0) m.ps.push(g.p); });
+    const DW = ['일', '월', '화', '수', '목', '금', '토'];
+    const day = (s) => { const [y, m, d] = s.split('-').map(Number), dt = new Date(y, m - 1, d); return y + '년 ' + pad(m) + '월 ' + pad(d) + '일 (' + DW[dt.getDay()] + ')'; };
+    const list = [...merged.values()].map(m => Object.assign(m, { ps: m.ps.sort((a, b) => pi(a) - pi(b)) })).sort((a, b) => a.date.localeCompare(b.date) || pi(a.ps[0]) - pi(b.ps[0]) || a.course.localeCompare(b.course));
+    return { name: '목록', widths: [22, 24, 16, 22], freezeRow: 1, rows: [['날짜', '반', '교시', '강좌이름'].map(v => C(v, 'header'))].concat(list.map(m => [C(day(m.date), 'text'), C(m.cls, 'text'), C(m.ps.join(', '), 'text'), C(m.course, 'text')])) };
+  }
+  function weekSheet(sel, months) {
+    const pn = PN(), np = pn.length, at = {}; eventsOf(sel, months).forEach(e => { const k = e.date + '|' + e.period; (at[k] = at[k] || []); if (at[k].indexOf(e.classNm) < 0) at[k].push(e.classNm); });
+    const inSel = new Set(months.map(m => yOf(m) + '-' + pad(m)));
+    const sorted = months.slice().sort((a, b) => yOf(a) * 100 + a - (yOf(b) * 100 + b));
+    const first = new Date(yOf(sorted[0]), sorted[0] - 1, 1), lastM = sorted[sorted.length - 1], last = new Date(yOf(lastM), lastM, 0);
+    const head1 = [C('주', 'header'), C('기간', 'header')], head2 = [C('', 'header'), C('', 'header')], merges = ['A1:A2', 'B1:B2'];
+    DAYK.forEach((d, i) => { pn.forEach((p, j) => { head1.push(C(j ? '' : d + '요일', 'header')); head2.push(C(String(p).replace(/교시$/, ''), 'header')); }); merges.push(XlsxLite.colName(2 + i * np) + '1:' + XlsxLite.colName(2 + i * np + np - 1) + '1'); });
+    const rows = [head1, head2]; let w = 0;
+    for (let mon = monOf(first); mon <= last; mon = addD(mon, 7)) {
+      const days = DAYK.map((_, i) => addD(mon, i)); if (!days.some(d => inSel.has(ymd(d).slice(0, 7)))) continue; w++;
+      const fri = days[4], row = [C(w, 'center'), C((mon.getMonth() + 1) + '/' + mon.getDate() + '~' + (fri.getMonth() + 1) + '/' + fri.getDate(), 'center')];
+      days.forEach(d => { const k = ymd(d), out = !inSel.has(k.slice(0, 7)), hol = globalHolidays[k];
+        pn.forEach(p => { if (out) row.push(C('', 'center', '#F3F4F6')); else if (hol) row.push(C('', 'center', '#FCE7F3')); else { const c = at[k + '|' + p]; row.push(C(c ? c.sort(byCls).join(', ') : '', 'center')); } }); });
+      rows.push(row);
+    }
+    return { name: '주간 시간표', widths: [5, 12].concat(Array(5 * np).fill(7)), freezeRow: 2, merges, rows };
+  }
+  function build(sel, months) { return [calendarSheet(sel, months), listSheet(sel, months), weekSheet(sel, months)]; }
+
+  window.openDownload = function () {
+    const sel = document.getElementById('course-select').value;
+    if (!sel || !Object.keys(eventsByDate).length) return alert('불러온 강좌 일정이 없습니다.');
+    const has = {}; MONTHS.forEach(m => { has[m] = eventsOf(sel, [m]).length; });
+    const cur = parseInt(document.getElementById('month-select').value, 10);
+    const old = document.getElementById('dlDlg'); if (old) old.remove();
+    const m = document.createElement('div'); m.id = 'dlDlg'; m.className = 'fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50';
+    m.innerHTML = '<div class="bg-white rounded-2xl p-5 w-full max-w-md space-y-3 shadow-xl" role="dialog" aria-modal="true">' +
+      '<h3 class="font-bold text-lg">내려받기 · <span class="text-blue-600">' + escHtml(selName(sel)) + '</span></h3>' +
+      '<p class="text-sm text-gray-600">받을 달을 고르세요. 이 강좌 일정이 있는 달만 고를 수 있습니다.</p>' +
+      '<div class="flex gap-2 text-xs"><button id="dlAll" type="button" class="px-3 py-1 rounded-lg bg-gray-100 font-semibold">있는 달 모두</button><button id="dlNone" type="button" class="px-3 py-1 rounded-lg bg-gray-100 font-semibold">모두 해제</button></div>' +
+      '<div class="grid grid-cols-4 gap-2">' + MONTHS.map(mo => '<label class="flex items-center gap-1 border rounded-lg px-2 py-1.5 text-sm ' + (has[mo] ? 'cursor-pointer' : 'text-gray-300 bg-gray-50') + '" title="' + (has[mo] ? has[mo] + '칸' : '일정 없음') + '"><input type="checkbox" class="dl-m" value="' + mo + '"' + (has[mo] ? '' : ' disabled') + (has[mo] && mo === cur ? ' checked' : '') + '>' + mo + '월</label>').join('') + '</div>' +
+      '<p class="text-xs text-gray-400">시트 3개: 달력(화면 모양) · 목록(날짜/반/교시/강좌이름) · 주간 시간표(주·기간 × 요일·교시, 칸에는 반)</p>' +
+      '<p id="dlMsg" class="text-sm"></p>' +
+      '<div class="flex flex-wrap justify-end gap-2"><button id="dlNo" type="button" class="px-4 py-2 rounded-lg bg-gray-100 text-sm font-semibold">닫기</button>' +
+      '<button id="dlGs" type="button" class="px-4 py-2 rounded-lg bg-white border border-gray-300 text-sm font-semibold disabled:opacity-40">구글 스프레드시트로</button>' +
+      '<button id="dlXl" type="button" class="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold disabled:opacity-40">엑셀로 내려받기</button></div></div>';
+    document.body.appendChild(m);
+    const q = (id) => m.querySelector('#' + id), picked = () => [...m.querySelectorAll('.dl-m:checked')].map(x => +x.value);
+    const sync = () => { const n = picked().length; q('dlXl').disabled = q('dlGs').disabled = !n; };
+    if (!picked().length) { const f = MONTHS.find(mo => has[mo]); if (f) m.querySelector('.dl-m[value="' + f + '"]').checked = true; }
+    m.querySelectorAll('.dl-m').forEach(c => { c.onchange = sync; }); sync();
+    q('dlAll').onclick = () => { m.querySelectorAll('.dl-m:not(:disabled)').forEach(c => { c.checked = true; }); sync(); };
+    q('dlNone').onclick = () => { m.querySelectorAll('.dl-m').forEach(c => { c.checked = false; }); sync(); };
+    const close = () => { document.removeEventListener('keydown', key); m.remove(); }, key = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', key); m.addEventListener('mousedown', (e) => { if (e.target === m) close(); }); q('dlNo').onclick = close;
+    const file = () => (selName(sel) + '_' + picked().map(x => x + '월').join('·')).replace(/[\\/:*?"<>|]/g, '_');
+    const msg = (t, bad) => { q('dlMsg').className = 'text-sm ' + (bad ? 'text-red-600' : 'text-gray-600'); q('dlMsg').innerHTML = t; };
+    q('dlXl').onclick = () => {
+      try { const sh = build(sel, picked()); const a = document.createElement('a'); a.href = URL.createObjectURL(XlsxLite.toBlob(sh)); a.download = file() + '.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000); msg('엑셀 파일(' + escHtml(file()) + '.xlsx)을 내려받았습니다.'); }
+      catch (e) { console.error(e); msg('만들지 못했습니다: ' + escHtml(e.message || e), true); }
+    };
+    q('dlGs').onclick = async () => {
+      q('dlGs').disabled = true;
+      try { const r = await GSheet.create(file().replace(/_/g, ' '), build(sel, picked()), (t) => msg(escHtml(t))); msg('스프레드시트를 만들었습니다. <a class="underline font-semibold text-blue-600" target="_blank" rel="noopener" href="' + escHtml(r.url) + '">열기</a> (내 구글 드라이브)'); }
+      catch (e) { console.error(e); msg('스프레드시트로 보내지 못했습니다: ' + escHtml(e.message || e), true); }
+      sync();
+    };
+  };
+})();
+</script>
 </body>
 </html>

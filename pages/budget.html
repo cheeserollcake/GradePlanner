@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>예산</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127h">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127i">
   <script>window.__GP_PAGE__ = 'budget';</script>
-  <script src="../assets/js/fb-boot.js?v=20261127h"></script>
-  <script src="../assets/js/firebase-config.js?v=20261127h"></script>
-  <script src="../assets/js/gas-shim.js?v=20261127h"></script>
-  <script src="../assets/js/app-data.js?v=20261127h"></script>
-  <script src="../assets/js/dnd.js?v=20261127h"></script>
-  <script src="../assets/js/xlsx-lite.js?v=20261127h"></script>
-  <script src="../assets/js/gsheet-export.js?v=20261127h"></script>
+  <script src="../assets/js/fb-boot.js?v=20261127i"></script>
+  <script src="../assets/js/firebase-config.js?v=20261127i"></script>
+  <script src="../assets/js/gas-shim.js?v=20261127i"></script>
+  <script src="../assets/js/app-data.js?v=20261127i"></script>
+  <script src="../assets/js/dnd.js?v=20261127i"></script>
+  <script src="../assets/js/xlsx-lite.js?v=20261127i"></script>
+  <script src="../assets/js/gsheet-export.js?v=20261127i"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     /* ---- 구글 스프레드시트 느낌의 표 ---- */
@@ -83,8 +83,14 @@
     .sheet .addin { position:sticky; left:0; text-align:center; }
     .colx { position:absolute; right:2px; top:1px; font-size:11px; color:#9aa0a6; display:none; line-height:1; }
     .sheet th:hover .colx { display:block; } .colx:hover { color:#b91c1c; }
-  </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261127h">
+    .ex-bar { flex:1 1 auto; min-width:40px; height:8px; border-radius:999px; background:rgba(255,255,255,.75); box-shadow:inset 0 0 0 1px rgba(0,0,0,.06); overflow:hidden; margin-left:auto; }
+  .ex-bar > i { display:block; height:100%; border-radius:999px; transition:width .5s ease; }
+  .ex-pct { flex-shrink:0; font-size:11px; font-weight:700; color:#475569; min-width:2.6em; text-align:right; }
+  @keyframes supShine { 0% { background-position:-150% 0; } 100% { background-position:250% 0; } }
+  .sup-zero { background:linear-gradient(110deg,#fef08a 0%,#fde047 40%,#fffbeb 50%,#fde047 60%,#fef08a 100%) !important; background-size:250% 100% !important; animation:supShine 2.2s linear infinite; border-color:#facc15 !important; }
+  @media (prefers-reduced-motion:reduce) { .sup-zero { animation:none; } }
+</style>
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261127i">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
   <div class="max-w-7xl mx-auto space-y-4">
@@ -311,11 +317,16 @@ function classFilter(cls) {
 window.__gpClassChanged = (sel) => { if (classFilter(sel && sel.name ? String(sel.name) : '')) { renderFilters(); renderGrid(); } };
 function renderAll() { renderTabs(); renderCards(); renderSupplyBox(); renderFilters(); renderTools(); renderGrid(); }
 
+function execBar(c) {   // 예산 이름 오른쪽 집행 막대 (사용액 ÷ 배정액)
+  const a = num(c.assigned), u = num(c.used); if (!(a > 0)) return '';
+  const r = u / a, w = Math.max(0, Math.min(1, r));
+  return '<span class="ex-bar" title="집행률 ' + Math.round(r * 100) + '% (' + fmt(u) + ' / ' + fmt(a) + ')"><i style="width:' + (w * 100).toFixed(1) + '%;background:linear-gradient(90deg,' + rateBar(Math.max(0, w - 0.25)) + ',' + rateBar(w) + ')"></i></span><span class="ex-pct">' + Math.round(r * 100) + '%</span>';
+}
 async function renderCards() {
   const box = $('cards'); const pg = mode;   // 카드는 관리자 > 예산 설정에서 이 예산 페이지에 표시하기로 한 것만 나옵니다.
   const all = (await GP.buildBudgetCards(pg)); if (pg !== mode) return;
   const cards = all.filter((c) => c.kind !== 'classStats'), stats = all.filter((c) => c.kind === 'classStats');
-  box.innerHTML = cards.map((c, i) => '<div class="border border-slate-200 rounded-xl p-3 shadow-sm" style="background:' + esc(c.color || cardColor(c.name) || CARD_PALETTE[i % CARD_PALETTE.length]) + '"><div class="font-bold text-sm border-b border-black/10 pb-1 mb-1">' + esc(c.name) + '</div>' +
+  box.innerHTML = cards.map((c, i) => '<div class="border border-slate-200 rounded-xl p-3 shadow-sm" style="background:' + esc(c.color || cardColor(c.name) || CARD_PALETTE[i % CARD_PALETTE.length]) + '"><div class="flex items-center gap-2 font-bold text-sm border-b border-black/10 pb-1 mb-1"><span class="min-w-0 truncate">' + esc(c.name) + '</span>' + execBar(c) + '</div>' +
     '<div class="flex justify-between text-xs"><span>배정액</span><b>' + fmt(c.assigned) + '</b></div><div class="flex justify-between text-xs"><span>사용액</span><b>' + fmt(c.used) + '</b></div>' +
     '<div class="flex justify-between text-sm mt-1 pt-1 border-t border-black/10"><span>잔액</span><b class="' + (c.balance < 0 ? 'text-red-600' : 'text-blue-700') + '">' + fmt(c.balance) + '</b></div></div>').join('') +
     '<div class="flex items-end"><button id="cardAdmin" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600 border border-indigo-100" title="관리자 페이지로 이동 (예산 카드 관리)" aria-label="관리자"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 2.5h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7v-.2a2 2 0 0 0-2-2Z" /><circle cx="12" cy="12" r="3" /></svg></button></div>';
@@ -782,6 +793,12 @@ $('pickOk').onclick = () => {
 $('pickModal').addEventListener('keydown', (e) => { if (e.key === 'Escape') closePick(); });
 
 // ======================= 학습준비물 상단: 총액·학년공통사용액·반별배부액·학급별 사용액 =======================
+// 집행률(0~1) → 색. 카드 배경용(연한 색): 분홍(0) → 파랑(0.5) → 연두(1)
+const lerp = (a, b, t) => a + (b - a) * t;
+function rateHue(t, h0, h1, h2) { t = Math.max(0, Math.min(1, t)); return t < 0.5 ? lerp(h0, h1, t / 0.5) : lerp(h1, h2, (t - 0.5) / 0.5); }
+const rateBg = (t) => 'hsl(' + rateHue(t, 335, 215, 90).toFixed(0) + ',85%,90%)';
+// 예산 카드 집행 막대: 빨강(0) → 파랑(0.5) → 초록(1)
+const rateBar = (t) => 'hsl(' + rateHue(t, 360, 220, 140).toFixed(0) + ',75%,52%)';
 function supplyStats(kind) {
   const rows = allRows(kind), cls = classNames(), use = {}; let common = 0; cls.forEach((c) => { use[c] = 0; });
   rows.forEach((r) => { const p = num(r.supply_price); parseSup(r).forEach((x) => { if (x.c === '학년공통') common += p * x.n; else if (x.c in use) use[x.c] += p * x.n; }); });
@@ -803,7 +820,7 @@ function renderSupplyBox() {
       '<div class="' + CARD + '"><div class="text-xs font-semibold text-slate-500">반별배부액<span class="font-normal text-slate-400 hidden sm:inline"> (총액 − 학년공통) ÷ 학급수</span></div><div id="supAlloc" class="mt-2 text-right font-bold text-sm sm:text-lg"></div></div>' +
       '<div class="' + CARD + '"><div class="text-xs font-semibold text-slate-500">잔액<span class="font-normal text-slate-400 hidden sm:inline"> (총액 − 표의 금액 합계)</span></div><div id="supRemain" class="mt-2 text-right font-bold text-sm sm:text-lg"></div></div></div>' +
       '<div id="supClasses" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2"></div>' +
-      '<p class="text-xs text-slate-400">학급별 사용액은 표의 수량 칸(학급별 수량)으로 계산합니다. 반별배부액보다 1,000원 이상 많으면 빨간 글씨, 정확히 같으면 회색 배경으로 보입니다.</p>';
+      '<p class="text-xs text-slate-400">학급별 사용액은 표의 수량 칸(학급별 수량)으로 계산합니다. 카드 색은 반별배부액 대비 집행률(적게 씀 분홍 → 보통 파랑 → 다 써 감 연두)이고, 잔액이 0원이면 노랑으로 반짝, 마이너스면 빨간 글씨입니다.</p>';
     box.querySelectorAll('[data-sem]').forEach((b) => b.onclick = () => setMode('supply' + b.dataset.sem));
     const t = $('supTotal');
     t.onfocus = () => { t.value = t.value.replace(/,/g, ''); setTimeout(() => { try { t.select(); } catch (e) { /* 무시 */ } }, 0); };
@@ -812,8 +829,12 @@ function renderSupplyBox() {
   }
   const st = supplyStats(kind), t = $('supTotal'); if (document.activeElement !== t) t.value = st.total ? fmt(st.total) : '';
   $('supCommon').textContent = fmt(st.common); $('supAlloc').textContent = fmt(st.alloc); const rm = $('supRemain'); rm.textContent = fmt(st.remain); rm.style.color = st.remain < 0 ? '#dc2626' : '';
-  $('supClasses').innerHTML = st.cls.map((c) => { const u = st.use[c], over = u - st.alloc >= 1000, same = u === st.alloc && st.alloc > 0;
-    return '<div class="border border-slate-200 rounded-lg px-3 py-2 ' + (same ? '' : 'bg-white') + '" style="' + (same ? 'background:#e5e7eb' : '') + '"><div class="text-xs font-semibold text-slate-500">' + esc(c) + '</div><div class="text-right font-bold ' + (over ? 'text-red-600' : '') + '">' + fmt(u) + '</div></div>'; }).join('');
+  // 반별 카드 색: 반별배부액 대비 집행률 0% 분홍 → 50% 파랑 → 100% 연두(사이는 부드럽게). 잔액 0원이면 노랑 반짝, 잔액이 마이너스면 빨간 글자
+  $('supClasses').innerHTML = st.cls.map((c) => { const u = st.use[c], left = st.alloc - u, rate = st.alloc > 0 ? u / st.alloc : 0;
+    const zero = st.alloc > 0 && left === 0, minus = st.alloc > 0 && left < 0;
+    const bg = zero ? '' : 'background:' + rateBg(Math.min(1, rate));
+    return '<div class="sup-cc border border-slate-200 rounded-lg px-3 py-2' + (zero ? ' sup-zero' : '') + '" style="' + bg + '" title="반별배부액 ' + fmt(st.alloc) + '원 중 ' + Math.round(rate * 100) + '% 사용 · 잔액 ' + fmt(left) + '원"><div class="flex justify-between text-xs font-semibold text-slate-600"><span>' + esc(c) + '</span><span class="font-normal">' + (st.alloc > 0 ? Math.round(rate * 100) + '%' : '') + '</span></div>' +
+      '<div class="text-right font-bold' + (minus ? ' text-red-600' : '') + '">' + fmt(u) + '</div><div class="text-right text-xs' + (minus ? ' text-red-600 font-bold' : ' text-slate-500') + '">잔액 ' + fmt(left) + '</div></div>'; }).join('');
 }
 
 // ======================= 관리자 페이지로 가기 (비밀번호 확인) =======================
@@ -995,10 +1016,37 @@ async function buildExport() {
   return { fileName: safeSheetName(kind.name).replace(/\s+/g, '_') + '_' + label, title: label + ' ' + g.grade + '학년 ' + kind.name, sheets: [sheet] };
 }
 
+// 학습준비물 화면에서 내보낼 때: 원본 · 제출용 · 수령확인용 중 고름 (다른 예산 페이지는 바로 원본)
+function askSupplyHow() {
+  return new Promise((resolve) => {
+    const old = document.getElementById('howDlg'); if (old) old.remove();
+    const m = document.createElement('div'); m.id = 'howDlg'; m.className = 'fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50';
+    const opt = (v, t, d, on) => '<label class="flex items-start gap-3 border rounded-xl p-3 cursor-pointer hover:bg-slate-50"><input type="radio" name="howR" value="' + v + '"' + (on ? ' checked' : '') + ' style="margin-top:3px"><span><b class="text-sm">' + t + '</b><span class="block text-xs text-slate-500">' + d + '</span></span></label>';
+    m.innerHTML = '<div class="bg-white rounded-2xl p-5 w-full max-w-md space-y-3 shadow-xl" role="dialog" aria-modal="true"><h3 class="font-bold text-lg">학습준비물 내보내기 방식</h3>' +
+      opt('orig', '원본', '화면 아래 표 그대로 (+ 학급별 사용액 시트)', true) + opt('submit', '제출용', '연번·품명·규격·수량·단위·예상단가·예상금액·관련교과·비고(링크) + 합계 줄') + opt('receive', '수령확인용', '연번·품명·규격·수량·단위·신청 학급') +
+      '<div class="flex justify-end gap-2"><button id="howNo" type="button" class="px-4 py-2 rounded-lg bg-slate-100 text-sm font-semibold">취소</button><button id="howOk" type="button" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold">내보내기</button></div></div>';
+    document.body.appendChild(m);
+    const done = (v) => { document.removeEventListener('keydown', key); m.remove(); resolve(v); };
+    const key = (e) => { if (e.key === 'Escape') done(null); }; document.addEventListener('keydown', key);
+    m.addEventListener('mousedown', (e) => { if (e.target === m) done(null); });
+    m.querySelector('#howNo').onclick = () => done(null);
+    m.querySelector('#howOk').onclick = () => done((m.querySelector('input[name=howR]:checked') || {}).value || 'orig');
+  });
+}
+async function buildExportAsk() {
+  const kind = kindOf(mode); if (!kind.sem) return buildExport();
+  const how = await askSupplyHow(); if (!how) return null;
+  if (how === 'orig') return buildExport();
+  const g = await APP.getGeneral(); window.__budgetGrade = g.grade || window.__budgetGrade || '';
+  let rows = viewRows(kind).slice().sort(byOrder); if (!rows.length) rows = allRows(kind).slice().sort(byOrder);
+  const nm = safeSheetName(kind.name), tag = how === 'submit' ? '제출용' : '수령확인용';
+  const sheet = how === 'submit' ? exSubmit(kind, rows, nm) : exReceive(kind, rows, nm);
+  return { fileName: '학습준비물' + kind.sem + '학기_' + tag + '_' + g.year + '학년도', title: g.year + '학년도 ' + g.grade + '학년 학습준비물 ' + kind.sem + '학기 (' + tag + ')', sheets: [sheet] };
+}
 async function exportXlsx() {
   const btn = $('btn-xlsx'); btn.disabled = true;
   try {
-    const ex = await buildExport(); const blob = XlsxLite.toBlob(ex.sheets);
+    const ex = await buildExportAsk(); if (!ex) { btn.disabled = false; return; } const blob = XlsxLite.toBlob(ex.sheets);
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = ex.fileName + '.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
     exportMsg('엑셀 파일(' + esc(ex.fileName) + '.xlsx)을 내려받았습니다.', 'ok');
   } catch (e) { console.error(e); exportMsg('엑셀로 내보내지 못했습니다: ' + esc(e.message), 'err'); }
@@ -1008,7 +1056,7 @@ async function exportXlsx() {
 async function exportGoogle() {
   const btn = $('btn-gsheet'); btn.disabled = true;
   try {
-    const ex = await buildExport();
+    const ex = await buildExportAsk(); if (!ex) { btn.disabled = false; return; }
     const r = await GSheet.create(ex.title, ex.sheets, (t) => exportMsg(t));
     exportMsg('스프레드시트를 만들었습니다. <a class="underline font-semibold" target="_blank" rel="noopener" href="' + esc(r.url) + '">' + esc(ex.title) + ' 열기</a> (내 구글 드라이브에 저장됨)', 'ok');
   } catch (e) { console.error(e); exportMsg('스프레드시트로 내보내지 못했습니다: ' + esc(e.message), 'err'); }

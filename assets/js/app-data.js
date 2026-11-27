@@ -241,62 +241,71 @@
   // ------------------------------------------------------------ 학년도 진행 현황 (홈: 날짜 카드 아래)
   //  막대: [1학기 시작 ~ 1학기 종료] [여름방학] [2학기 시작 ~ 2학기 종료]. 학기 부분은 날짜 수에 비례, 여름방학은 글씨가 들어가도록 일정한 폭.
   //  수업일 = 학기 기간 안의 평일 중 휴일이 아닌 날. 걸어가는 사람이 오늘 위치에 있습니다.
-  // 걷는 사람 그림: 바꾼 그림은 app_assets/walker 문서에, 바뀐 번호만 설정(walker_icon)에 둠. 기기에 사본을 두고 번호가 바뀔 때만 다시 받음
-  const WALK_KEY = () => 'gp_walker_' + (G.gradePrefix || '');
-  async function walkerSrc() {
-    const meta = await getCfg('walker_icon', null); if (!meta || !meta.v) return '';
-    try { const c = JSON.parse(localStorage.getItem(WALK_KEY()) || 'null'); if (c && c.v === meta.v && c.src) return c.src; } catch (e) { /* 사본 없음 */ }
-    try { const d = await G.db.collection('app_assets').doc('walker').get(); const src = d.exists ? d.data().dataUrl || '' : '';
-      try { localStorage.setItem(WALK_KEY(), JSON.stringify({ v: meta.v, src })); } catch (e) { /* 공간 부족 */ } return src; } catch (e) { return ''; }
+  // 기본 걷는 사람 (오른쪽을 보고 팔다리를 번갈아 흔듦)
+  const DEF_WALKER = '<svg viewBox="0 0 40 56" width="34" height="48" aria-hidden="true"><g class="tp-bob">' +
+      '<g class="tp-leg tp-l1"><rect x="16" y="33" width="6" height="16" rx="3" fill="#1d4ed8"/><rect x="15" y="47" width="10" height="5" rx="2.5" fill="#1e3a8a"/></g>' +
+      '<g class="tp-leg tp-l2"><rect x="18" y="33" width="6" height="16" rx="3" fill="#2563eb"/><rect x="17" y="47" width="10" height="5" rx="2.5" fill="#1e40af"/></g>' +
+      '<g class="tp-arm tp-a1"><rect x="10" y="19" width="5" height="13" rx="2.5" fill="#1d4ed8"/></g>' +
+      '<rect x="12" y="17" width="16" height="19" rx="5" fill="#3b82f6"/><rect x="14" y="25" width="12" height="2" rx="1" fill="#fff" opacity=".9"/>' +
+      '<g class="tp-arm tp-a2"><rect x="25" y="19" width="5" height="13" rx="2.5" fill="#2563eb"/></g>' +
+      '<circle cx="20" cy="9" r="7.5" fill="#fcd9b6"/><path d="M12.5 9.5a7.5 7.5 0 0 1 14.6-3.2c-3.6-.9-7.2.2-9.3 2.9-.6 1.6-1.3 3.4-2.6 4.3-1.3-.9-2.4-2.3-2.7-4z" fill="#1e293b"/><circle cx="24" cy="9.5" r="1" fill="#1e293b"/><path d="M23 13c1 .6 2 .6 3 0" stroke="#c2410c" stroke-width=".9" fill="none" stroke-linecap="round"/></g></svg>';
+  // 걷는 사람 그림: 이 브라우저에만 저장(IndexedDB). 사람마다 자기가 올린 그림을 골라 씀 — 다른 사람·다른 기기에는 영향 없음
+  //  목록: 기본 그림 + 내가 올린 그림 최대 19개(합쳐서 20개). 고른 그림은 localStorage(gp_walker_sel)에 기억
+  const WALK_LIMIT = 19, WALK_MAX = 2 * 1024 * 1024;
+  function walkDb() {
+    return new Promise((res, rej) => { if (!window.indexedDB) return rej(new Error('이 브라우저는 그림 저장을 지원하지 않습니다.'));
+      const r = indexedDB.open('gp_walkers', 1); r.onupgradeneeded = () => { r.result.createObjectStore('items', { keyPath: 'id' }); }; r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error || new Error('그림 저장소를 열 수 없습니다.')); });
   }
-  const WALK_MAX = 700 * 1024;   // 저장 한도(문서 1MB) 안에 들어가도록
+  async function walkTx(mode, fn) { const db = await walkDb(); return new Promise((res, rej) => { const t = db.transaction('items', mode), st = t.objectStore('items'); let out; Promise.resolve(fn(st)).then((v) => { out = v; }); t.oncomplete = () => { db.close(); res(out); }; t.onerror = () => { db.close(); rej(t.error); }; }); }
+  const walkList = () => walkTx('readonly', (st) => new Promise((res) => { const q = st.getAll(); q.onsuccess = () => res((q.result || []).sort((a, b) => a.at - b.at)); q.onerror = () => res([]); })).catch(() => []);
+  const walkSel = (v) => { try { if (v === undefined) return localStorage.getItem('gp_walker_sel') || 'default'; localStorage.setItem('gp_walker_sel', v); } catch (e) { return 'default'; } return v; };
+  async function walkerSrc() { const sel = walkSel(); if (sel === 'default') return ''; const it = (await walkList()).find((x) => x.id === sel); return it ? it.src : ''; }
   const fileToDataUrl = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error('파일을 읽을 수 없습니다.')); r.readAsDataURL(f); });
   async function shrinkStill(dataUrl) {   // 움직이지 않는 그림은 높이 120px 로 줄여 저장
     const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('그림을 열 수 없습니다.')); i.src = dataUrl; });
     const k = Math.min(1, 120 / im.height), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(im.width * k)); c.height = Math.max(1, Math.round(im.height * k));
     c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); return c.toDataURL('image/png');
   }
-  function walkerDialog(cur, onDone) {
+  function walkerDialog(defSvg, onDone) {
     const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const old = document.getElementById('tpDlg'); if (old) old.remove();
     const m = document.createElement('div'); m.id = 'tpDlg'; m.className = 'fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50'; m.style.zIndex = '250';
-    const prev = (src) => src ? '<img src="' + esc(src) + '" alt="" style="height:64px;width:auto;max-width:140px;object-fit:contain">' : '<span class="text-sm text-slate-400">기본 그림(파란 옷을 입은 사람)</span>';
-    m.innerHTML = '<div class="bg-white rounded-2xl p-5 w-full max-w-md space-y-3 shadow-xl" role="dialog" aria-modal="true">' +
-      '<h3 class="font-bold text-lg">걷는 사람 그림 바꾸기</h3>' +
-      '<p class="text-sm text-slate-600">진행 막대 위에서 걷는 그림을 바꿉니다. <b>움직이는 GIF</b>를 올리면 막대 위에서도 그대로 움직입니다. PNG·JPG도 됩니다.</p>' +
-      '<div class="border rounded-lg p-3 flex items-center justify-center" style="min-height:90px;background:repeating-conic-gradient(#f1f5f9 0 25%,#fff 0 50%) 0 0/16px 16px" id="tpPrev">' + prev(cur) + '</div>' +
-      '<p class="text-xs text-slate-400">배경이 투명한 그림이 자연스럽습니다. 파일은 700KB 이하로 올려 주세요. 모든 기기의 홈 화면에 함께 바뀝니다.</p>' +
-      '<p id="tpErr" class="text-sm text-red-600" style="display:none"></p>' +
-      '<div class="flex flex-wrap gap-2"><button id="tpPick" type="button" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">🖼 그림 고르기</button>' +
-      (cur ? '<button id="tpReset" type="button" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-red-600 hover:bg-slate-200">기본 그림으로</button>' : '') + '</div>' +
-      '<div class="flex justify-end gap-2"><button id="tpNo" type="button" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">취소</button>' +
-      '<button id="tpOk" type="button" disabled class="px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40">저장</button></div></div>';
+    m.innerHTML = '<style>.wk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:8px;max-height:46vh;overflow-y:auto;padding:2px}' +
+      '.wk-t{position:relative;height:84px;border:2px solid #e2e8f0;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:repeating-conic-gradient(#f1f5f9 0 25%,#fff 0 50%) 0 0/14px 14px}' +
+      '.wk-t:hover{border-color:#a5b4fc}.wk-t.on{border-color:#4f46e5;box-shadow:0 0 0 3px #e0e7ff}.wk-t img{max-height:60px;max-width:66px;object-fit:contain}' +
+      '.wk-x{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:999px;border:0;background:rgba(15,23,42,.6);color:#fff;font-size:12px;line-height:20px;cursor:pointer}.wk-x:hover{background:#dc2626}' +
+      '.wk-add{border-style:dashed;background:#fff;color:#4f46e5;font-size:12px;font-weight:700;flex-direction:column;gap:2px}.wk-on{position:absolute;left:4px;bottom:3px;font-size:10px;font-weight:800;color:#4f46e5;background:#fff;border-radius:6px;padding:0 4px}</style>' +
+      '<div class="bg-white rounded-2xl p-5 w-full max-w-lg space-y-3 shadow-xl" role="dialog" aria-modal="true"><h3 class="font-bold text-lg">걷는 사람 그림</h3>' +
+      '<p class="text-sm text-slate-600">누른 그림으로 바로 바뀝니다. <b>이 브라우저에만</b> 저장되어 나에게만 보입니다(다른 사람·다른 기기는 그대로). 움직이는 <b>GIF</b>도 그대로 움직입니다.</p>' +
+      '<div class="wk-grid" id="wkGrid"></div><p class="text-xs text-slate-400" id="wkInfo"></p><p id="wkErr" class="text-sm text-red-600" style="display:none"></p>' +
+      '<div class="flex justify-end"><button id="wkClose" type="button" class="px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700">닫기</button></div></div>';
     document.body.appendChild(m);
-    const q = (id) => m.querySelector('#' + id); let picked = null, reset = false, busy = false;
-    const err = (t) => { q('tpErr').textContent = t; q('tpErr').style.display = t ? '' : 'none'; };
-    const close = () => { if (busy) return; document.removeEventListener('keydown', key); m.remove(); };
-    const key = (e) => { if (e.key === 'Escape') close(); }; document.addEventListener('keydown', key);
-    m.addEventListener('mousedown', (e) => { if (e.target === m) close(); }); q('tpNo').onclick = close;
-    q('tpPick').onclick = () => { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none';
+    const q = (id) => m.querySelector('#' + id), err = (t) => { q('wkErr').textContent = t || ''; q('wkErr').style.display = t ? '' : 'none'; };
+    const close = () => { document.removeEventListener('keydown', key); m.remove(); }; const key = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', key); m.addEventListener('mousedown', (e) => { if (e.target === m) close(); }); q('wkClose').onclick = close;
+    async function draw() {
+      const list = await walkList(), sel = walkSel(), full = list.length >= WALK_LIMIT;
+      q('wkGrid').innerHTML = '<div class="wk-t' + (sel === 'default' || !list.some((x) => x.id === sel) ? ' on' : '') + '" data-id="default" title="기본 그림">' + defSvg + '<span class="wk-on">기본</span></div>' +
+        list.map((x) => '<div class="wk-t' + (x.id === sel ? ' on' : '') + '" data-id="' + esc(x.id) + '" title="' + esc(x.name || '') + '"><img src="' + esc(x.src) + '" alt=""><button type="button" class="wk-x" data-del="' + esc(x.id) + '" aria-label="이 그림 지우기">✕</button></div>').join('') +
+        (full ? '' : '<div class="wk-t wk-add" id="wkAdd" role="button" tabindex="0"><span style="font-size:22px;line-height:1">＋</span>그림 추가</div>');
+      q('wkInfo').textContent = '기본 그림 + 내 그림 ' + list.length + '/' + WALK_LIMIT + '개 · 그림 1개당 2MB까지' + (full ? ' · 목록이 가득 찼습니다(✕로 지우면 더 추가할 수 있음)' : '');
+      m.querySelectorAll('.wk-t[data-id]').forEach((t) => { t.onclick = (e) => { if (e.target.closest('.wk-x')) return; walkSel(t.dataset.id); draw(); onDone(); }; });
+      m.querySelectorAll('.wk-x').forEach((b) => { b.onclick = async (e) => { e.stopPropagation(); const id = b.dataset.del; await walkTx('readwrite', (st) => { st.delete(id); }); if (walkSel() === id) walkSel('default'); draw(); onDone(); }; });
+      const add = q('wkAdd'); if (add) add.onclick = pick;
+    }
+    function pick() {
+      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none';
       inp.onchange = async () => { const f = inp.files && inp.files[0]; inp.remove(); if (!f) return; err('');
         try {
           const moving = /gif|webp|apng/i.test(f.type) || /\.(gif|webp|apng)$/i.test(f.name);
-          if (moving && f.size > WALK_MAX) return err('파일이 너무 큽니다(' + Math.round(f.size / 1024) + 'KB). 700KB 이하의 GIF로 올려 주세요.');
+          if (f.size > WALK_MAX && moving) return err('파일이 너무 큽니다(' + Math.round(f.size / 1024) + 'KB). 2MB 이하로 올려 주세요.');
           let src = await fileToDataUrl(f); if (!moving) src = await shrinkStill(src);
-          if (src.length > WALK_MAX * 1.37) return err('파일이 너무 큽니다. 더 작은 그림으로 올려 주세요.');
-          picked = { src, name: f.name }; reset = false; q('tpPrev').innerHTML = prev(src); q('tpOk').disabled = false;
-        } catch (e) { err(e.message || String(e)); } };
-      document.body.appendChild(inp); inp.click(); };
-    const rs = q('tpReset'); if (rs) rs.onclick = () => { picked = null; reset = true; q('tpPrev').innerHTML = prev(''); q('tpOk').disabled = false; };
-    q('tpOk').onclick = async () => {
-      if (busy || (!picked && !reset)) return; busy = true; q('tpOk').disabled = true; q('tpOk').textContent = '저장하는 중...'; err('');
-      try {
-        if (reset) { await G.db.collection('app_assets').doc('walker').delete().catch(() => {}); await setCfg('walker_icon', { v: '' }); }
-        else { const v = String(Date.now()); await G.db.collection('app_assets').doc('walker').set({ dataUrl: picked.src, name: picked.name, updatedAt: new Date().toISOString() }); await setCfg('walker_icon', { v, name: picked.name });
-          try { localStorage.setItem(WALK_KEY(), JSON.stringify({ v, src: picked.src })); } catch (e) { /* 공간 부족 */ } }
-        busy = false; close(); onDone();
-      } catch (e) { busy = false; q('tpOk').disabled = false; q('tpOk').textContent = '저장'; err('저장하지 못했습니다: ' + (e.message || e)); }
-    };
+          const id = 'w' + Date.now().toString(36); await walkTx('readwrite', (st) => { st.put({ id, src, name: f.name, at: Date.now() }); });
+          walkSel(id); draw(); onDone();
+        } catch (e) { err('저장하지 못했습니다: ' + (e.message || e)); } };
+      document.body.appendChild(inp); inp.click();
+    }
+    draw();
   }
   async function renderTermProgress(box, year) {
     if (!box) return;
@@ -323,13 +332,7 @@
     const pos = today < s1.start ? 0 : today <= s1.end ? w1 * clamp((days(s1.start, today) + 0.5) / len1) : today < s2.start ? w1 + GAP * clamp((days(s1.end, today)) / Math.max(1, days(s1.end, s2.start))) : today <= s2.end ? w1 + GAP + w2 * clamp((days(s2.start, today) + 0.5) / len2) : 100;
     const md = (d) => (d.getMonth() + 1) + '월 ' + d.getDate() + '일';
     const dd = today > s2.end ? '종료' : dday(dTarget, now);
-    const walker = wsrc ? '<img class="tp-img" src="' + wsrc.replace(/"/g, '&quot;') + '" alt="">' : '<svg viewBox="0 0 40 56" width="34" height="48" aria-hidden="true"><g class="tp-bob">' +
-      '<g class="tp-leg tp-l1"><rect x="16" y="33" width="6" height="16" rx="3" fill="#1d4ed8"/><rect x="15" y="47" width="10" height="5" rx="2.5" fill="#1e3a8a"/></g>' +
-      '<g class="tp-leg tp-l2"><rect x="18" y="33" width="6" height="16" rx="3" fill="#2563eb"/><rect x="17" y="47" width="10" height="5" rx="2.5" fill="#1e40af"/></g>' +
-      '<g class="tp-arm tp-a1"><rect x="10" y="19" width="5" height="13" rx="2.5" fill="#1d4ed8"/></g>' +
-      '<rect x="12" y="17" width="16" height="19" rx="5" fill="#3b82f6"/><rect x="14" y="25" width="12" height="2" rx="1" fill="#fff" opacity=".9"/>' +
-      '<g class="tp-arm tp-a2"><rect x="25" y="19" width="5" height="13" rx="2.5" fill="#2563eb"/></g>' +
-      '<circle cx="20" cy="9" r="7.5" fill="#fcd9b6"/><path d="M12.5 9.5a7.5 7.5 0 0 1 14.6-3.2c-3.6-.9-7.2.2-9.3 2.9-.6 1.6-1.3 3.4-2.6 4.3-1.3-.9-2.4-2.3-2.7-4z" fill="#1e293b"/><circle cx="24" cy="9.5" r="1" fill="#1e293b"/><path d="M23 13c1 .6 2 .6 3 0" stroke="#c2410c" stroke-width=".9" fill="none" stroke-linecap="round"/></g></svg>';   // 오른쪽을 보고 걷는 사람
+    const walker = wsrc ? '<img class="tp-img" src="' + wsrc.replace(/"/g, '&quot;') + '" alt="">' : DEF_WALKER;
     box.innerHTML = TP_CSS + FOLD_CSS + '<div class="tp-card' + (foldGet('tp', false) ? ' is-folded' : '') + '"><div class="tp-head"><div class="tp-title">' + year + '학년도 진행 현황</div><span class="tp-mini">' + pct + '% · ' + state + '</span><button type="button" class="tp-gear" title="걷는 사람 그림 바꾸기" aria-label="진행 현황 설정"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 2.5h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7v-.2a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/></svg></button><button type="button" class="gp-fold tp-fold" title="접기/펼치기" aria-label="진행 현황 접기/펼치기">' + CHEV + '</button></div><div class="tp-body">' +
       '<div class="tp-top"><div class="tp-pct"><b>' + pct + '</b><span>%</span><em class="tp-chip">' + state + '</em></div>' +
       '<div class="tp-stats"><div class="tp-stat"><i>지난 수업일</i><b>' + past + '<small>/' + total + '일</small></b></div><div class="tp-stat"><i>남은 수업일</i><b>' + left + '<small>일</small></b></div><div class="tp-stat"><i>' + dLabel + '</i><b>' + dd + '</b></div></div></div>' +
@@ -342,8 +345,11 @@
       '<span class="tp-lb" style="left:' + (w1 + GAP).toFixed(2) + '%"><small>2학기 시작</small>' + md(s2.start) + '</span>' +
       '<span class="tp-lb tp-r" style="right:0"><small>2학기 종료</small>' + md(s2.end) + '</span></div></div></div>';
     const card = box.querySelector('.tp-card'), fb = box.querySelector('.tp-fold');
-    if (fb) { fb.setAttribute('aria-expanded', String(!card.classList.contains('is-folded'))); fb.onclick = () => { const on = !card.classList.contains('is-folded'); card.classList.toggle('is-folded', on); foldSet('tp', on); fb.setAttribute('aria-expanded', String(!on)); }; }
-    const gear = box.querySelector('.tp-gear'); if (gear) gear.onclick = () => walkerDialog(wsrc, () => renderTermProgress(box, year));
+    // 윗줄(제목 줄) 어디를 눌러도 접고 펼침 (⚙ 설정 버튼은 제외)
+    const head = box.querySelector('.tp-head'), tg = () => { const on = !card.classList.contains('is-folded'); card.classList.toggle('is-folded', on); foldSet('tp', on); if (fb) fb.setAttribute('aria-expanded', String(!on)); };
+    if (fb) { fb.setAttribute('aria-expanded', String(!card.classList.contains('is-folded'))); fb.onclick = (e) => { e.stopPropagation(); tg(); }; }
+    if (head) { head.style.cursor = 'pointer'; head.onclick = (e) => { if (e.target.closest('.tp-gear')) return; tg(); }; }
+    const gear = box.querySelector('.tp-gear'); if (gear) gear.onclick = (e) => { e.stopPropagation(); walkerDialog(DEF_WALKER, () => renderTermProgress(box, year)); };
   }
   const TP_CSS = '<style>' +
     '.tp-card{background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:18px 20px 14px;box-shadow:0 2px 10px rgba(15,23,42,.05)}' +
@@ -559,7 +565,7 @@
       rows: [cols.map((k) => ({ v: FIELD[k] || k, s: 'header' }))].concat(it.rows.map((r) => cols.map((k) => ({ v: val(r[k]), s: typeof r[k] === 'number' ? 'int' : 'text' })))) };
   }
   // ---- 업로드 양식과 같은 모양으로 내려받기 ----
-  const NO_DOWNLOAD = ['cfg'];   // 담임·전담교사, 공간 개방 설정: 체크해도 내려받지 않음
+  const NO_DOWNLOAD = ['cfg', 'groups'];   // 담임·전담교사, 공간 개방 설정 · 강좌별 시간표 범주: 체크해도 내려받지 않음
   const H = (v) => ({ v, s: 'header' }), Tx = (v) => ({ v: v === undefined || v === null ? '' : String(v), s: 'text' });
   const reqH = (v) => H(v + ' (필수)');   // 일괄 업로드 양식(체육 공간·강좌 일정)의 머리글과 같게
   const dayStr = (v) => { const d = toDate(v); return d ? appDate(d) : str(v); };
@@ -583,8 +589,11 @@
       if (ctx.subSheets) { try { const sh = await ctx.subSheets(); if (sh && sh.length) return sh; } catch (e) { console.warn(e); } }   // 지금 학년도: 전담 시간표 업로드 양식(페이지 모양)에 채워서
       return [{ name: nm, widths: [22, 24, 16, 14], freezeRow: 1, rows: [['날짜', '학급', '교시', '과목'].map(H)].concat(groupSlots(it.rows, { d: 'sub_date', c: 'sub_class', t: 'sub_time', n: 'sub_name' }, order).map((g) => [Tx(appDate(g.d)), Tx(g.cls), Tx(g.ps.join(', ')), Tx(g.name)])) }];
     }
-    if (it.key === 'school') return [{ name: '기초 일정', widths: [26, 22, 22, 10], freezeRow: 1, rows: [['학교 행사', '시작 날짜', '종료 날짜', '휴일 여부'].map(H)].concat(it.rows.slice().sort((a, b) => (toDate(a.task_school_date_start) || 0) - (toDate(b.task_school_date_start) || 0))
-      .map((r) => [Tx(r.task_school_name), Tx(dayStr(r.task_school_date_start)), Tx(r.task_school_date_end ? dayStr(r.task_school_date_end) : ''), Tx('')])) }];
+    if (it.key === 'school' || it.key === 'memo') {   // 기초 일정 · 학년 일정: 시작일 / 종료일 / 일정
+      const p = it.key === 'school' ? 'task_school_' : 'task_memo_';
+      return [{ name: it.key === 'school' ? '기초 일정' : '학년 일정', widths: [22, 22, 40], freezeRow: 1, rows: [['시작일', '종료일', '일정'].map(H)].concat(it.rows.slice().sort((a, b) => (toDate(a[p + 'date_start']) || 0) - (toDate(b[p + 'date_start']) || 0))
+        .map((r) => [Tx(dayStr(r[p + 'date_start'])), Tx(r[p + 'date_end'] ? dayStr(r[p + 'date_end']) : ''), Tx(r[p + 'name'])])) }];
+    }
     if (it.key === 'student') {   // 명렬표 업로드 양식: 학급마다 시트(1행 제목, 2행 번호·이름·성별·기타·생년월일)
       const by = new Map(); it.rows.forEach((r) => { const c = str(r.student_class).trim(); const k = /^\d+$/.test(c) ? c + '반' : c; if (!by.has(k)) by.set(k, []); by.get(k).push(r); });
       const names = [...by.keys()].sort((a, b) => { const i = order.classes.indexOf(a), j = order.classes.indexOf(b); return (i < 0 ? 999 : i) - (j < 0 ? 999 : j) || natural(a, b); });
@@ -592,7 +601,12 @@
         rows: [[{ v: c + ' 명렬표', s: 'title' }], ['번호', '이름', '성별', '기타', '생년월일'].map((v) => ({ v, s: 'totalLabel' }))]
           .concat(by.get(c).sort((a, b) => num(a.student_num) - num(b.student_num)).map((r) => [{ v: num(r.student_num) || str(r.student_num), s: 'center' }, ...['student_name', 'student_gender', 'student_memo', 'student_birth'].map((k) => ({ v: str(r[k]), s: 'center' }))])) }));
     }
-    if ((it.key === 'budget' || it.key === 'supply') && ctx.budget) { const sh = await ctx.budget(it.key === 'supply' ? 'supply' : 'budget'); if (sh) return sh; }
+    if (it.key === 'budget' && ctx.budget) { const sh = await ctx.budget('budget', 'orig'); if (sh) return sh; }
+    if (it.key === 'supply' && ctx.budget) {   // 학습준비물: 원본 · 제출용 · 수령확인용을 모두 넣음
+      const out = [];
+      for (const [how, tag] of [['orig', ''], ['submit', ' 제출용'], ['receive', ' 수령확인용']]) (await ctx.budget('supply', how) || []).forEach((sh) => { if (tag) sh.name = (sh.name.slice(0, 31 - tag.length) + tag); out.push(sh); });
+      if (out.length) return out;
+    }
     return [sheetOf(it)];
   }
   // 예산 페이지를 보이지 않게 열어, 그 페이지의 표 만들기(원본·제출용·수령확인용)를 그대로 씀
@@ -612,12 +626,12 @@
     let periods = []; try { periods = (await readList('list_time')).map((i) => i.value); } catch (e) { /* 기본 순서 */ }
     const gen = await getGeneral(); let frame = null;
     const ctx = { order: { periods, classes: (gen.classNames || []).slice() }, subSheets: opts.subSheets && Number(gen.year) === Number(year) ? opts.subSheets : null,
-      budget: async (part) => { if (!frame) { step('예산 표를 만드는 중...', 0.08); frame = await budgetFrame(year); } return frame.contentWindow.__budgetExportAll(part, opts.budgetHow || 'orig'); } };
+      budget: async (part, how) => { if (!frame) { step('예산 표를 만드는 중...', 0.08); frame = await budgetFrame(year); } return frame.contentWindow.__budgetExportAll(part, how || 'orig'); } };
     const sheets = [];
     try { for (const it of plan) { if (it.rows && it.rows.length) sheets.push(...(await formatSheets(it, ctx))); } }
     finally { if (frame) frame.remove(); }
     const used = new Set(); sheets.forEach((sh) => { let n = sh.name, i = 2; while (used.has(n)) n = sh.name.slice(0, 28) + ' ' + i++; used.add(n); sh.name = n; });
-    const files = [], missed = []; const withFiles = plan.filter((x) => x.files); let k = 0;
+    const files = [], missed = []; const withFiles = opts.sheetsOnly ? [] : plan.filter((x) => x.files); let k = 0;
     for (const it of withFiles) {
       step('파일을 모으는 중... (' + it.label + ')', 0.1 + 0.7 * (k++ / Math.max(1, withFiles.length)));
       const folder = it.label.replace(/[\\/:*?"<>|]/g, ' ').trim(); const names = new Set();
@@ -635,7 +649,11 @@
     }
     if (!sheets.length && !files.length) throw new Error('내려받을 내용이 없습니다.');
     step('파일을 만드는 중...', 0.9);
-    const base = year + '학년도_데이터' + (keys.some((k) => k === 'budget' || k === 'supply') && opts.budgetHow && opts.budgetHow !== 'orig' ? (opts.budgetHow === 'submit' ? '_제출용' : '_수령확인용') : '');
+    const base = year + '학년도_데이터';
+    if (opts.sheetsOnly) {   // 구글 스프레드시트용: 표만 (이미지·파일은 넣을 수 없음)
+      if (!sheets.length) throw new Error('스프레드시트로 보낼 표가 없습니다. (이미지·파일 항목은 엑셀 다운로드로 받아 주세요)');
+      return { sheets, name: base, fileItems: plan.filter((x) => x.files).reduce((a, x) => a + x.count, 0) };
+    }
     if (!files.length) return { blob: new Blob([window.XlsxLite.toBytes(sheets)], { type: window.XlsxLite.XLSX_MIME }), name: base + '.xlsx', missed };
     const all = (sheets.length ? [{ name: base + '.xlsx', bytes: window.XlsxLite.toBytes(sheets) }] : []).concat(files);
     return { blob: window.XlsxLite.zipBlob(all), name: base + '.zip', missed };
