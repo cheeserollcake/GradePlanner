@@ -131,15 +131,15 @@
     const { toast, BTN_G } = h, o = INFO[side];
     el.innerHTML = '<h3 class="font-semibold">' + o.title + '</h3><p class="text-sm text-slate-500">' + o.desc + '</p>' +
       '<p class="text-xs text-slate-400">날짜는 <b>2026년 05월 11일 (월)</b> 형식(2026-05-11도 됨). 휴일·주말·학년도 밖 날짜와 없는 반·교시' + (side === 'gym' ? '·공간' : '') + '이 적힌 줄은 건너뛰고 이유를 알려 줍니다.</p>' +
-      '<div class="flex flex-wrap gap-2"><button data-bt="tpl" class="' + BTN_G + '">양식 다운로드 (.xlsx)</button><button data-bt="up" class="' + BTN_G + '">엑셀·CSV 업로드</button></div>' +
+      '<div class="flex flex-wrap gap-1"><button data-bt="up" type="button" data-gpi="upload" data-tip="데이터 업로드"></button><button data-bt="tpl" type="button" data-gpi="template" data-tip="업로드 양식 다운"></button></div>' +
       '<div data-bt="res" class="text-xs leading-relaxed bg-white border rounded p-2"' + (last[side] ? '' : ' style="display:none"') + '>' + last[side] + '</div>';
     const q = (k) => el.querySelector('[data-bt="' + k + '"]');
     q('tpl').onclick = () => { window.BulkUpload.template({ file: o.file, sheet: o.sheet, cols: o.cols }); toast('양식을 내려받았습니다.'); };
     q('up').onclick = async () => {
-      const b = q('up'); b.disabled = true; const t = b.textContent; b.textContent = '올리는 중...';
+      const b = q('up'); b.disabled = true; b.classList.add('gpi-busy');
       try { const ok = await o.fn(toast); if (ok) { const r = q('res'); r.innerHTML = last[side]; r.style.display = ''; } }
       catch (e) { console.warn(e); toast('업로드하지 못했습니다: ' + (e && e.message ? e.message : e), true); }
-      finally { b.disabled = false; b.textContent = t; }
+      finally { b.disabled = false; b.classList.remove('gpi-busy'); }
     };
   }
   window.GPBulkTT = { renderBox };

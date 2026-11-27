@@ -8,7 +8,7 @@
  */
 (function () {
   const DAYS = ['월', '화', '수', '목', '금'];
-  const SRC = { sub: { label: '전담', bg: '#e0e7ff' }, add: { label: '강좌', bg: '#dcfce7' }, gym: { label: '체육공간', bg: '#fef3c7' }, room: { label: '특별실', bg: '#fce7f3' } };
+  const SRC = { sub: { label: '전담', bg: '#dfe8fd' }, add: { label: '강좌', bg: '#dcfce7' }, gym: { label: '체육공간', bg: '#fef3c7' }, room: { label: '특별실', bg: '#fce7f3' } };
   const ALL_TOKENS = /공통|전체|학년|전담/;   // 반 대신 이런 말이 적힌 일정은 모든 반에 해당
   const split = (v) => String(v == null ? '' : v).split(/[,，、]+/).map((x) => x.trim()).filter(Boolean);
 
@@ -21,9 +21,9 @@
     st.textContent = '.gp-tg{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}.gp-tg input{position:absolute;opacity:0;width:0;height:0}' +
       '.gp-tg-sw{position:relative;width:30px;height:17px;border-radius:999px;background:#cbd5e1;transition:background .2s;flex-shrink:0}' +
       '.gp-tg-sw::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s}' +
-      '.gp-tg input:checked+.gp-tg-sw{background:#4f46e5}.gp-tg input:checked+.gp-tg-sw::after{transform:translateX(13px)}.gp-tg input:focus-visible+.gp-tg-sw{outline:2px solid #818cf8;outline-offset:2px}' +
-      '.gp-tg-txt{font-size:11px;font-weight:700;color:#94a3b8;min-width:2em}.gp-tg-txt::after{content:"OFF"}.gp-tg input:checked~.gp-tg-txt{color:#4f46e5}.gp-tg input:checked~.gp-tg-txt::after{content:"ON"}' +
-      '.asg-cond input[type=checkbox]{width:15px;height:15px;accent-color:#4f46e5;vertical-align:-2px}' +
+      '.gp-tg input:checked+.gp-tg-sw{background:#4f78f2}.gp-tg input:checked+.gp-tg-sw::after{transform:translateX(13px)}.gp-tg input:focus-visible+.gp-tg-sw{outline:2px solid #7598f5;outline-offset:2px}' +
+      '.gp-tg-txt{font-size:11px;font-weight:700;color:#94a3b8;min-width:2em}.gp-tg-txt::after{content:"OFF"}.gp-tg input:checked~.gp-tg-txt{color:#4f78f2}.gp-tg input:checked~.gp-tg-txt::after{content:"ON"}' +
+      '.asg-cond input[type=checkbox]{width:15px;height:15px;accent-color:#4f78f2;vertical-align:-2px}' +
       '.asg-side{display:none}.asg-top{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:8px 0}' +
       '@media (min-width:1024px){.asg-side{display:flex}.asg-top{display:none}}@media (max-width:420px){.asg-top{grid-template-columns:minmax(0,1fr)}}';
     document.head.appendChild(st);
@@ -108,13 +108,13 @@
         const mine = parse(S.grid[key(d, p)]).cls.indexOf(cls) >= 0;
         const t = list.map((e) => e.name || SRC[e.src].label).join(', ');
         const bg = list.length ? SRC[list[0].src].bg : '';
-        return '<td class="border text-center" title="' + esc(list.map((e) => SRC[e.src].label + ': ' + e.name).join('\n') + (mine ? (list.length ? '\n' : '') + '배정 중: ' + S.name : '')) + '" style="height:22px;padding:0 1px;font-size:10px;line-height:1.1;overflow:hidden;white-space:nowrap;' + (bg ? 'background:' + bg + ';' : '') + (mine ? 'outline:2px solid #6366f1;outline-offset:-2px;' : '') + '">' + esc(t.length > 4 ? t.slice(0, 4) + '…' : t) + '</td>';
+        return '<td class="border text-center" title="' + esc(list.map((e) => SRC[e.src].label + ': ' + e.name).join('\n') + (mine ? (list.length ? '\n' : '') + '배정 중: ' + S.name : '')) + '" style="height:22px;padding:0 1px;font-size:10px;line-height:1.1;overflow:hidden;white-space:nowrap;' + (bg ? 'background:' + bg + ';' : '') + (mine ? 'outline:2px solid #5f88f3;outline-offset:-2px;' : '') + '">' + esc(t.length > 4 ? t.slice(0, 4) + '…' : t) + '</td>';
       };
       const monthWeek = (wk, w) => '<div class="mw" style="margin-bottom:10px"><div class="text-xs font-semibold text-slate-500 mb-1">' + (w + 1) + '주차 · ' + md(wk[0]) + ' ~ ' + md(wk[4]) + '</div><div class="overflow-x-auto"><table class="border-collapse text-xs" style="table-layout:fixed;width:100%;min-width:' + (60 + 5 * periods.length * 26) + 'px"><colgroup><col style="width:56px"></colgroup>' +
         '<thead><tr><th class="border bg-slate-100"></th>' + wk.map((d, i) => { const hd = hol.get(GP.ymd(d)); return '<th class="border bg-slate-100 font-semibold" colspan="' + periods.length + '" style="' + (hd ? 'color:#dc2626' : '') + '">' + md(d) + '(' + DAYS[i] + ')' + (hd ? ' ' + esc(hd.name) : '') + '</th>'; }).join('') + '</tr>' +
         '<tr><th class="border bg-slate-50"></th>' + wk.map(() => periods.map((p) => '<th class="border bg-slate-50 font-normal" style="font-size:10px;overflow:hidden">' + esc(String(p).replace(/교시$/, '')) + '</th>').join('')).join('') + '</tr></thead><tbody>' +
         classes.map((c) => '<tr><th class="border bg-slate-50 font-semibold" style="font-size:11px">' + esc(c) + '</th>' + wk.map((d) => hol.get(GP.ymd(d)) ? periods.map(() => '<td class="border" style="background:#e5e7eb"></td>').join('') : periods.map((p) => evCell(c, d, p)).join('')).join('') + '</tr>').join('') + '</tbody></table></div></div>';
-      const legend = Object.keys(SRC).map((k) => '<span class="inline-flex items-center gap-1 mr-3"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + SRC[k].bg + '"></span>' + SRC[k].label + '</span>').join('') + '<span class="inline-flex items-center gap-1"><span style="display:inline-block;width:12px;height:12px;border:2px solid #6366f1;border-radius:3px"></span>배정 중</span>';
+      const legend = Object.keys(SRC).map((k) => '<span class="inline-flex items-center gap-1 mr-3"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + SRC[k].bg + '"></span>' + SRC[k].label + '</span>').join('') + '<span class="inline-flex items-center gap-1"><span style="display:inline-block;width:12px;height:12px;border:2px solid #5f88f3;border-radius:3px"></span>배정 중</span>';
       const month = '<div class="' + CARD + '"><div class="flex flex-wrap items-center justify-between gap-2"><h3 class="font-bold">월간 일정 <span class="text-xs font-normal text-slate-400">고른 주부터 5주 · 아래로 스크롤하면 다음 주</span></h3><div class="text-xs text-slate-500">' + legend + '</div></div>' +
         '<div id="aMonth" style="overflow-y:auto">' + W.map(monthWeek).join('') + '</div></div>';
       // 반별 배정 차시

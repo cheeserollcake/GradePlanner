@@ -12,7 +12,7 @@ html body, html body *:not([class*="fa-"]):not(.fa):not(svg):not(svg *) { font-f
 #themeSel { margin-left: auto; display: flex; gap: 2px; padding: 2px; border-radius: 9px; background: #f1f5f9; flex-shrink: 0; }
 #themeSel button { border: 0; background: transparent; font: inherit; font-size: 11.5px; font-weight: 600; color: #64748b; padding: 4px 8px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
 #themeSel button:hover { color: #1e293b; }
-#themeSel button.on { background: #fff; color: #4338ca; box-shadow: 0 1px 2px rgba(15,23,42,.15); }
+#themeSel button.on { background: #fff; color: #3a62dc; box-shadow: 0 1px 2px rgba(15,23,42,.15); }
 @media (max-width: 480px) { #themeSel button { padding: 4px 5px; font-size: 11px; } }
 
 /* =====================================================================
@@ -73,9 +73,9 @@ html[data-gp-theme="neu"] td.bg-white, html[data-gp-theme="neu"] th.bg-white, ht
 html[data-gp-theme="neu"] td, html[data-gp-theme="neu"] th { border-color: #cfd6e0; }
 /* 버튼: 솟은 단추, 누르면 들어감 */
 html[data-gp-theme="neu"] button.bg-indigo-600, html[data-gp-theme="neu"] .bg-indigo-600.rounded-lg, html[data-gp-theme="neu"] button.bg-blue-600 {
-  background-color: var(--neu); color: #4f46e5; box-shadow: 4px 4px 8px var(--neu-d), -4px -4px 8px var(--neu-l);
+  background-color: var(--neu); color: #4f78f2; box-shadow: 4px 4px 8px var(--neu-d), -4px -4px 8px var(--neu-l);
 }
-html[data-gp-theme="neu"] button.bg-indigo-600:hover, html[data-gp-theme="neu"] button.bg-blue-600:hover { background-color: var(--neu); color: #3730a3; }
+html[data-gp-theme="neu"] button.bg-indigo-600:hover, html[data-gp-theme="neu"] button.bg-blue-600:hover { background-color: var(--neu); color: #284bb8; }
 html[data-gp-theme="neu"] button.bg-slate-100, html[data-gp-theme="neu"] label.bg-slate-100, html[data-gp-theme="neu"] .bg-slate-100.rounded-lg {
   background-color: var(--neu); box-shadow: 4px 4px 8px var(--neu-d), -4px -4px 8px var(--neu-l);
 }
@@ -86,7 +86,7 @@ html[data-gp-theme="neu"] input:not([type=checkbox]):not([type=radio]):not([type
 }
 /* 표 안의 입력칸은 칸 색을 따르도록 그대로 둠 */
 html[data-gp-theme="neu"] td input:not([type=checkbox]):not([type=radio]):not([type=color]), html[data-gp-theme="neu"] td select, html[data-gp-theme="neu"] th input:not([type=checkbox]):not([type=radio]):not([type=color]) { background-color: transparent; box-shadow: none; border-radius: 0; }
-html[data-gp-theme="neu"] .text-indigo-600, html[data-gp-theme="neu"] .text-indigo-700 { color: #4f46e5; }
+html[data-gp-theme="neu"] .text-indigo-600, html[data-gp-theme="neu"] .text-indigo-700 { color: #4f78f2; }
 /* 아이콘: 가늘고 부드러운 회청색 */
 html[data-gp-theme="neu"] svg[stroke]:not(.gp-has-alt):not(.gp-alt) { stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 html[data-gp-theme="neu"] h1 svg, html[data-gp-theme="neu"] h2 svg, html[data-gp-theme="neu"] h3 svg { color: #6b7a99; }
@@ -98,7 +98,7 @@ html[data-gp-theme="neu"] #themeSel { background: var(--neu); box-shadow: inset 
 html[data-gp-theme="neu"] #themeSel button.on { background: var(--neu); box-shadow: 2px 2px 4px var(--neu-d), -2px -2px 4px var(--neu-l); }
 html[data-gp-theme="neu"] #drawer { background: var(--neu); }
 html[data-gp-theme="neu"] .nav-item:hover { background: transparent; box-shadow: 3px 3px 6px var(--neu-d), -3px -3px 6px var(--neu-l); }
-html[data-gp-theme="neu"] .nav-item.active { background: var(--neu); color: #4338ca; box-shadow: inset 3px 3px 6px var(--neu-d), inset -3px -3px 6px var(--neu-l); }
+html[data-gp-theme="neu"] .nav-item.active { background: var(--neu); color: #3a62dc; box-shadow: inset 3px 3px 6px var(--neu-d), inset -3px -3px 6px var(--neu-l); }
 html[data-gp-theme="neu"] #frame, html[data-gp-theme="neu"] body { background: var(--neu); }
 
 /* =====================================================================
@@ -113,7 +113,7 @@ html[data-gp-theme="clay"] .bg-white.rounded-xl, html[data-gp-theme="clay"] .bg-
 html[data-gp-theme="clay"] .bg-white.shadow-sm, html[data-gp-theme="clay"] .bg-white.shadow, html[data-gp-theme="clay"] .bg-white.shadow-md,
 html[data-gp-theme="clay"] .bg-white.shadow-xl, html[data-gp-theme="clay"] .bg-white.shadow-2xl {
   border-color: transparent; border-radius: 26px;
-  box-shadow: 0 16px 28px -14px var(--clay-sh), inset -6px -6px 12px rgba(79, 70, 229, .10), inset 6px 6px 12px rgba(255, 255, 255, .95);
+  box-shadow: 0 16px 28px -14px var(--clay-sh), inset -6px -6px 12px rgba(79, 120, 242, .10), inset 6px 6px 12px rgba(255, 255, 255, .95);
 }
 html[data-gp-theme="clay"] .rounded-xl.shadow-sm:not(.bg-white), html[data-gp-theme="clay"] .rounded-lg.shadow-sm:not(.bg-white), html[data-gp-theme="clay"] .gpcard {
   border-color: transparent; border-radius: 26px;
@@ -124,32 +124,32 @@ html[data-gp-theme="clay"] td, html[data-gp-theme="clay"] th { border-color: #e2
 /* 버튼: 통통한 알약 */
 html[data-gp-theme="clay"] button.rounded-lg, html[data-gp-theme="clay"] label.rounded-lg, html[data-gp-theme="clay"] button.rounded-xl { border-radius: 999px; }
 html[data-gp-theme="clay"] button.bg-indigo-600, html[data-gp-theme="clay"] .bg-indigo-600.rounded-lg, html[data-gp-theme="clay"] button.bg-blue-600 {
-  background-color: #4f46e5; box-shadow: 0 8px 16px -8px rgba(79, 70, 229, .8), inset -3px -4px 6px rgba(49, 46, 129, .35), inset 3px 3px 6px rgba(255, 255, 255, .45);
+  background-color: #4f78f2; box-shadow: 0 8px 16px -8px rgba(79, 120, 242, .8), inset -3px -4px 6px rgba(49, 46, 129, .35), inset 3px 3px 6px rgba(255, 255, 255, .45);
 }
-html[data-gp-theme="clay"] button.bg-indigo-600:hover, html[data-gp-theme="clay"] button.bg-blue-600:hover { background-color: #4338ca; }
+html[data-gp-theme="clay"] button.bg-indigo-600:hover, html[data-gp-theme="clay"] button.bg-blue-600:hover { background-color: #3a62dc; }
 html[data-gp-theme="clay"] button.bg-slate-100, html[data-gp-theme="clay"] label.bg-slate-100 {
-  background-color: #eef2ff; box-shadow: 0 6px 12px -8px var(--clay-sh), inset -2px -3px 5px rgba(79, 70, 229, .15), inset 2px 2px 5px rgba(255, 255, 255, .9);
+  background-color: #eef3fe; box-shadow: 0 6px 12px -8px var(--clay-sh), inset -2px -3px 5px rgba(79, 120, 242, .15), inset 2px 2px 5px rgba(255, 255, 255, .9);
 }
-html[data-gp-theme="clay"] .text-indigo-600, html[data-gp-theme="clay"] .text-indigo-700 { color: #4338ca; }
+html[data-gp-theme="clay"] .text-indigo-600, html[data-gp-theme="clay"] .text-indigo-700 { color: #3a62dc; }
 /* 입력칸: 말랑한 홈 */
 html[data-gp-theme="clay"] input:not([type=checkbox]):not([type=radio]):not([type=color]), html[data-gp-theme="clay"] select, html[data-gp-theme="clay"] textarea {
-  border-color: #c7d2fe; border-radius: 14px; box-shadow: inset 2px 3px 6px rgba(79, 70, 229, .12);
+  border-color: #c5d5fb; border-radius: 14px; box-shadow: inset 2px 3px 6px rgba(79, 120, 242, .12);
 }
 html[data-gp-theme="clay"] td input:not([type=checkbox]):not([type=radio]):not([type=color]), html[data-gp-theme="clay"] td select, html[data-gp-theme="clay"] th input:not([type=checkbox]):not([type=radio]):not([type=color]) { border-radius: 0; box-shadow: none; }
-html[data-gp-theme="clay"] input[type=checkbox], html[data-gp-theme="clay"] input[type=radio] { accent-color: #4f46e5; }
+html[data-gp-theme="clay"] input[type=checkbox], html[data-gp-theme="clay"] input[type=radio] { accent-color: #4f78f2; }
 /* 아이콘: 두툼한 선 + 속을 옅게 채움 */
 html[data-gp-theme="clay"] svg[stroke]:not(.gp-has-alt):not(.gp-alt) { stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; fill: currentColor; fill-opacity: .16; }
 /* 상단 바·메뉴 */
 html[data-gp-theme="clay"] #bar { background: #ffffff; border-bottom: 0; box-shadow: 0 8px 18px -12px var(--clay-sh); }
-html[data-gp-theme="clay"] #title, html[data-gp-theme="clay"] #drawerTitle { color: #4338ca; }
-html[data-gp-theme="clay"] #burger { border-radius: 14px; background: #eef2ff; box-shadow: inset -2px -3px 5px rgba(79, 70, 229, .18), inset 2px 2px 5px #fff; }
-html[data-gp-theme="clay"] #themeSel { background: #eef2ff; border-radius: 999px; }
+html[data-gp-theme="clay"] #title, html[data-gp-theme="clay"] #drawerTitle { color: #3a62dc; }
+html[data-gp-theme="clay"] #burger { border-radius: 14px; background: #eef3fe; box-shadow: inset -2px -3px 5px rgba(79, 120, 242, .18), inset 2px 2px 5px #fff; }
+html[data-gp-theme="clay"] #themeSel { background: #eef3fe; border-radius: 999px; }
 html[data-gp-theme="clay"] #themeSel button { border-radius: 999px; }
-html[data-gp-theme="clay"] #themeSel button.on { color: #4338ca; box-shadow: 0 4px 8px -4px var(--clay-sh), inset 2px 2px 4px #fff; }
+html[data-gp-theme="clay"] #themeSel button.on { color: #3a62dc; box-shadow: 0 4px 8px -4px var(--clay-sh), inset 2px 2px 4px #fff; }
 html[data-gp-theme="clay"] #drawer { background: #ffffff; border-radius: 0 26px 26px 0; }
 html[data-gp-theme="clay"] .nav-item { border-radius: 999px; }
-html[data-gp-theme="clay"] .nav-item:hover { background: #eef2ff; }
-html[data-gp-theme="clay"] .nav-item.active { background: #4f46e5; color: #fff; box-shadow: 0 6px 12px -6px rgba(79, 70, 229, .8), inset -2px -3px 5px rgba(49, 46, 129, .3), inset 2px 2px 5px rgba(255, 255, 255, .4); }
+html[data-gp-theme="clay"] .nav-item:hover { background: #eef3fe; }
+html[data-gp-theme="clay"] .nav-item.active { background: #4f78f2; color: #fff; box-shadow: 0 6px 12px -6px rgba(79, 120, 242, .8), inset -2px -3px 5px rgba(49, 46, 129, .3), inset 2px 2px 5px rgba(255, 255, 255, .4); }
 html[data-gp-theme="clay"] #frame { background: var(--clay-bg); }
 
 /* =====================================================================
@@ -186,7 +186,7 @@ html[data-gp-theme="neu"] .bg-slate-50:not(td):not(th), html[data-gp-theme="neu"
 /* 클레이: 반투명 파스텔 + 흐림 효과, 아래쪽 둥근 모서리 */
 html[data-gp-theme="clay"] header.bg-white, html[data-gp-theme="clay"] nav.bg-white, html[data-gp-theme="clay"] .bg-white.sticky:not(.rounded-xl), html[data-gp-theme="clay"] .bg-white.border-b:not(td):not(th):not(tr) {
   background-color: rgba(248, 250, 252, .85); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  border-color: transparent; border-radius: 0 0 22px 22px; box-shadow: 0 10px 22px -16px var(--clay-sh), inset 0 -2px 4px rgba(79, 70, 229, .08);
+  border-color: transparent; border-radius: 0 0 22px 22px; box-shadow: 0 10px 22px -16px var(--clay-sh), inset 0 -2px 4px rgba(79, 120, 242, .08);
 }
 html[data-gp-theme="clay"] #bar { background: rgba(248, 250, 252, .92); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 0 0 22px 22px; }
 html[data-gp-theme="clay"] #frame { background: var(--clay-bg); }
@@ -209,7 +209,7 @@ html[data-gp-theme="glass"] td, html[data-gp-theme="glass"] th { border-color: r
 html[data-gp-theme="glass"] td.bg-white, html[data-gp-theme="glass"] th.bg-white { background-color: rgba(255, 255, 255, .6); }
 /* 버튼: 유리 알약 */
 html[data-gp-theme="glass"] button.bg-indigo-600, html[data-gp-theme="glass"] .bg-indigo-600.rounded-lg, html[data-gp-theme="glass"] button.bg-blue-600 {
-  background-color: rgba(79, 70, 229, .82); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, .35); box-shadow: 0 6px 18px rgba(79, 70, 229, .25), inset 0 1px 0 rgba(255, 255, 255, .35);
+  background-color: rgba(79, 120, 242, .82); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, .35); box-shadow: 0 6px 18px rgba(79, 120, 242, .25), inset 0 1px 0 rgba(255, 255, 255, .35);
 }
 html[data-gp-theme="glass"] button.bg-slate-100, html[data-gp-theme="glass"] label.bg-slate-100, html[data-gp-theme="glass"] .bg-slate-100.rounded-lg, html[data-gp-theme="glass"] .bg-slate-100.rounded-full {
   background-color: rgba(255, 255, 255, .55); border: 1px solid rgba(148, 163, 184, .3); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9);
@@ -230,5 +230,5 @@ html[data-gp-theme="glass"] #themeSel { background: rgba(255, 255, 255, .5); bor
 html[data-gp-theme="glass"] #themeSel button.on { background: rgba(255, 255, 255, .9); box-shadow: 0 2px 8px rgba(15, 23, 42, .1); }
 html[data-gp-theme="glass"] #drawer { background: rgba(255, 255, 255, .75); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
 html[data-gp-theme="glass"] .nav-item { border-radius: 12px; }
-html[data-gp-theme="glass"] .nav-item.active { background: rgba(79, 70, 229, .12); box-shadow: inset 0 0 0 1px rgba(79, 70, 229, .2); }
+html[data-gp-theme="glass"] .nav-item.active { background: rgba(79, 120, 242, .12); box-shadow: inset 0 0 0 1px rgba(79, 120, 242, .2); }
 html[data-gp-theme="glass"] svg[stroke]:not(.gp-has-alt):not(.gp-alt) { stroke-width: 1.6; }

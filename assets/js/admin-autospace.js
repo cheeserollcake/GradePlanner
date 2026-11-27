@@ -132,7 +132,7 @@
     function draw() {
       const sp = allSpaces(); const names = sp.map((x) => x.name);
       S.spaces = S.spaces.filter((n) => names.indexOf(n) >= 0);
-      const chk = (x) => '<label class="inline-flex items-center gap-1 mr-3 mb-1"><input type="checkbox" data-asp="' + esc(x.name) + '" ' + (S.spaces.indexOf(x.name) >= 0 ? 'checked' : '') + ' style="width:15px;height:15px;accent-color:#4f46e5">' + esc(x.name) + '</label>';
+      const chk = (x) => '<label class="inline-flex items-center gap-1 mr-3 mb-1"><input type="checkbox" data-asp="' + esc(x.name) + '" ' + (S.spaces.indexOf(x.name) >= 0 ? 'checked' : '') + ' style="width:15px;height:15px;accent-color:#4f78f2">' + esc(x.name) + '</label>';
       const group = (label, list) => list.length ? '<div class="flex flex-wrap items-center"><span class="font-semibold w-20 shrink-0 text-slate-600">' + label + '</span>' + list.map(chk).join('') + '</div>' : '';
       const dateBox = (id, v) => '<span class="flex gap-1 mt-1 relative"><input id="' + id + '" type="text" inputmode="numeric" autocomplete="off" placeholder="20270302" class="' + INP + ' w-full min-w-0" value="' + esc(v) + '">' +
         '<button data-pick="' + id + '" type="button" class="' + BTN_G + ' !px-2 shrink-0" title="달력에서 고르기">📅</button><input data-pk="' + id + '" type="date" tabindex="-1" aria-hidden="true" style="position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none"></span>';
@@ -180,7 +180,7 @@
           sps.map((s) => { const k = ymd + '|' + p + '|' + s, m = mine.get(k), old = known.booked.get(k), open = !vac && isOpen(d, p, s);
             const bg = open || m || old ? 'background:' + colorOf(s) + ';' : 'background:#fff;';
             const txt = m ? '<b style="color:#1e1b4b">' + esc(m) + '</b>' : old ? '<span style="color:#64748b">' + esc(old) + '</span>' : '';
-            return '<div style="' + cell + bg + (m ? 'box-shadow:inset 0 0 0 2px #6366f1;' : '') + '">' + txt + '</div>'; }).join('') + '</div>').join('');
+            return '<div style="' + cell + bg + (m ? 'box-shadow:inset 0 0 0 2px #5f88f3;' : '') + '">' + txt + '</div>'; }).join('') + '</div>').join('');
         return '<div class="p-1 border-r">' + head + '<div style="border:1px solid #cbd5e1;border-radius:4px;overflow:hidden">' + hrow + rows + '</div></div>';
       };
       const weeks = []; for (let m = GP.mondayOf(a); m <= b; m = GP.addDays(m, 7)) weeks.push(m);

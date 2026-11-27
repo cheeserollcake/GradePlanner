@@ -125,7 +125,7 @@
       const sheets = await parseXlsx(b64ToBytes(dataUrl.split(',')[1]));
       if (!sheets.length) throw new Error('시트가 없습니다.');
       const draw = (i) => {
-        box.innerHTML = (sheets.length > 1 ? '<div style="display:flex;gap:6px;padding:8px;overflow-x:auto;background:#fff;border-bottom:1px solid #e2e8f0">' + sheets.map((s, j) => '<button data-sh="' + j + '" style="padding:6px 14px;border-radius:999px;border:0;font-weight:700;font-size:13px;white-space:nowrap;cursor:pointer;' + (j === i ? 'background:#4f46e5;color:#fff' : 'background:#f1f5f9;color:#475569') + '">' + esc(s.name) + '</button>').join('') + '</div>' : '') +
+        box.innerHTML = (sheets.length > 1 ? '<div style="display:flex;gap:6px;padding:8px;overflow-x:auto;background:#fff;border-bottom:1px solid #e2e8f0">' + sheets.map((s, j) => '<button data-sh="' + j + '" style="padding:6px 14px;border-radius:999px;border:0;font-weight:700;font-size:13px;white-space:nowrap;cursor:pointer;' + (j === i ? 'background:#4f78f2;color:#fff' : 'background:#f1f5f9;color:#475569') + '">' + esc(s.name) + '</button>').join('') + '</div>' : '') +
           '<div style="flex:1;overflow:auto;padding:12px;-webkit-overflow-scrolling:touch">' + sheetHtml(sheets[i]) + '</div>';
         box.querySelectorAll('[data-sh]').forEach((b) => { b.onclick = () => draw(+b.dataset.sh); });
       };

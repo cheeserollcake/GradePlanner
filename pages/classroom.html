@@ -4,18 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>교실배치도</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127k">
-  <script src="../assets/js/fb-boot.js?v=20261127k"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127l">
+  <script src="../assets/js/gp-icons.js?v=20261127l"></script>
+  <script src="../assets/js/fb-boot.js?v=20261127l"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
-  <script src="../assets/js/firebase-config.js?v=20261127k"></script>
-  <script src="../assets/js/gas-shim.js?v=20261127k"></script>
+  <script src="../assets/js/firebase-config.js?v=20261127l"></script>
+  <script src="../assets/js/gas-shim.js?v=20261127l"></script>
   <style>body{font-family:'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR',sans-serif;background:#f8fafc}</style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261127k">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261127l">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
 <div class="max-w-5xl mx-auto space-y-4">
-  <div class="flex items-center justify-between"><h1 class="text-2xl font-bold">교실배치도</h1>
-    <label class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold cursor-pointer">이미지 올리기<input id="file" type="file" accept="image/*" class="hidden"></label></div>
+  <div class="flex items-center justify-end"><button type="button" data-gpi="upload" data-tip="이미지 업로드" data-tip-pos="left" onclick="document.getElementById('file').click()"></button><input id="file" type="file" accept="image/*" class="hidden"></div>
   <div id="view" class="bg-white border border-slate-200 rounded-xl shadow-sm p-3 text-center"></div>
 </div>
 <script>

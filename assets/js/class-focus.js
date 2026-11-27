@@ -12,7 +12,7 @@
   const st = document.createElement('style');
   st.textContent = '::highlight(gp-cls){background-color:' + MARK + ';color:inherit;text-shadow:.35px 0 0 currentColor,-.35px 0 0 currentColor}' +
     '.gp-cf-hit{font-weight:800 !important;background-image:linear-gradient(' + MARK + ',' + MARK + ') !important}' +
-    '.gp-cf-box,.gp-cf-box *{font-weight:800 !important}.gp-cf-box{outline:2px solid #4f46e5 !important;outline-offset:-2px;position:relative;z-index:1}' +
+    '.gp-cf-box,.gp-cf-box *{font-weight:800 !important}.gp-cf-box{outline:2px solid #4f78f2 !important;outline-offset:-2px;position:relative;z-index:1}' +
     '.gp-cf-row>td,.gp-cf-row>th{font-weight:800 !important;background-image:linear-gradient(' + MARK + ',' + MARK + ') !important}.gp-cf-row td *,.gp-cf-row input,.gp-cf-row select{font-weight:800 !important}';
   document.head.appendChild(st);
   const WORD = /[0-9A-Za-z가-힣]+/g;

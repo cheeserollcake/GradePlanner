@@ -4,10 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>바로가기</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127k">
-  <script src="../assets/js/fb-boot.js?v=20261127k"></script>
-  <script src="../assets/js/firebase-config.js?v=20261127k"></script>
-  <script src="../assets/js/gas-shim.js?v=20261127k"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127l">
+  <script src="../assets/js/gp-icons.js?v=20261127l"></script>
+  <script src="../assets/js/fb-boot.js?v=20261127l"></script>
+  <script src="../assets/js/firebase-config.js?v=20261127l"></script>
+  <script src="../assets/js/gas-shim.js?v=20261127l"></script>
   <style>body{font-family:'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR',sans-serif;background:#f8fafc}
   .card.dragging{opacity:.6;box-shadow:0 8px 24px rgba(0,0,0,.2)}
   .tools .grip{cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none;font-style:normal;padding:4px 6px;letter-spacing:-2px;color:#6b7280}
@@ -17,13 +18,15 @@
   .pop button.sw{width:30px;height:30px;border-radius:8px;border:2px solid #fff;box-shadow:0 0 0 1px #cbd5e1}
   .pop button.none{width:100%;font-size:12px;padding:4px;border-radius:6px;background:#f1f5f9}
 </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261127k">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261127l">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
 <div class="max-w-4xl mx-auto space-y-4">
-  <div class="flex items-center justify-between"><h1 class="text-2xl font-bold">바로가기</h1>
+  <div class="flex items-center justify-end gap-2">
+    <button id="colsBtn" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-full border border-slate-200 bg-white text-sm font-semibold text-slate-600 hover:bg-slate-50" data-tip="한 줄에 보일 개수 (누를 때마다 1 → 2 → 3 → 4)"><span data-gpi="grid" style="display:inline-flex;width:16px;height:16px"></span><span id="colsLbl">2줄 보기</span></button>
     <button id="add" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold">+ 추가</button></div>
-  <div id="list" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+  <style>#list{display:grid;gap:.75rem;grid-template-columns:repeat(var(--lc,2),minmax(0,1fr))}@media (max-width:640px){#list{grid-template-columns:repeat(min(var(--lc,2),2),minmax(0,1fr))}}#colsBtn [data-gpi] svg{width:16px;height:16px}</style>
+  <div id="list"></div>
   <p id="empty" class="text-center text-slate-400 py-10 hidden">등록된 바로가기가 없습니다. 오른쪽 위 [+ 추가]로 등록하세요.</p>
 </div>
 <div id="colorPop" class="pop"></div>
@@ -38,10 +41,17 @@
   </div>
 </div>
 <script>
+  // 몇 줄 보기(한 줄에 보일 바로가기 개수): 1~4, 기본 2. 이 브라우저에 기억
+  (function () {
+    const K = 'gp_links_cols'; let n = 2; try { n = Math.min(4, Math.max(1, parseInt(localStorage.getItem(K), 10) || 2)); } catch (e) { /* 기본 */ }
+    const apply = () => { document.getElementById('list').style.setProperty('--lc', n); document.getElementById('colsLbl').textContent = n + '줄 보기'; };
+    document.addEventListener('DOMContentLoaded', apply); if (document.readyState !== 'loading') apply();
+    document.getElementById('colsBtn').onclick = () => { n = n % 4 + 1; try { localStorage.setItem(K, n); } catch (e) { /* 무시 */ } apply(); };
+  })();
 const esc=(s)=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const $=(id)=>document.getElementById(id);
 const PALETTE=[['#fee2e2','빨강'],['#ffedd5','주황'],['#fef9c3','노랑'],['#dcfce7','초록'],['#dbeafe','파랑'],['#ede9fe','보라'],['#fce7f3','분홍'],['#e5e7eb','회색']];
-const TRASH='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v7M14 10v7"/></svg>';
+const TRASH='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6M14 11v6"/></svg>';
 let cur=[];
 async function load(){
   const rows=(await GP.getCol('data_links')).sort((a,b)=>(a.order||0)-(b.order||0)); cur=rows;

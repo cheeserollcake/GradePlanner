@@ -2,11 +2,12 @@
 <html lang="ko">
 <head>
   <script>window.__GP_PAGE__ = 'p10';</script>
-  <script src="../assets/js/fb-boot.js?v=20261127k"></script>
+  <script src="../assets/js/fb-boot.js?v=20261127l"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127k">
-  <script src="../assets/js/firebase-config.js?v=20261127k"></script>
-  <script src="../assets/js/gas-shim.js?v=20261127k"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127l">
+  <script src="../assets/js/gp-icons.js?v=20261127l"></script>
+  <script src="../assets/js/firebase-config.js?v=20261127l"></script>
+  <script src="../assets/js/gas-shim.js?v=20261127l"></script>
 
   
   <meta charset="UTF-8">
@@ -18,17 +19,14 @@
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     #zoom-zone { touch-action: none; }
   </style>
-<link rel="stylesheet" href="../assets/css/lock.css?v=20261127k"><script src="../assets/js/ext-viewer.js?v=20261109c"></script>  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109c">
+<link rel="stylesheet" href="../assets/css/lock.css?v=20261127l"><script src="../assets/js/ext-viewer.js?v=20261109c"></script>  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261109c">
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center relative font-sans m-0 p-0 overflow-hidden">
 
-  <!-- 관리자 기어 버튼 -->
-  <button id="admin-gear-btn" onclick="showAdminLogin()" class="absolute top-5 right-5 text-gray-400 hover:text-gray-800 transition-colors p-2 z-50" title="관리자 페이지">
-    <i class="fa-solid fa-gear text-2xl drop-shadow-md"></i>
-  </button>
+  <span id="admin-gear-btn" class="hidden"></span>
 
   <!-- 메인 폼 카드 컨테이너 -->
-  <div id="form-container" class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center mx-4 z-10 flex flex-col justify-between">
+  <div id="form-container" class="gp-lock-card z-10">
     
     <!-- 사용자 비밀번호 확인 화면 -->
     <div id="user-login-view">
@@ -73,6 +71,15 @@
       </div>
       
       <p id="admin-panel-msg" class="mt-4 text-sm hidden font-medium"></p>
+    </div>
+  </div>
+
+  <!-- 비밀번호를 넣고 들어온 화면: 교실배치도와 같은 모양 (오른쪽 위 업로드 버튼 + 그림/PDF) -->
+  <div id="ext-page" class="hidden" style="position:absolute;inset:0;overflow:auto;background:#f8fafc;z-index:30;padding:1.5rem 1rem">
+    <div class="max-w-5xl mx-auto space-y-4">
+      <div class="flex items-center justify-end"><button type="button" data-gpi="upload" data-tip="파일 업로드 (이미지·PDF)" data-tip-pos="left" onclick="document.getElementById('ext-file').click()"></button><input id="ext-file" type="file" accept=".pdf,application/pdf,image/*" class="hidden" onchange="extUpload(this)"></div>
+      <div id="ext-view" class="bg-white border border-slate-200 rounded-xl shadow-sm p-3 text-center"></div>
+      <p id="ext-msg" class="text-sm text-center hidden"></p>
     </div>
   </div>
 
@@ -202,40 +209,33 @@
     function loadViewerData() {
       const btn = document.getElementById('user-login-btn');
       const errorEl = document.getElementById('user-error');
-      
-      // Code.gs에 getFileMetadata가 구현되어 있어야 합니다. 
-      // 만약 없다면 getFileId 함수를 호출하도록 우회 동작합니다.
-      if (google.script.run.getFileMetadata) {
-        google.script.run
-          .withSuccessHandler(function(meta) {
-            // 메타데이터가 객체가 아니라 단일 ID(문자열)로 넘어올 경우를 방어합니다.
-            const fileId = typeof meta === 'object' ? meta.id : meta;
-            const fileMime = typeof meta === 'object' ? meta.mimeType : null;
-            
-            updateViewerSource(fileId, fileMime);
-            btn.innerText = "확인";
-            showView('viewer');
-          })
-          .withFailureHandler(function(err) {
-            btn.innerText = "확인";
-            errorEl.innerText = "파일 로드 오류: " + err.message;
-            errorEl.classList.remove('hidden');
-          })
-          .getFileMetadata();
-      } else {
-        google.script.run
-          .withSuccessHandler(function(fileId) {
-            updateViewerSource(fileId, null);
-            btn.innerText = "확인";
-            showView('viewer');
-          })
-          .withFailureHandler(function(err) {
-            btn.innerText = "확인";
-            errorEl.innerText = "파일 ID 로드 오류: " + err.message;
-            errorEl.classList.remove('hidden');
-          })
-          .getFileId();
-      }
+      google.script.run
+        .withSuccessHandler(function (meta) { btn.innerText = '확인'; renderExtPage(meta || {}); })
+        .withFailureHandler(function (err) { btn.innerText = '확인'; errorEl.innerText = '파일 로드 오류: ' + err.message; errorEl.classList.remove('hidden'); })
+        .getFileMetadata();
+    }
+    function extB64ToUrl(dataUrl, mime) { const b = atob(dataUrl.split(',')[1] || ''), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return URL.createObjectURL(new Blob([u], { type: mime })); }
+    function renderExtPage(meta) {
+      document.getElementById('form-container').classList.add('hidden');
+      document.getElementById('ext-page').classList.remove('hidden');
+      const v = document.getElementById('ext-view'), id = meta.id || '', mime = meta.mimeType || '';
+      if (!id) { v.innerHTML = '<p class="text-slate-400 py-10">등록된 내선번호 파일이 없습니다. 오른쪽 위 업로드 버튼으로 이미지나 PDF를 올려 주세요.</p>'; return; }
+      if (/pdf/i.test(mime)) { const src = /^data:/.test(id) ? extB64ToUrl(id, 'application/pdf') : id; v.innerHTML = '<iframe title="내선번호" src="' + src + '" style="width:100%;height:80vh;border:0;border-radius:8px"></iframe>'; return; }
+      v.innerHTML = '<img class="max-w-full h-auto mx-auto" alt="내선번호" src="' + String(id).replace(/"/g, '&quot;') + '">';
+    }
+    function extUpload(input) {
+      const file = input.files && input.files[0]; if (!file) return;
+      const msg = document.getElementById('ext-msg'), say = (t, bad) => { msg.textContent = t; msg.className = 'text-sm text-center ' + (bad ? 'text-red-600' : 'text-slate-500'); };
+      const mime = ExtViewer.mimeOf(file);
+      if (!/^image\//.test(mime) && !/pdf/i.test(mime)) { input.value = ''; return say('이미지 또는 PDF 파일만 올릴 수 있습니다.', true); }
+      const reader = new FileReader(); setSpinner(true, '파일을 올리고 있습니다...');
+      reader.onload = function (e) {
+        google.script.run.withSuccessHandler(function (res) { setSpinner(false); input.value = ''; if (res && res.success) { say('새 파일로 바꿨습니다.'); loadViewerData(); } else say((res && res.message) || '올리지 못했습니다.', true); })
+          .withFailureHandler(function (err) { setSpinner(false); input.value = ''; say('업로드 실패: ' + err.message, true); })
+          .uploadFile('', String(e.target.result).split(',')[1], file.name, mime);
+      };
+      reader.onerror = function () { setSpinner(false); say('파일을 읽지 못했습니다.', true); };
+      reader.readAsDataURL(file);
     }
 
     // 파일 종류에 맞춰 뷰어 분기 렌더링 (400 에러 해결의 핵심)

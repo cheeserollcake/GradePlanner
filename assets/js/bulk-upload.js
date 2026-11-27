@@ -73,5 +73,13 @@
       document.body.appendChild(inp); inp.click();
     });
   }
-  window.BulkUpload = { template, pick, toRecords };
+  // 지금 데이터를 업로드 양식과 같은 열로 내려받기 (다시 고쳐서 그대로 올릴 수 있음)
+  function download(o) {
+    const head = o.cols.map((c) => ({ v: c.label + (c.req ? ' (필수)' : ''), s: 'header' }));
+    const body = (o.rows || []).map((r) => o.cols.map((c) => ({ v: r[c.key] == null ? '' : String(r[c.key]), s: 'text' })));
+    const sheets = [{ name: o.sheet || '데이터', widths: o.cols.map((c) => c.w || 20), freezeRow: 1, rows: [head].concat(body) }];
+    const a = document.createElement('a'); a.href = URL.createObjectURL(window.XlsxLite.toBlob(sheets)); a.download = (o.file || '데이터') + '.xlsx';
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  window.BulkUpload = { template, pick, toRecords, download };
 })();

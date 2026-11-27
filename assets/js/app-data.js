@@ -207,8 +207,8 @@
   // 접기 상태(기기마다 기억): key → true 면 접힘
   const foldGet = (k, def) => { try { const v = localStorage.getItem('gp_fold_' + k); return v === null ? def : v === '1'; } catch (e) { return def; } };
   const foldSet = (k, on) => { try { localStorage.setItem('gp_fold_' + k, on ? '1' : '0'); } catch (e) { /* 무시 */ } };
-  const CHEV = '<svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.2 7.2a.75.75 0 0 1 1.06 0L10 10.94l3.74-3.74a.75.75 0 1 1 1.06 1.06l-4.27 4.27a.75.75 0 0 1-1.06 0L5.2 8.26a.75.75 0 0 1 0-1.06z" clip-rule="evenodd"/></svg>';
-  const FOLD_CSS = '<style>.gp-fold{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:999px;border:1px solid #e2e8f0;background:#fff;color:#64748b;cursor:pointer;flex-shrink:0}.gp-fold:hover{background:#f1f5f9}.gp-fold svg{transition:transform .2s}.is-folded .gp-fold svg{transform:rotate(-90deg)}' +
+  const CHEV = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+  const FOLD_CSS = '<style>.gp-fold{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;border:0;background:transparent;color:#334155;cursor:pointer;flex-shrink:0}.gp-fold:hover{background:rgba(15,23,42,.06)}.gp-fold svg{transition:transform .2s}.is-folded .gp-fold svg{transform:rotate(-90deg)}' +
     '.dc-bar{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:8px 10px 8px 14px;cursor:pointer;box-shadow:0 2px 10px rgba(15,23,42,.04)}.dc-bar b{font-size:14px;color:#0f172a;white-space:nowrap}.dc-sum{flex:1;min-width:0;font-size:12.5px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dc-body{margin-top:10px}.is-folded .dc-body{display:none}</style>';
   async function renderDayCards(box, year, opt) {
     const v = await getVacations(year); const today = new Date();
@@ -224,13 +224,13 @@
       '@media (max-width:300px){.gpgrid{grid-template-columns:minmax(0,1fr)}.gpd{font-size:18px}}' +
       '.gpc1{background:linear-gradient(135deg,#ecfdf5,#ccfbf1);color:#134e4a}.gpc1 .gpt{color:#3f6f6a}' +
       '.gpc2{background:linear-gradient(135deg,#fff7ed,#fef3c7);color:#7c2d12}.gpc2 .gpt{color:#9a5b3a}' +
-      '.gpc3{background:linear-gradient(135deg,#eff6ff,#e0e7ff);color:#312e81}.gpc3 .gpt{color:#5b5fa8}</style>' +
+      '.gpc3{background:linear-gradient(135deg,#eff6ff,#dfe8fd);color:#1f3a8a}.gpc3 .gpt{color:#5b5fa8}</style>' +
       '<div class="gpgrid">' + card('gpc1', '오늘 날짜', fmtDate(today), '<div class="gptime" id="gp-clock">' + clockText() + '</div>') +
       vac('여름방학식', 'gpc2', v.summer) + vac('겨울방학식', 'gpc3', v.winter) + '</div>';
     if (opt && opt.fold) {   // 홈: 한 줄 막대로 접어 두고 누르면 펼침 (기본 접힘)
       const sum = [fmtDate(today)].concat(v.summer ? ['여름방학식 ' + dday(v.summer)] : [], v.winter ? ['겨울방학식 ' + dday(v.winter)] : []).join(' · ');
       const inner = box.innerHTML; const key = opt.fold;
-      box.innerHTML = FOLD_CSS + '<div class="dc-wrap' + (foldGet(key, true) ? ' is-folded' : '') + '"><div class="dc-bar" role="button" tabindex="0" aria-label="날짜 카드 접기/펼치기"><b>📅 날짜</b><span class="dc-sum">' + sum + '</span><span class="gp-fold">' + CHEV + '</span></div><div class="dc-body">' + inner + '</div></div>';
+      box.innerHTML = FOLD_CSS + '<div class="dc-wrap' + (foldGet(key, true) ? ' is-folded' : '') + '"><div class="dc-bar" role="button" tabindex="0" aria-label="날짜 카드 접기/펼치기"><b>날짜</b><span class="dc-sum">' + sum + '</span><span class="gp-fold">' + CHEV + '</span></div><div class="dc-body">' + inner + '</div></div>';
       const w = box.querySelector('.dc-wrap'), bar = box.querySelector('.dc-bar');
       const tg = () => { const on = !w.classList.contains('is-folded'); w.classList.toggle('is-folded', on); foldSet(key, on); bar.setAttribute('aria-expanded', String(!on)); };
       bar.setAttribute('aria-expanded', String(!w.classList.contains('is-folded'))); bar.onclick = tg; bar.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tg(); } };
@@ -272,9 +272,9 @@
     const m = document.createElement('div'); m.id = 'tpDlg'; m.className = 'fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50'; m.style.zIndex = '250';
     m.innerHTML = '<style>.wk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:8px;max-height:46vh;overflow-y:auto;padding:2px}' +
       '.wk-t{position:relative;height:84px;border:2px solid #e2e8f0;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:repeating-conic-gradient(#f1f5f9 0 25%,#fff 0 50%) 0 0/14px 14px}' +
-      '.wk-t:hover{border-color:#a5b4fc}.wk-t.on{border-color:#4f46e5;box-shadow:0 0 0 3px #e0e7ff}.wk-t img{max-height:60px;max-width:66px;object-fit:contain}' +
+      '.wk-t:hover{border-color:#9fb8f8}.wk-t.on{border-color:#4f78f2;box-shadow:0 0 0 3px #dfe8fd}.wk-t img{max-height:60px;max-width:66px;object-fit:contain}' +
       '.wk-x{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:999px;border:0;background:rgba(15,23,42,.6);color:#fff;font-size:12px;line-height:20px;cursor:pointer}.wk-x:hover{background:#dc2626}' +
-      '.wk-add{border-style:dashed;background:#fff;color:#4f46e5;font-size:12px;font-weight:700;flex-direction:column;gap:2px}.wk-on{position:absolute;left:4px;bottom:3px;font-size:10px;font-weight:800;color:#4f46e5;background:#fff;border-radius:6px;padding:0 4px}</style>' +
+      '.wk-add{border-style:dashed;background:#fff;color:#4f78f2;font-size:12px;font-weight:700;flex-direction:column;gap:2px}.wk-on{position:absolute;left:4px;bottom:3px;font-size:10px;font-weight:800;color:#4f78f2;background:#fff;border-radius:6px;padding:0 4px}</style>' +
       '<div class="bg-white rounded-2xl p-5 w-full max-w-lg space-y-3 shadow-xl" role="dialog" aria-modal="true"><h3 class="font-bold text-lg">걷는 사람 그림</h3>' +
       '<p class="text-sm text-slate-600">누른 그림으로 바로 바뀝니다. <b>이 브라우저에만</b> 저장되어 나에게만 보입니다(다른 사람·다른 기기는 그대로). 움직이는 <b>GIF</b>도 그대로 움직입니다.</p>' +
       '<div class="wk-grid" id="wkGrid"></div><p class="text-xs text-slate-400" id="wkInfo"></p><p id="wkErr" class="text-sm text-red-600" style="display:none"></p>' +
@@ -333,7 +333,7 @@
     const md = (d) => (d.getMonth() + 1) + '월 ' + d.getDate() + '일';
     const dd = today > s2.end ? '종료' : dday(dTarget, now);
     const walker = wsrc ? '<img class="tp-img" src="' + wsrc.replace(/"/g, '&quot;') + '" alt="">' : DEF_WALKER;
-    box.innerHTML = TP_CSS + FOLD_CSS + '<div class="tp-card' + (foldGet('tp', false) ? ' is-folded' : '') + '"><div class="tp-head"><div class="tp-title">' + year + '학년도 진행 현황</div><span class="tp-mini">' + pct + '% · ' + state + '</span><button type="button" class="tp-gear" title="걷는 사람 그림 바꾸기" aria-label="진행 현황 설정"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 2.5h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7v-.2a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/></svg></button><button type="button" class="gp-fold tp-fold" title="접기/펼치기" aria-label="진행 현황 접기/펼치기">' + CHEV + '</button></div><div class="tp-body">' +
+    box.innerHTML = TP_CSS + FOLD_CSS + '<div class="tp-card' + (foldGet('tp', false) ? ' is-folded' : '') + '"><div class="tp-head"><div class="tp-title">' + year + '학년도 진행 현황</div><span class="tp-mini">' + pct + '% · ' + state + '</span><button type="button" class="tp-gear" title="걷는 사람 그림 바꾸기" aria-label="진행 현황 설정"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 2.5h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7v-.2a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/></svg></button><button type="button" class="gp-fold tp-fold" title="접기/펼치기" aria-label="진행 현황 접기/펼치기">' + CHEV + '</button></div><div class="tp-body">' +
       '<div class="tp-top"><div class="tp-pct"><b>' + pct + '</b><span>%</span><em class="tp-chip">' + state + '</em></div>' +
       '<div class="tp-stats"><div class="tp-stat"><i>지난 수업일</i><b>' + past + '<small>/' + total + '일</small></b></div><div class="tp-stat"><i>남은 수업일</i><b>' + left + '<small>일</small></b></div><div class="tp-stat"><i>' + dLabel + '</i><b>' + dd + '</b></div></div></div>' +
       '<div class="tp-track-wrap"><div class="tp-walker" style="left:' + pos.toFixed(2) + '%">' + walker + '</div>' +
@@ -353,7 +353,7 @@
   }
   const TP_CSS = '<style>' +
     '.tp-card{background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:18px 20px 14px;box-shadow:0 2px 10px rgba(15,23,42,.05)}' +
-    '.tp-head{display:flex;align-items:center;gap:6px}.tp-fold{margin-left:auto}.tp-mini{display:none;min-width:0;font-size:12.5px;font-weight:700;color:#4f46e5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tp-gear{flex-shrink:0}.is-folded .tp-mini{display:inline}.is-folded .tp-body{display:none}.tp-card.is-folded{padding-bottom:18px}.tp-gear{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:999px;border:1px solid #e0e7ff;background:#eef2ff;color:#4f46e5;cursor:pointer}.tp-gear:hover{background:#e0e7ff}' +
+    '.tp-head{display:flex;align-items:center;gap:6px}.tp-fold{margin-left:auto}.tp-mini{display:none;min-width:0;font-size:12.5px;font-weight:700;color:#4f78f2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tp-gear{flex-shrink:0}.is-folded .tp-mini{display:inline}.is-folded .tp-body{display:none}.tp-card.is-folded{padding-bottom:18px}.tp-gear{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;border:0;background:transparent;color:#1e293b;cursor:pointer}.tp-gear:hover{background:rgba(15,23,42,.06)}' +
     '.tp-img{display:block;height:48px;width:auto;max-width:90px;object-fit:contain}' +
     '.tp-title{font-size:16px;font-weight:800;color:#0f172a;white-space:nowrap}.tp-empty{font-size:13px;color:#94a3b8;text-align:center;padding:8px}' +
     '.tp-top{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;margin-top:10px}' +

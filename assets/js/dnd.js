@@ -7,9 +7,9 @@
   var css = '.dnd-handle{touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none}' +
     'body.dnd-active,body.dnd-active *{-webkit-user-select:none!important;user-select:none!important;cursor:grabbing!important}' +
     '.dnd-src{opacity:.35}.dnd-ghost{position:fixed;z-index:99999;pointer-events:none;opacity:.9;box-shadow:0 8px 24px rgba(0,0,0,.25);margin:0!important}' +
-    '.dnd-before-x{box-shadow:inset 4px 0 0 #4f46e5!important}.dnd-after-x{box-shadow:inset -4px 0 0 #4f46e5!important}' +
-    '.dnd-before-y{box-shadow:inset 0 4px 0 #4f46e5!important}.dnd-after-y{box-shadow:inset 0 -4px 0 #4f46e5!important}' +
-    '.dnd-zone{outline:2px dashed #4f46e5;outline-offset:2px}';
+    '.dnd-before-x{box-shadow:inset 4px 0 0 #4f78f2!important}.dnd-after-x{box-shadow:inset -4px 0 0 #4f78f2!important}' +
+    '.dnd-before-y{box-shadow:inset 0 4px 0 #4f78f2!important}.dnd-after-y{box-shadow:inset 0 -4px 0 #4f78f2!important}' +
+    '.dnd-zone{outline:2px dashed #4f78f2;outline-offset:2px}';
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
   var MARKS = ['dnd-before-x', 'dnd-after-x', 'dnd-before-y', 'dnd-after-y', 'dnd-zone'];
   function clearMarks() { MARKS.forEach(function (c) { document.querySelectorAll('.' + c).forEach(function (n) { n.classList.remove(c); }); }); }

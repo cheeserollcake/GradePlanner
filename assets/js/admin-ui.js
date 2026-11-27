@@ -71,7 +71,7 @@
   // 예산 페이지에서 비밀번호를 확인하고 넘어온 경우에는 다시 묻지 않습니다.
   try { const jump = sessionStorage.getItem('gp_admin_open'); if (jump) { sessionStorage.removeItem('gp_admin_open'); if (TABS_KEYS.indexOf(jump) >= 0) tab = jump; if (GP.hasLevel('admin')) setTimeout(() => start(), 0); } } catch (e) { /* 무시 */ }
   // 다른 페이지에서 특정 부분으로 바로 가기 (예: 전담 시간표 페이지의 톱니 → 전담 시간표 일괄 업로드)
-  try { const to = sessionStorage.getItem('gp_admin_scroll'); if (to) { sessionStorage.removeItem('gp_admin_scroll'); let n = 0; const t = setInterval(() => { const el = document.getElementById(to); if (el || ++n > 50) { clearInterval(t); if (el) { const box = el.closest('.border.rounded-xl') || el; box.scrollIntoView({ behavior: 'smooth', block: 'center' }); box.style.transition = 'box-shadow .3s'; box.style.boxShadow = '0 0 0 3px #6366f1'; setTimeout(() => { box.style.boxShadow = ''; }, 2500); } } }, 100); } } catch (e) { /* 무시 */ }
+  try { const to = sessionStorage.getItem('gp_admin_scroll'); if (to) { sessionStorage.removeItem('gp_admin_scroll'); let n = 0; const t = setInterval(() => { const el = document.getElementById(to); if (el || ++n > 50) { clearInterval(t); if (el) { const box = el.closest('.border.rounded-xl') || el; box.scrollIntoView({ behavior: 'smooth', block: 'center' }); box.style.transition = 'box-shadow .3s'; box.style.boxShadow = '0 0 0 3px #5f88f3'; setTimeout(() => { box.style.boxShadow = ''; }, 2500); } } }, 100); } } catch (e) { /* 무시 */ }
   async function start() {
     // 학년을 바꾸고 다시 연 경우: 그 학년의 학년도를 지금 학년도에 맞춤(이전 학년도 자료는 보관)
     try { const ny = sessionStorage.getItem('gp_need_year'); if (ny) { sessionStorage.removeItem('gp_need_year'); busy(true, '학년도를 맞추는 중...'); try { await APP.setYear(parseInt(ny, 10)); notifyMeta(); } finally { busy(false); } } } catch (e) { console.error(e); }
@@ -131,7 +131,7 @@
     '<style>.gp-bulk3{display:grid;gap:1.25rem;grid-template-columns:minmax(0,1fr)}.gp-bulk3>div{display:flex;flex-direction:column}.gp-bulk3>div>.flex-wrap{margin-top:auto;padding-top:.25rem}@media (min-width:1024px){.gp-bulk3{grid-template-columns:repeat(3,minmax(0,1fr))}}@media (min-width:640px) and (max-width:1023px){.gp-bulk3{grid-template-columns:repeat(2,minmax(0,1fr))}}</style><div class="gp-bulk3">' +
     '<div class="space-y-2 border rounded-xl p-4"><h3 class="font-semibold">전담 시간표</h3>' +
     '<p class="text-sm text-slate-500">전담 시간표 페이지와 같은 모양의 엑셀(.xlsx)입니다. 전담(과목·담당학급)·학기마다 시트가 하나씩 있고, 양식은 비어 있습니다. 칸에 학급 번호(예: 3 · 3반 · 과(6-3))를 적으면 등록되고, 비워 둔 칸은 지금 등록된 내용을 그대로 둡니다. 시트 이름과 표 모양은 바꾸지 마세요.</p>' +
-    '<div class="flex flex-wrap gap-2"><button id="spTpl" class="' + BTN_G + '">양식 다운로드 (.xlsx)</button><label class="' + BTN_G + ' cursor-pointer">엑셀 업로드<input id="spUp" type="file" accept=".xlsx" class="hidden"></label></div></div>' +
+    '<div class="flex flex-wrap gap-1"><button type="button" data-gpi="upload" data-tip="데이터 업로드" onclick="this.nextElementSibling.click()"></button><input id="spUp" type="file" accept=".xlsx" class="hidden"><button id="spTpl" type="button" data-gpi="template" data-tip="업로드 양식 다운"></button></div></div>' +
     '<div id="bulkGym" class="space-y-2 border rounded-xl p-4"></div><div id="bulkAdd" class="space-y-2 border rounded-xl p-4"></div>' +
     '</div></div>';
   const saveXlsx = (sheets, fileName) => {
@@ -245,7 +245,7 @@
       el = document.createElement('div'); el.id = 'gp-busy';
       el.style.cssText = 'position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.28);backdrop-filter:blur(1px)';
       el.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px 28px;box-shadow:0 10px 30px rgba(0,0,0,.18);display:flex;flex-direction:column;align-items:center;gap:12px;min-width:200px">' +
-        '<div style="width:42px;height:42px;border:4px solid #e0e7ff;border-top-color:#4f46e5;border-radius:50%;animation:gpspin .8s linear infinite"></div><div id="gp-busy-msg" style="font-size:14px;font-weight:600;color:#334155"></div></div>';
+        '<div style="width:42px;height:42px;border:4px solid #dfe8fd;border-top-color:#4f78f2;border-radius:50%;animation:gpspin .8s linear infinite"></div><div id="gp-busy-msg" style="font-size:14px;font-weight:600;color:#334155"></div></div>';
       const st = document.createElement('style'); st.textContent = '@keyframes gpspin{to{transform:rotate(360deg)}}'; document.head.appendChild(st);
       el.addEventListener('keydown', (e) => e.preventDefault(), true); document.body.appendChild(el);
     }
@@ -343,7 +343,7 @@
       const evCount = items.length;
       const evHtml = items.map((e, i) => '<tr class="border-t"><td class="p-1.5 whitespace-nowrap">' + ymd(e.start) + (e.end && ymd(e.end) !== ymd(e.start) ? ' ~ ' + ymd(e.end) : '') + '</td>' +
         '<td class="p-1.5 whitespace-pre-wrap">' + (e.kind === 'holiday' ? '<span class="text-xs px-1.5 py-0.5 rounded bg-pink-100 text-red-600 mr-1">휴일</span>' : '') + esc(e.name) + '</td>' +
-        '<td class="p-1.5 whitespace-nowrap text-right"><button data-eedit="' + i + '" class="text-slate-500 hover:text-indigo-600 mr-2">수정</button><button data-edel="' + i + '" class="text-slate-400 hover:text-red-600">삭제</button></td></tr>').join('');
+        '<td class="p-1.5 whitespace-nowrap text-right"><button data-eedit="' + i + '" type="button" class="gpi-btn gpi-sm" data-tip="수정" aria-label="수정">' + GPI.svg('edit') + '</button><button data-edel="' + i + '" type="button" class="gpi-btn gpi-sm" data-tip="삭제" aria-label="삭제">' + GPI.svg('trash') + '</button></td></tr>').join('');
       const ed = editItem;
       const classHtml = g.classNames.map((n, i) => '<span class="inline-flex items-center gap-1 bg-slate-100 rounded-lg px-2 py-1 text-sm"><span data-cn="' + i + '">' + esc(n) + '</span><button data-cedit="' + i + '" title="이름 수정">✏️</button></span>').join(' ');
       const homeHtml = g.classNames.map((n) => {
@@ -378,7 +378,7 @@
         '<label class="flex items-center gap-1 text-sm"><input id="evHol" type="checkbox" ' + (ed && ed.kind === 'holiday' ? 'checked' : '') + '> 휴일</label>' +
         '<button id="evSave" class="' + BTN_P + '">' + (ed ? '수정 저장' : '추가') + '</button>' + (ed ? '<button id="evCancel" class="' + BTN_G + '">취소</button>' : '') + '</div>' +
         '<p class="text-xs text-slate-400">종료일을 비워 두면 하루짜리 일정입니다. 휴일(선거일, 임시공휴일 등)로 체크하면 data_basic 의 holiday 필드에 저장됩니다.</p>' +
-        '<div class="flex flex-wrap gap-2 items-center"><button id="tpl" class="' + BTN_G + '">양식 다운로드 (.xlsx)</button><label class="' + BTN_G + ' cursor-pointer">엑셀·CSV 업로드<input id="csv" type="file" accept=".xlsx,.csv,text/csv" class="hidden"></label></div>' +
+        '<div class="flex flex-wrap gap-2 items-center"><button type="button" data-gpi="upload" data-tip="데이터 업로드" onclick="this.nextElementSibling.click()"></button><input id="csv" type="file" accept=".xlsx,.csv,text/csv" class="hidden"><button id="tpl" type="button" data-gpi="template" data-tip="업로드 양식 다운"></button></div>' +
         '<div class="flex items-center justify-between"><span class="text-xs text-slate-400">' + evCount + '개 일정</span><button id="evExpand" class="' + BTN_G + '">' + (window.__evOpen ? '접기' : '펼침 보기') + '</button></div>' +
         '<div id="evBox" class="border rounded-lg" style="' + (window.__evOpen ? '' : 'max-height:615px;overflow-y:auto;') + '"><table class="w-full text-sm"><tbody>' + (evHtml || '<tr><td class="p-4 text-center text-slate-400">이 학년도에 등록된 일정이 없습니다.</td></tr>') + '</tbody></table></div></div>';
       const classCard =
@@ -894,7 +894,7 @@
       '<div class="flex gap-2 text-xs"><button id="dmAll" type="button" class="' + BTN_G + ' !py-1">전체 선택</button><button id="dmNone" type="button" class="' + BTN_G + ' !py-1">전체 해제</button></div>' +
       '<div id="dmList" class="space-y-1 border rounded-lg p-2 max-h-72 overflow-y-auto text-sm"><p class="text-slate-400 p-2">확인 중...</p></div>' +
       '<div class="flex flex-wrap items-center justify-between gap-2"><span class="text-xs text-slate-500">업로드 양식이 있는 항목은 그 양식 모양으로 받습니다. 학습준비물은 원본·제출용·수령확인용 시트가 모두 들어갑니다. 이미지·파일은 엑셀과 함께 zip 으로 받습니다(구글 스프레드시트에는 표만).</span>' +
-      '<div class="flex flex-wrap gap-2"><button id="dmDl" type="button" disabled class="' + BTN_P + ' disabled:opacity-40">⬇ 엑셀로 다운로드</button><button id="dmGs" type="button" disabled class="' + BTN + ' bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-40">구글 스프레드시트로 내보내기</button></div></div>' +
+      '<div class="flex flex-wrap gap-2"><button id="dmGs" type="button" disabled class="gpi-btn gpi-lg" data-gpi="sheets" data-tip="구글 스프레드시트로 내보내기" data-tip-pos="up"></button><button id="dmDl" type="button" disabled class="gpi-btn gpi-lg" data-gpi="excel" data-tip="엑셀로 내보내기" data-tip-pos="up"></button></div></div>' +
       '<div class="border-t pt-3 space-y-2"><p class="text-sm text-slate-600"><b class="text-red-700">지우기:</b> 계속하려면 아래에 <b>과거 데이터 삭제</b> 를 입력하세요. <b>삭제하면 복구할 수 없습니다.</b></p><input id="dmIn" class="' + INP + ' w-full" placeholder="과거 데이터 삭제"></div>' +
       '<div class="flex justify-end gap-2"><button id="dmNo" class="' + BTN_G + '">닫기</button><button id="dmYes" disabled class="' + BTN + ' bg-red-600 text-white disabled:opacity-40">선택한 항목 삭제</button></div></div></div>';
     $('savePw').onclick = () => guard(async () => {
@@ -924,7 +924,7 @@
     $('dmAll').onclick = () => { modal.querySelectorAll('[data-dk]:not(:disabled)').forEach((c) => { c.checked = true; }); refresh(); };
     $('dmNone').onclick = () => { modal.querySelectorAll('[data-dk]').forEach((c) => { c.checked = false; }); refresh(); };
     $('dmNo').onclick = () => { if (!deleting) show(false); }; $('dmIn').oninput = refresh;
-    const busy = (on, t, f, mode) => { const b = $('dmBusy'); if (!b) return; const pn = b.parentElement; if (on && pn.style.overflow !== 'hidden') { pn.scrollTop = 0; pn.style.overflow = 'hidden'; } else if (!on) pn.style.overflow = ''; b.style.display = on ? 'flex' : 'none'; const dl = mode === 'dl'; b.querySelector('.gp-spin').style.borderColor = dl ? '#e0e7ff' : ''; b.querySelector('.gp-spin').style.borderTopColor = dl ? '#4f46e5' : ''; $('dmBusyBar').style.background = dl ? '#4f46e5' : ''; b.querySelector('.gp-bar').style.background = dl ? '#e0e7ff' : ''; if (t) $('dmBusyT').textContent = t; if (f !== undefined) $('dmBusyBar').style.width = Math.round(f * 100) + '%'; };
+    const busy = (on, t, f, mode) => { const b = $('dmBusy'); if (!b) return; const pn = b.parentElement; if (on && pn.style.overflow !== 'hidden') { pn.scrollTop = 0; pn.style.overflow = 'hidden'; } else if (!on) pn.style.overflow = ''; b.style.display = on ? 'flex' : 'none'; const dl = mode === 'dl'; b.querySelector('.gp-spin').style.borderColor = dl ? '#dfe8fd' : ''; b.querySelector('.gp-spin').style.borderTopColor = dl ? '#4f78f2' : ''; $('dmBusyBar').style.background = dl ? '#4f78f2' : ''; b.querySelector('.gp-bar').style.background = dl ? '#dfe8fd' : ''; if (t) $('dmBusyT').textContent = t; if (f !== undefined) $('dmBusyBar').style.width = Math.round(f * 100) + '%'; };
     let deleting = false;
     $('dmYes').onclick = () => guard(async () => {
       const keys = picked(); if (!keys.length || deleting) return;

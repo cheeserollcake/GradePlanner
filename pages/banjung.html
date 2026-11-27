@@ -4,35 +4,38 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>반배정하기</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127k">
-  <script src="../assets/js/fb-boot.js?v=20261127k"></script>
-  <script src="../assets/js/firebase-config.js?v=20261127k"></script>
-  <script src="../assets/js/gas-shim.js?v=20261127k"></script>
-  <link rel="stylesheet" href="../assets/css/lock.css?v=20261127k">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127l">
+  <script src="../assets/js/gp-icons.js?v=20261127l"></script>
+  <script src="../assets/js/fb-boot.js?v=20261127l"></script>
+  <script src="../assets/js/firebase-config.js?v=20261127l"></script>
+  <script src="../assets/js/gas-shim.js?v=20261127l"></script>
+  <link rel="stylesheet" href="../assets/css/lock.css?v=20261127l">
   <style>
     body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;background:#f8fafc;color:#1e293b;margin:0}
     .wrap{max-width:1500px;margin:0 auto;padding:16px}
     h1{font-size:24px;font-weight:800;margin:0}
     .btn{display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;font-size:14px;font-weight:600;color:#334155;cursor:pointer;white-space:nowrap}
-    .btn:hover{background:#f1f5f9}.btn.p{background:#4f46e5;border-color:#4f46e5;color:#fff}.btn.p:hover{background:#4338ca}.btn.on{background:#eef2ff;border-color:#6366f1;color:#4338ca}
+    .btn:hover{background:#f1f5f9}.btn.p{background:#4f78f2;border-color:#4f78f2;color:#fff}.btn.p:hover{background:#3a62dc}.btn.on{background:#eef3fe;border-color:#5f88f3;color:#3a62dc}
     .btn.g{background:#059669;border-color:#059669;color:#fff}
-    .tabs{display:flex;gap:4px;border-bottom:1px solid #e2e8f0;margin:14px 0}
+    .tabs{display:flex;gap:4px;border-bottom:1px solid #e2e8f0;margin:0 0 14px;justify-content:center}
     .tabs button{padding:9px 16px;font-size:14px;font-weight:700;border:0;background:none;color:#64748b;border-bottom:3px solid transparent;cursor:pointer}
-    .tabs button.on{color:#4338ca;border-color:#4f46e5}
+    .tabs button.on{color:#3a62dc;border-color:#4f78f2}
     .card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
-    .cls-btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+    .cls-btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;justify-content:center}
+    .bj-sec-h{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;font-size:15px}.bj-sec-h .bj-chev{display:inline-flex;color:#334155;transition:transform .2s}.bj-sec-h .bj-chev.f{transform:rotate(-90deg)}
+    table.t.kt td.l{text-align:left}table.t.kt td.c2{text-align:center}
     .cls-btns button{padding:6px 14px;border-radius:999px;border:1px solid #cbd5e1;background:#fff;font-weight:700;font-size:14px;cursor:pointer}
-    .cls-btns button.on{background:#4f46e5;color:#fff;border-color:#4f46e5}
+    .cls-btns button.on{background:#4f78f2;color:#fff;border-color:#4f78f2}
     table.t{border-collapse:collapse;width:100%;font-size:13.5px}
     table.t th{background:#f1f5f9;font-weight:700;padding:6px;border:1px solid #e2e8f0;white-space:nowrap}
     table.t td{border:1px solid #e2e8f0;padding:4px 6px;vertical-align:middle}
     table.t td.c{text-align:center}
     table.t input[type=text],table.t input[type=number]{width:100%;box-sizing:border-box;border:1px solid transparent;background:transparent;padding:4px;border-radius:6px;font:inherit}
-    table.t input[type=text]:focus,table.t input[type=number]:focus{border-color:#6366f1;background:#fff;outline:none}
+    table.t input[type=text]:focus,table.t input[type=number]:focus{border-color:#5f88f3;background:#fff;outline:none}
     table.t input[type=checkbox]{width:16px;height:16px}
-    .sexrow td{background:#eef2ff !important;font-weight:700;color:#4338ca;font-size:12.5px}
+    .sexrow td{background:#eef3fe !important;font-weight:700;color:#3a62dc;font-size:12.5px}
     .sepbtn{width:100%;text-align:left;border:1px dashed #cbd5e1;border-radius:6px;background:#fff;padding:4px 6px;font:inherit;font-size:12.5px;cursor:pointer;min-height:28px}
-    .sepbtn:hover{border-color:#6366f1}
+    .sepbtn:hover{border-color:#5f88f3}
     .bj-sp{background:#fed7aa !important}.bj-slow{background:#fef9c3 !important}.bj-multi{background:#dbeafe !important}.bj-move{background:#e5e7eb !important}
     .stat td,.stat th{text-align:center}
     .stat tr.o td{font-size:12px;color:#475569;text-align:left;background:#fafafa}
@@ -49,11 +52,11 @@
     .warn.h{background:#fef2f2;color:#b91c1c}.warn.s{background:#fffbeb;color:#92400e}
     .modal{position:fixed;inset:0;background:rgba(15,23,42,.4);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
     .modal .box{background:#fff;border-radius:16px;padding:18px;width:100%;max-width:520px;max-height:90vh;overflow:auto}
-    .chips{display:flex;flex-wrap:wrap;gap:6px}.chip{padding:3px 10px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:13px}
+    .chips{display:flex;flex-wrap:wrap;gap:6px}.chip{padding:3px 10px;border-radius:999px;background:#eef3fe;color:#284bb8;font-size:13px}
     .muted{color:#94a3b8;font-size:12.5px}
     .busy{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.28)}
     .busy>div{background:#fff;border-radius:16px;padding:22px 28px;display:flex;flex-direction:column;align-items:center;gap:12px;font-weight:600}
-    .spin{width:42px;height:42px;border:4px solid #e0e7ff;border-top-color:#4f46e5;border-radius:50%;animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+    .spin{width:42px;height:42px;border:4px solid #dfe8fd;border-top-color:#4f78f2;border-radius:50%;animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
     .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:9px 16px;border-radius:10px;font-size:14px;z-index:99;display:none}
   </style>
 </head>
@@ -62,15 +65,15 @@
   <input type="password" id="pw" class="gp-lock-in" placeholder="비밀번호" autocomplete="off">
   <button class="gp-lock-btn" id="pwBtn">확인</button><p id="pwErr" class="gp-lock-err" style="display:none"></p></div></div>
 <div id="app" class="wrap" style="display:none">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><h1>반배정하기</h1><span id="saved" class="muted"></span></div>
-  <div class="tabs"><button data-tab="setup" class="on">학급 기초 설정</button><button data-tab="board">반 배정 보드</button></div>
+  <div class="tabs" style="position:relative"><button data-tab="setup" class="on">학급 기초 설정</button><button data-tab="board">반 배정 보드</button><span id="saved" class="muted" style="position:absolute;right:0;bottom:10px"></span></div>
   <div id="view"></div>
 </div>
 <div id="busy" class="busy"><div><div class="spin"></div><div id="busyMsg">처리 중...</div></div></div>
 <div id="toast" class="toast"></div>
-<script src="../assets/js/xlsx-lite.js?v=20261127k"></script>
-<script src="../assets/js/dnd.js?v=20261127k"></script>
-<script src="../assets/js/banjung.js?v=20261127k"></script>
+<script src="../assets/js/gsheet-export.js?v=20261127l"></script>
+<script src="../assets/js/xlsx-lite.js?v=20261127l"></script>
+<script src="../assets/js/dnd.js?v=20261127l"></script>
+<script src="../assets/js/banjung.js?v=20261127l"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -186,29 +189,33 @@
     const holdIds = S.filter((s) => a[s.id] === undefined).map((s) => s.id);   // 보관함 + 아직 배정 안 된 학생
     const { st, origs } = BJ.stats(S, a, cfg);
     const warn = BJ.checkRules(S, a, cfg);
-    let h = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"><button class="btn p" id="auto">기본 배정하기</button><button class="btn ' + (manual ? 'on' : '') + '" id="man">' + (manual ? '✋ 수동 조정 끝내기' : '수동 조정하기') + '</button><button class="btn" id="clr" style="color:#dc2626;border-color:#fecaca">🗑 배정 삭제</button>' +
-      '<span style="flex:1"></span><button class="btn g" id="xls">⬇ 엑셀로 내보내기</button></div>';
+    let h = '<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-bottom:12px"><span></span><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><button class="btn p" id="auto">기본 배정하기</button><button class="btn ' + (manual ? 'on' : '') + '" id="man">' + (manual ? '수동 조정 끝내기' : '수동 조정하기') + '</button><button class="btn" id="clr" style="color:#dc2626;border-color:#fecaca"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-3px;margin-right:4px"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6M14 11v6"/></svg>배정 삭제</button>' +
+      '</div><div style="display:flex;justify-content:flex-end"><button type="button" id="xls" data-gpi="download" data-tip="내보내기" data-tip-pos="left"></button></div></div>';
     const has = Object.keys(a).length > 0;
     if (!has) h += '<div class="card muted">아직 배정하지 않았습니다. <b>기본 배정하기</b>를 누르세요. (학생 ' + S.length + '명 · 배정할 반 ' + K + '개)</div>';
     else {
       // 인원: 전출예정은 합계에서 빼고 ( ) 안에 따로
       const mv = Array.from({ length: K }, () => ({ M: 0, F: 0, U: 0 })); S.forEach((x) => { const k = a[x.id]; if (typeof k === 'number' && x.move && mv[k]) mv[k][x.g]++; });
       const par = (n) => (n ? '(' + n + ')' : '');
-      const foldBtn = (n) => '<th style="width:44px"><button type="button" class="btn" data-fold="' + n + '" title="' + (fold[n] ? '펼치기' : '접기') + '" style="padding:2px 8px">' + (fold[n] ? '▼' : '▲') + '</button></th>';
-      const tblStyle = (cols) => 'table-layout:fixed;width:100%;max-width:' + (cols * 120 + 44) + 'px';   // 넓은 화면에서도 칸이 너무 넓어지지 않게, 칸 너비는 똑같이
+      // 위 두 구역(배정반별 · 원적반별 배정 현황): 구역 제목줄을 누르면 접고 펼침. 표는 가운데 정렬
+      const CH = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+      const secHead = (n, title) => '<div class="bj-sec-h" data-fold="' + n + '" role="button" tabindex="0" aria-expanded="' + !fold[n] + '"><b>' + title + '</b><span class="bj-chev' + (fold[n] ? ' f' : '') + '">' + CH + '</span></div>';
+      const tblStyle = (cols) => 'table-layout:fixed;width:100%;max-width:' + (cols * 120) + 'px;margin:10px auto 0';   // 넓은 화면에서도 칸이 너무 넓어지지 않게, 칸 너비는 똑같이
       const c1 = ['배정반', '총인원', '성별인원'].concat(sc ? ['평균점수'] : [], ['특수', '학습부진', '다문화', '전출예정']);
-      h += '<div class="card" style="margin-bottom:10px;overflow-x:auto"><table class="t stat" style="' + tblStyle(c1.length) + '"><thead><tr>' + c1.map((x) => '<th>' + x + '</th>').join('') + foldBtn(1) + '</tr></thead>' + (fold[1] ? '' : '<tbody>' +
+      h += '<div class="card" style="margin-bottom:10px">' + secHead(1, '배정반별 배정 현황') + (fold[1] ? '' : '<div style="overflow-x:auto"><table class="t stat" style="' + tblStyle(c1.length) + '"><thead><tr>' + c1.map((x) => '<th>' + x + '</th>').join('') + '</tr></thead><tbody>' +
         st.map((q, k) => { const m = mv[k], mt = m.M + m.F + m.U;
           return '<tr><td><b>' + esc(BJ.tempName(cfg, k)) + '</b></td><td>' + (q.n - mt) + par(mt) + '명</td><td>남 ' + (q.M - m.M) + par(m.M) + ', 여 ' + (q.F - m.F) + par(m.F) + (q.U ? ', ? ' + (q.U - m.U) + par(m.U) : '') + '</td>' + (sc ? '<td>' + (q.scn ? (q.sc / q.scn).toFixed(1) : '-') + '</td>' : '') +
-            '<td>' + q.sp + '명</td><td>' + q.slow + '명</td><td>' + q.multi + '명</td><td>' + q.move + '명</td><td></td></tr>'; }).join('') + '</tbody>') + '</table></div>';
+            '<td>' + q.sp + '명</td><td>' + q.slow + '명</td><td>' + q.multi + '명</td><td>' + q.move + '명</td></tr>'; }).join('') + '</tbody></table></div>') + '</div>';
       const c2 = ['배정반'].concat(origs.map((o) => clsName(o)));
-      h += '<div class="card" style="margin-bottom:10px;overflow-x:auto"><table class="t stat" style="' + tblStyle(c2.length) + '"><thead><tr>' + c2.map((x) => '<th>' + esc(x) + '</th>').join('') + foldBtn(2) + '</tr></thead>' + (fold[2] ? '' : '<tbody>' +
-        st.map((q, k) => '<tr><td><b>' + esc(BJ.tempName(cfg, k)) + '</b></td>' + origs.map((o) => '<td>' + (q.o[o] || 0) + '명</td>').join('') + '<td></td></tr>').join('') + '</tbody>') + '</table></div>';
+      h += '<div class="card" style="margin-bottom:10px">' + secHead(2, '원적반별 배정 현황') + (fold[2] ? '' : '<div style="overflow-x:auto"><table class="t stat" style="' + tblStyle(c2.length) + '"><thead><tr>' + c2.map((x) => '<th>' + esc(x) + '</th>').join('') + '</tr></thead><tbody>' +
+        st.map((q, k) => '<tr><td><b>' + esc(BJ.tempName(cfg, k)) + '</b></td>' + origs.map((o) => '<td>' + (q.o[o] || 0) + '명</td>').join('') + '</tr>').join('') + '</tbody></table></div>') + '</div>';
     }
     const M = byId();
     const isMoved = (id) => (res.orig ? (res.orig[id] !== undefined && a[id] !== res.orig[id]) : !!res.moved[id]);   // 처음 배정된 반으로 돌아오면 표시 없음
-    const rowOf = (s, cols) => '<tr class="bj-st' + (manual ? ' dnd-handle' : '') + (isMoved(s.id) ? ' moved' : '') + '" data-id="' + esc(s.id) + '">' + cols.map((v, i) => '<td class="' + cellCls(s, i) + '">' + v + '</td>').join('') + '</tr>';
+    const rowOf = (s, cols, wide) => '<tr class="bj-st' + (manual ? ' dnd-handle' : '') + (isMoved(s.id) ? ' moved' : '') + '" data-id="' + esc(s.id) + '">' + cols.map((v, i) => '<td class="' + cellCls(s, i) + (wide && i >= cols.length - 2 ? ' l' : ' c2') + '">' + v + '</td>').join('') + '</tr>';   // 특기사항·비고는 왼쪽, 나머지는 가운데
     const cardCols = ['기존반', '이름', '성별'].concat(sc ? ['성적'] : [], ['특기사항', '비고']);
+    // 열 너비: 기존반·성별은 머리글 글자에 맞춰 좁게, 줄어든 만큼 특기사항·비고를 넓힘
+    const cardColg = '<colgroup><col style="width:4.4em"><col style="width:5.6em"><col style="width:3.4em">' + (sc ? '<col style="width:3.8em">' : '') + '<col><col></colgroup>';
     if (has || manual) {
       h += '<div class="board' + (manual ? ' manual' : '') + '"><div class="grid2">';
       for (let k = 0; k < K; k++) {
@@ -216,8 +223,8 @@
         L.sort((x, y) => ord[x.g] - ord[y.g] || x.name.localeCompare(y.name, 'ko'));   // 성별 안에서 이름순
         let lastG = null;
         const rows = L.map((s) => { let r = ''; if (s.g !== lastG) { lastG = s.g; r += '<tr class="sexrow"><td colspan="' + cardCols.length + '">' + (s.g === 'M' ? '남' : s.g === 'F' ? '여' : '성별 미입력') + ' ' + L.filter((x) => x.g === s.g).length + '명</td></tr>'; }
-          return r + rowOf(s, [esc(clsName(s.cls)), esc(s.name), BJ.G_LABEL[s.g]].concat(sc ? [s.score === null ? '' : s.score] : [], [esc(BJ.flagsOf(s).join(', ')), esc(s.memo)])); }).join('');
-        h += '<div class="card kcard"><h3><span>' + esc(BJ.tempName(cfg, k)) + '</span><span class="muted">' + L.length + '명</span></h3><div style="overflow-x:auto"><table class="t"><thead><tr>' + cardCols.map((x) => '<th>' + x + '</th>').join('') + '</tr></thead><tbody class="bj-zone" data-k="' + k + '">' + (rows || '<tr><td colspan="' + cardCols.length + '" class="c muted">비어 있음</td></tr>') + '</tbody></table></div></div>';
+          return r + rowOf(s, [esc(clsName(s.cls)), esc(s.name), BJ.G_LABEL[s.g]].concat(sc ? [s.score === null ? '' : s.score] : [], [esc(BJ.flagsOf(s).join(', ')), esc(s.memo)]), true); }).join('');
+        h += '<div class="card kcard"><h3><span>' + esc(BJ.tempName(cfg, k)) + '</span><span class="muted">' + L.length + '명</span></h3><div style="overflow-x:auto"><table class="t kt" style="table-layout:fixed;width:100%">' + cardColg + '<thead><tr>' + cardCols.map((x) => '<th>' + x + '</th>').join('') + '</tr></thead><tbody class="bj-zone" data-k="' + k + '">' + (rows || '<tr><td colspan="' + cardCols.length + '" class="c muted">비어 있음</td></tr>') + '</tbody></table></div></div>';
       }
       h += '</div>';
       // 오른쪽 구역: 옮기기/맞바꾸기 → 확인할 점(오류) → 임시보관함
@@ -274,8 +281,8 @@
       } });
   }
   // ================= 엑셀 =================
-  function exportXlsx() {
-    const a = assigned(); if (!Object.keys(a).length) { toast('먼저 배정하세요.'); return; }
+  function buildSheets() {
+    const a = assigned();
     const H = (t) => ({ v: t, s: 'header' }), T = (v) => ({ v: v == null ? '' : String(v), s: 'text' }), C = (v) => ({ v: v == null ? '' : v, s: 'center' });
     const gl = (s) => BJ.G_LABEL[s.g]; const sheets = []; const used = new Set();
     const nm = (n) => { let x = String(n).replace(/[\[\]:*?\/\\]/g, ' ').slice(0, 31) || '시트'; let y = x, i = 2; while (used.has(y)) y = x.slice(0, 28) + '(' + (i++) + ')'; used.add(y); return y; };
@@ -287,7 +294,15 @@
       const L = S.filter((s) => s.cls === c).sort((x, y) => x.num - y.num || x.name.localeCompare(y.name, 'ko'));
       sheets.push({ name: nm(clsName(c)), widths: [6, 12, 6, 10, 22], freezeRow: 1, rows: [[H('번호'), H('이름'), H('성별'), H('배정반'), H('연락처(관계)')]].concat(L.map((s) => [C(s.num || ''), T(s.name), C(gl(s)), C(a[s.id] === undefined ? '보관함' : BJ.tempName(cfg, a[s.id])), T(s.contact)])) });
     }
-    const blob = XlsxLite.toBlob(sheets); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = cfg.year + '학년도_반배정.xlsx'; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+    return sheets;
+  }
+  // 내보내기: 엑셀 또는 구글 스프레드시트 아이콘을 고름
+  function exportXlsx() {
+    const a = assigned(); if (!Object.keys(a).length) { toast('먼저 배정하세요.'); return; }
+    GPI.exportDialog({ title: '반배정 내보내기',
+      onExcel: () => { const blob = XlsxLite.toBlob(buildSheets()); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = cfg.year + '학년도_반배정.xlsx'; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 5000); return '엑셀 파일을 내려받았습니다.'; },
+      onSheets: window.GSheet ? async (box, say) => { const r = await GSheet.create(cfg.year + '학년도 반배정', buildSheets(), (t) => say(t)); return '스프레드시트를 만들었습니다. <a href="' + r.url + '" target="_blank" rel="noopener" style="color:#2563eb;font-weight:700;text-decoration:underline">열기</a>'; } : null });
+
   }
 })();
 </script>

@@ -1411,7 +1411,7 @@
     im.onerror = () => rej(new Error('이미지를 읽을 수 없습니다.')); im.src = 'data:' + mime + ';base64,' + b64;
   });
   SERVER.uploadFile = async function (adminPwd, base64, fileName, mime) {
-    if (!hasLevel('admin')) { const r = await login('admin', adminPwd); if (!r.success) return { success: false, message: '관리자 권한이 유효하지 않습니다.' }; }
+    if (!hasLevel('admin') && !hasLevel('access')) { const r = await login('admin', adminPwd); if (!r.success) return { success: false, message: '권한이 유효하지 않습니다. 비밀번호로 다시 들어와 주세요.' }; }   // 내선번호 페이지 비밀번호로 들어온 사람도 올릴 수 있음
     try {
       mime = str(mime); const lower = str(fileName).toLowerCase();
       if (/\.xlsx?$/.test(lower) || /spreadsheetml|ms-excel/.test(mime)) return { success: false, message: '엑셀 파일은 올릴 수 없습니다. PDF나 이미지(캡처)로 저장해서 올려 주세요.' };
