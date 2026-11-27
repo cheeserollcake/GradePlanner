@@ -411,11 +411,64 @@
     return { name, freezeRow: 1, widths: cols.map((k) => Math.min(40, Math.max(8, (FIELD[k] || k).length * 2 + 4, ...it.rows.slice(0, 50).map((r) => String(val(r[k])).length + 2)))),
       rows: [cols.map((k) => ({ v: FIELD[k] || k, s: 'header' }))].concat(it.rows.map((r) => cols.map((k) => ({ v: val(r[k]), s: typeof r[k] === 'number' ? 'int' : 'text' })))) };
   }
-  async function exportYear(year, keys, onStep) {
+  // ---- 업로드 양식과 같은 모양으로 내려받기 ----
+  const NO_DOWNLOAD = ['cfg'];   // 담임·전담교사, 공간 개방 설정: 체크해도 내려받지 않음
+  const H = (v) => ({ v, s: 'header' }), Tx = (v) => ({ v: v === undefined || v === null ? '' : String(v), s: 'text' });
+  const reqH = (v) => H(v + ' (필수)');   // 일괄 업로드 양식(체육 공간·강좌 일정)의 머리글과 같게
+  const dayStr = (v) => { const d = toDate(v); return d ? appDate(d) : str(v); };
+  const splitC = (v) => str(v).split(/[,，、]+/).map((x) => x.trim()).filter(Boolean);
+  // 같은 날짜·교시·이름이면 반을 "2반, 3반"으로 묶고, 반 구성이 같으면 교시도 "1교시, 3교시"로 묶음 (업로드할 때 반 × 교시로 다시 풀림)
+  function groupSlots(rows, f, order) {
+    const pi = (p) => { const i = order.periods.indexOf(p); return i < 0 ? 999 : i; }, ci = (c) => { const i = order.classes.indexOf(c); return i < 0 ? 999 : i; };
+    const byP = new Map();
+    rows.forEach((r) => { const d = toDate(r[f.d]); if (!d) return; const name = str(r[f.n]).trim();
+      splitC(r[f.t]).forEach((p) => { const k = ymd(d) + '|' + p + '|' + name; let g = byP.get(k); if (!g) { g = { d, p, name, cls: [] }; byP.set(k, g); } splitC(r[f.c]).forEach((c) => { if (g.cls.indexOf(c) < 0) g.cls.push(c); }); }); });
+    const merged = new Map();
+    byP.forEach((g) => { const cls = g.cls.sort((a, b) => ci(a) - ci(b) || natural(a, b)).join(', '); const k = ymd(g.d) + '|' + g.name + '|' + cls; let m = merged.get(k); if (!m) { m = { d: g.d, name: g.name, cls, ps: [] }; merged.set(k, m); } if (m.ps.indexOf(g.p) < 0) m.ps.push(g.p); });
+    return [...merged.values()].map((m) => Object.assign(m, { ps: m.ps.sort((a, b) => pi(a) - pi(b)) })).sort((a, b) => a.d - b.d || pi(a.ps[0]) - pi(b.ps[0]) || natural(a.name, b.name));
+  }
+  async function formatSheets(it, ctx) {
+    const order = ctx.order, nm = it.label;
+    if (it.key === 'add') return [{ name: '강좌 일정', widths: [22, 24, 16, 20], freezeRow: 1, rows: [['날짜', '학급', '교시', '강좌명'].map(reqH)].concat(groupSlots(it.rows, { d: 'add_date', c: 'add_class', t: 'add_time', n: 'add_name' }, order).map((g) => [Tx(appDate(g.d)), Tx(g.cls), Tx(g.ps.join(', ')), Tx(g.name)])) }];
+    if (it.key === 'gym' || it.key === 'room') { const p = it.key;
+      return [{ name: nm, widths: [22, 18, 14, 16], freezeRow: 1, rows: [['날짜', '반', '교시', '공간이름'].map(reqH)].concat(groupSlots(it.rows, { d: p + '_date', c: p + '_class', t: p + '_time', n: p + '_place' }, order).map((g) => [Tx(appDate(g.d)), Tx(g.cls), Tx(g.ps.join(', ')), Tx(g.name)])) }]; }
+    if (it.key === 'sub') {
+      if (ctx.subSheets) { try { const sh = await ctx.subSheets(); if (sh && sh.length) return sh; } catch (e) { console.warn(e); } }   // 지금 학년도: 전담 시간표 업로드 양식(페이지 모양)에 채워서
+      return [{ name: nm, widths: [22, 24, 16, 14], freezeRow: 1, rows: [['날짜', '학급', '교시', '과목'].map(H)].concat(groupSlots(it.rows, { d: 'sub_date', c: 'sub_class', t: 'sub_time', n: 'sub_name' }, order).map((g) => [Tx(appDate(g.d)), Tx(g.cls), Tx(g.ps.join(', ')), Tx(g.name)])) }];
+    }
+    if (it.key === 'school') return [{ name: '기초 일정', widths: [26, 22, 22, 10], freezeRow: 1, rows: [['학교 행사', '시작 날짜', '종료 날짜', '휴일 여부'].map(H)].concat(it.rows.slice().sort((a, b) => (toDate(a.task_school_date_start) || 0) - (toDate(b.task_school_date_start) || 0))
+      .map((r) => [Tx(r.task_school_name), Tx(dayStr(r.task_school_date_start)), Tx(r.task_school_date_end ? dayStr(r.task_school_date_end) : ''), Tx('')])) }];
+    if (it.key === 'student') {   // 명렬표 업로드 양식: 학급마다 시트(1행 제목, 2행 번호·이름·성별·기타·생년월일)
+      const by = new Map(); it.rows.forEach((r) => { const c = str(r.student_class).trim(); const k = /^\d+$/.test(c) ? c + '반' : c; if (!by.has(k)) by.set(k, []); by.get(k).push(r); });
+      const names = [...by.keys()].sort((a, b) => { const i = order.classes.indexOf(a), j = order.classes.indexOf(b); return (i < 0 ? 999 : i) - (j < 0 ? 999 : j) || natural(a, b); });
+      return names.map((c) => ({ name: c.replace(/[\[\]:*?\/\\]/g, ' ').slice(0, 31), widths: [8, 14, 8, 20, 18], freezeRow: 2,
+        rows: [[{ v: c + ' 명렬표', s: 'title' }], ['번호', '이름', '성별', '기타', '생년월일'].map((v) => ({ v, s: 'totalLabel' }))]
+          .concat(by.get(c).sort((a, b) => num(a.student_num) - num(b.student_num)).map((r) => [{ v: num(r.student_num) || str(r.student_num), s: 'center' }, ...['student_name', 'student_gender', 'student_memo', 'student_birth'].map((k) => ({ v: str(r[k]), s: 'center' }))])) }));
+    }
+    if ((it.key === 'budget' || it.key === 'supply') && ctx.budget) { const sh = await ctx.budget(it.key === 'supply' ? 'supply' : 'budget'); if (sh) return sh; }
+    return [sheetOf(it)];
+  }
+  // 예산 페이지를 보이지 않게 열어, 그 페이지의 표 만들기(원본·제출용·수령확인용)를 그대로 씀
+  function budgetFrame(year) {
+    return new Promise((resolve, reject) => {
+      const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;left:-9999px;top:0;width:1200px;height:800px;border:0;visibility:hidden'; f.setAttribute('aria-hidden', 'true');
+      f.src = 'budget.html?export=1&year=' + year + '&v=' + Date.now(); document.body.appendChild(f);
+      let n = 0; const t = setInterval(() => { let w = null; try { w = f.contentWindow; } catch (e) { w = null; }
+        const r = w && w.__budgetReady; if (r === true) { clearInterval(t); resolve(f); } else if (r || ++n > 300) { clearInterval(t); f.remove(); reject(new Error(r && r !== true ? r : '예산 페이지를 열지 못했습니다.')); } }, 100);
+    });
+  }
+  async function exportYear(year, keys, onStep, opts) {
+    opts = opts || {};
     const step = (t, f) => { try { if (onStep) onStep(t, f); } catch (e) { /* 무시 */ } };
     step('내려받을 데이터를 모으는 중...', 0.05);
-    const plan = (await planYear(year)).filter((x) => keys.indexOf(x.key) >= 0 && x.count > 0);
-    const sheets = plan.filter((x) => x.rows && x.rows.length).map(sheetOf);
+    const plan = (await planYear(year)).filter((x) => keys.indexOf(x.key) >= 0 && x.count > 0 && NO_DOWNLOAD.indexOf(x.key) < 0);
+    let periods = []; try { periods = (await readList('list_time')).map((i) => i.value); } catch (e) { /* 기본 순서 */ }
+    const gen = await getGeneral(); let frame = null;
+    const ctx = { order: { periods, classes: (gen.classNames || []).slice() }, subSheets: opts.subSheets && Number(gen.year) === Number(year) ? opts.subSheets : null,
+      budget: async (part) => { if (!frame) { step('예산 표를 만드는 중...', 0.08); frame = await budgetFrame(year); } return frame.contentWindow.__budgetExportAll(part, opts.budgetHow || 'orig'); } };
+    const sheets = [];
+    try { for (const it of plan) { if (it.rows && it.rows.length) sheets.push(...(await formatSheets(it, ctx))); } }
+    finally { if (frame) frame.remove(); }
     const used = new Set(); sheets.forEach((sh) => { let n = sh.name, i = 2; while (used.has(n)) n = sh.name.slice(0, 28) + ' ' + i++; used.add(n); sh.name = n; });
     const files = [], missed = []; const withFiles = plan.filter((x) => x.files); let k = 0;
     for (const it of withFiles) {
@@ -435,7 +488,7 @@
     }
     if (!sheets.length && !files.length) throw new Error('내려받을 내용이 없습니다.');
     step('파일을 만드는 중...', 0.9);
-    const base = year + '학년도_데이터';
+    const base = year + '학년도_데이터' + (keys.some((k) => k === 'budget' || k === 'supply') && opts.budgetHow && opts.budgetHow !== 'orig' ? (opts.budgetHow === 'submit' ? '_제출용' : '_수령확인용') : '');
     if (!files.length) return { blob: new Blob([window.XlsxLite.toBytes(sheets)], { type: window.XlsxLite.XLSX_MIME }), name: base + '.xlsx', missed };
     const all = (sheets.length ? [{ name: base + '.xlsx', bytes: window.XlsxLite.toBytes(sheets) }] : []).concat(files);
     return { blob: window.XlsxLite.zipBlob(all), name: base + '.zip', missed };

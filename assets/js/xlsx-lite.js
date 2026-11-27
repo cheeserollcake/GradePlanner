@@ -33,17 +33,18 @@
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
   const colName = (i) => { let s = ''; for (i += 1; i > 0; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + ((i - 1) % 26)) + s; return s; };
-  const STYLE_ID = { default: 0, header: 1, text: 2, int: 3, totalLabel: 4, totalNum: 5, link: 6, title: 7, center: 8, male: 9, female: 10 };
+  const STYLE_ID = { default: 0, header: 1, text: 2, int: 3, totalLabel: 4, totalNum: 5, link: 6, title: 7, center: 8, male: 9, female: 10, titleC: 11, redTotal: 12, redTotalNum: 13 };
+  const NX = 14;   // 기본 서식 수 (cellXfs)
   const norm = (c) => (c && typeof c === 'object' && !Array.isArray(c) ? c : { v: c === undefined || c === null ? '' : c, s: typeof c === 'number' ? 'int' : 'text' });
 
   const STYLES = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-    '<fonts count="5"><font><sz val="11"/><name val="맑은 고딕"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="맑은 고딕"/></font><font><b/><sz val="11"/><name val="맑은 고딕"/></font>' +
-    '<font><u/><sz val="11"/><color rgb="FF2563EB"/><name val="맑은 고딕"/></font><font><b/><sz val="14"/><name val="맑은 고딕"/></font></fonts>' +
+    '<fonts count="6"><font><sz val="11"/><name val="맑은 고딕"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="맑은 고딕"/></font><font><b/><sz val="11"/><name val="맑은 고딕"/></font>' +
+    '<font><u/><sz val="11"/><color rgb="FF2563EB"/><name val="맑은 고딕"/></font><font><b/><sz val="14"/><name val="맑은 고딕"/></font><font><b/><sz val="11"/><color rgb="FFFF0000"/><name val="맑은 고딕"/></font></fonts>' +
     '<fills count="6"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF4F46E5"/><bgColor indexed="64"/></patternFill></fill>' +
     '<fill><patternFill patternType="solid"><fgColor rgb="FFF1F5F9"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFCFE2F3"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFCE5CD"/><bgColor indexed="64"/></patternFill></fill></fills>' +
     '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFCBD5E1"/></left><right style="thin"><color rgb="FFCBD5E1"/></right><top style="thin"><color rgb="FFCBD5E1"/></top><bottom style="thin"><color rgb="FFCBD5E1"/></bottom><diagonal/></border></borders>' +
     '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-    '<cellXfs count="11">' +
+    '<cellXfs count="14">' +
     '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
     '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
     '<xf numFmtId="49" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
@@ -55,20 +56,23 @@
     '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
     '<xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' +
     '<xf numFmtId="0" fontId="0" fillId="5" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' +
+    '<xf numFmtId="0" fontId="4" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' +
+    '<xf numFmtId="0" fontId="5" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' +
+    '<xf numFmtId="3" fontId="5" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>' +
     '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
 
   // 셀마다 배경색(c.bg = '#RRGGBB')을 줄 수 있습니다: 기본 서식에 배경만 바꾼 서식을 필요한 만큼 덧붙입니다.
   function stylesXml(reg) {
     const n = reg.list.length; if (!n) return STYLES;
-    const m = STYLES.match(/<cellXfs count="11">([\s\S]*?)<\/cellXfs>/); const xfs = m[1].match(/<xf [^>]*\/>|<xf [^>]*>[\s\S]*?<\/xf>/g);
+    const m = STYLES.match(/<cellXfs count="\d+">([\s\S]*?)<\/cellXfs>/); const xfs = m[1].match(/<xf [^>]*\/>|<xf [^>]*>[\s\S]*?<\/xf>/g);
     const fills = reg.list.map((e) => '<fill><patternFill patternType="solid"><fgColor rgb="FF' + e.bg + '"/><bgColor indexed="64"/></patternFill></fill>').join('');
-    const add = reg.list.map((e, i) => xfs[e.sid].replace(/fillId="\d+"/, 'fillId="' + (6 + i) + '"').replace('<xf ', '<xf applyFill="1" ')).join('');
-    return STYLES.replace('<fills count="6">', '<fills count="' + (6 + n) + '">').replace('</fills>', fills + '</fills>').replace('<cellXfs count="11">', '<cellXfs count="' + (11 + n) + '">').replace('</cellXfs>', add + '</cellXfs>');
+    const add = reg.list.map((e, i) => xfs[e.sid].replace(/fillId="\d+"/, 'fillId="' + (6 + i) + '"').replace(/^<xf (?![^>]*applyFill)/, '<xf applyFill="1" ')).join('');
+    return STYLES.replace('<fills count="6">', '<fills count="' + (6 + n) + '">').replace('</fills>', fills + '</fills>').replace('<cellXfs count="' + NX + '">', '<cellXfs count="' + (NX + n) + '">').replace('</cellXfs>', add + '</cellXfs>');
   }
   const hexOf = (b) => { const m = String(b || '').match(/^#?([0-9a-fA-F]{6})$/); return m ? m[1].toUpperCase() : ''; };
   function styleId(c, reg) {
     const sid = STYLE_ID[c.s] === undefined ? 0 : STYLE_ID[c.s]; const bg = hexOf(c.bg); if (!bg || !reg) return sid;
-    const key = sid + '|' + bg; let i = reg.map[key]; if (i === undefined) { i = reg.list.length; reg.map[key] = i; reg.list.push({ sid, bg }); } return 11 + i;
+    const key = sid + '|' + bg; let i = reg.map[key]; if (i === undefined) { i = reg.list.length; reg.map[key] = i; reg.list.push({ sid, bg }); } return NX + i;
   }
   function sheetXml(sp, reg) {
     const rows = sp.rows.map((r) => r.map(norm));
@@ -152,6 +156,9 @@
     totalLabel: { backgroundColor: { red: 0.945, green: 0.961, blue: 0.976 }, textFormat: { bold: true }, horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', borders: BORDERS },
     totalNum: { backgroundColor: { red: 0.945, green: 0.961, blue: 0.976 }, textFormat: { bold: true }, numberFormat: { type: 'NUMBER', pattern: '#,##0' }, verticalAlignment: 'MIDDLE', borders: BORDERS },
     title: { textFormat: { bold: true, fontSize: 14 } },
+    titleC: { textFormat: { bold: true, fontSize: 14 }, horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', borders: BORDERS },
+    redTotal: { textFormat: { bold: true, foregroundColor: { red: 1, green: 0, blue: 0 } }, horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', borders: BORDERS },
+    redTotalNum: { textFormat: { bold: true, foregroundColor: { red: 1, green: 0, blue: 0 } }, numberFormat: { type: 'NUMBER', pattern: '#,##0' }, horizontalAlignment: 'RIGHT', verticalAlignment: 'MIDDLE', borders: BORDERS },
     male: { backgroundColor: { red: 0.812, green: 0.886, blue: 0.953 }, horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', borders: BORDERS },
     female: { backgroundColor: { red: 0.988, green: 0.898, blue: 0.804 }, horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', borders: BORDERS }
   };

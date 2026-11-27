@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>예산</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127d">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127e">
   <script>window.__GP_PAGE__ = 'budget';</script>
-  <script src="../assets/js/fb-boot.js?v=20261127d"></script>
-  <script src="../assets/js/firebase-config.js?v=20261127d"></script>
-  <script src="../assets/js/gas-shim.js?v=20261127d"></script>
-  <script src="../assets/js/app-data.js?v=20261127d"></script>
-  <script src="../assets/js/dnd.js?v=20261127d"></script>
-  <script src="../assets/js/xlsx-lite.js?v=20261127d"></script>
-  <script src="../assets/js/gsheet-export.js?v=20261127d"></script>
+  <script src="../assets/js/fb-boot.js?v=20261127e"></script>
+  <script src="../assets/js/firebase-config.js?v=20261127e"></script>
+  <script src="../assets/js/gas-shim.js?v=20261127e"></script>
+  <script src="../assets/js/app-data.js?v=20261127e"></script>
+  <script src="../assets/js/dnd.js?v=20261127e"></script>
+  <script src="../assets/js/xlsx-lite.js?v=20261127e"></script>
+  <script src="../assets/js/gsheet-export.js?v=20261127e"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     /* ---- 구글 스프레드시트 느낌의 표 ---- */
@@ -84,7 +84,7 @@
     .colx { position:absolute; right:2px; top:1px; font-size:11px; color:#9aa0a6; display:none; line-height:1; }
     .sheet th:hover .colx { display:block; } .colx:hover { color:#b91c1c; }
   </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261127d">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261127e">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
   <div class="max-w-7xl mx-auto space-y-4">
@@ -1063,12 +1063,75 @@ async function load(fresh) {
   if (mode !== 'budget' && mode !== 'fee' && mode !== 'supply1' && mode !== 'supply2' && !shownSheets().some((x) => 'sheet:' + x.id === mode)) mode = 'budget';
 }
 $('btn-refresh').onclick = async () => { if (pendingN) return; try { await load(true); renderAll(); } catch (e) { setState('error', e.message); } };
+const EXPORT = (() => { try { const q = new URLSearchParams(location.search); return q.get('export') ? { year: num(q.get('year')) } : null; } catch (e) { return null; } })();   // 관리자 › 데이터 다운로드가 보이지 않게 열 때
 (async function init() {
+  if (EXPORT) { try { await loadForExport(EXPORT.year); window.__budgetReady = true; } catch (e) { console.error(e); window.__budgetReady = e.message || String(e); } return; }
   try { await load(false); }
   catch (e) { console.error(e); $('gridWrap').innerHTML = '<p class="p-6 text-center text-red-600 text-sm">데이터를 불러오지 못했습니다: ' + esc(e.message) + '</p>'; return; }
   try { await seedClassFee(); } catch (e) { console.warn('학급운영비 기본 페이지 만들기 보류', e); }
   classFilter(); renderAll(); startWatch();
 })();
+// ======================= 관리자 › 데이터 다운로드용 (화면은 그리지 않음) =======================
+//  원본: 이 페이지의 [엑셀로 내보내기]와 같은 표(위쪽 예산 카드·학급별 사용액 시트는 뺌)
+//  제출용: 연번·품명·규격·수량·단위·예상단가·예상금액·관련교과·비고(링크) + 합계 줄
+//  수령확인용: 연번·품명·규격·수량·단위·신청 학급
+async function loadForExport(year) {
+  const [b, s, sr, cfg, ls, gen] = await Promise.all([GP.getColAll('data_budget'), getCol('data_supply'), GP.getColAll(SHEET_COL), GP.getCfg('budget_sheets', { sheets: [] }), GP.getLists(), APP.getGeneral()]);
+  const cur = num(gen && gen.year) || curYear; curYear = year || cur;
+  const mine = (x) => (x._year === undefined || x._year === null || x._year === '' ? cur : num(x._year)) === curYear;
+  data = { budget: b.filter(mine).map((r) => Object.assign({}, r)), supply: s.map((r) => Object.assign({}, r)), sheetRows: sr.filter(mine).map((r) => Object.assign({}, r)) };
+  sheets = Array.isArray(cfg.sheets) ? cfg.sheets : []; lists = ls; colWidths = (await GP.getCfg('budget_cols', {})) || {}; window.__budgetGrade = (gen && gen.grade) || '';
+}
+const EX_ORANGE = '#E8A33D', EX_YELLOW = '#FFFF00';
+function exFields(kind, r) {   // 페이지마다 다른 열에서 공통 항목을 꺼냄
+  const byL = (re) => kind.cols.find((c) => re.test(str(c.label).replace(/\s+/g, '')));
+  const val = (c) => (c && c.k ? r[c.k] : '');
+  const sup = kind.cols.find((c) => c.t === 'sup'); const calc = kind.cols.find((c) => c.t === 'calc');
+  const qtyC = byL(/^수량$/), unitC = byL(/^단위$/), priceC = byL(/^단가$/), subC = byL(/^(과목|관련교과|교과)$/), linkC = byL(/^링크$/), memoC = byL(/^비고$/);
+  const qty = sup && supQty(r) > 0 ? supQty(r) : num(val(qtyC && qtyC.t !== 'sup' ? qtyC : null));
+  const price = num(val(priceC));
+  const cls = sup ? parseSup(r).map((x) => (x.c === '학년공통' ? '공통' : x.c) + ' ' + fmt(x.n) + '개') : [];
+  if (sup && !cls.length) splitList(r[sup.k]).forEach((c) => cls.push(c === '학년공통' ? '공통' : c));
+  const common = cls.filter((t) => /^공통/.test(t)); const others = cls.filter((t) => !/^공통/.test(t));
+  return { product: str(val(byL(/^품명$/))), spec: str(val(byL(/^규격$/))), qty, unit: str(val(unitC)), price, amount: calc ? calc.calc(r) : qty * price,
+    subject: str(val(subC)), link: str(val(linkC)), memo: str(val(memoC)), classes: common.concat(others).join(', ') };
+}
+function exTitle(kind) { const gr = window.__budgetGrade ? window.__budgetGrade + '학년 ' : ''; return gr + (kind.sem ? '학습준비물' : kind.name); }
+function exSheetName(kind, used) { let n = safeSheetName(kind.name), i = 2; while (used.has(n)) n = safeSheetName(kind.name).slice(0, 28) + ' ' + i++; used.add(n); return n; }
+function exSubmit(kind, rows, name) {
+  const head = ['연번', '품명', '규격', '수량', '단위', '예상단가', '예상금액', '관련교과', '비고(링크)'], n = rows.length;
+  const C = (v) => ({ v, s: 'center' });
+  const body = rows.map((r, i) => { const f = exFields(kind, r), x = i + 3;
+    return [C(i + 1), C(f.product), C(f.spec), C(f.qty), C(f.unit), { v: f.price, s: 'int' }, { v: f.amount, s: 'int', f: 'F' + x + '*D' + x }, C(f.subject), f.link ? linkCell(f.link) : { v: f.memo, s: 'text' }]; });   // 링크가 없으면 비고 글자
+  const sum = rows.reduce((a, r) => a + exFields(kind, r).amount, 0);
+  const tot = head.map(() => ({ v: '', s: 'redTotal', bg: EX_YELLOW })); tot[0] = { v: n + 1, s: 'redTotal', bg: EX_YELLOW }; tot[1] = { v: '합계', s: 'redTotal', bg: EX_YELLOW };
+  tot[6] = { v: sum, s: 'redTotalNum', bg: EX_YELLOW }; if (n) tot[6].f = 'SUM(G3:G' + (n + 2) + ')';
+  return { name, widths: [6, 40, 14, 9, 9, 12, 13, 12, 16], freezeRow: 2, merges: ['A1:I1'],
+    rows: [[{ v: exTitle(kind), s: 'titleC' }].concat(head.slice(1).map(() => ({ v: '', s: 'titleC' }))), head.map((h) => ({ v: h, s: 'totalLabel', bg: EX_ORANGE }))].concat(body, [tot]) };
+}
+function exReceive(kind, rows, name) {
+  const head = ['연번', '품명', '규격', '수량', '단위', '신청 학급'];
+  const C = (v) => ({ v, s: 'center' });
+  const body = rows.map((r, i) => { const f = exFields(kind, r); return [C(i + 1), C(f.product), C(f.spec), C(f.qty), C(f.unit), { v: f.classes, s: 'text' }]; });
+  return { name, widths: [6, 40, 14, 9, 9, 60], freezeRow: 2, merges: ['A1:F1'],
+    rows: [[{ v: exTitle(kind), s: 'titleC' }].concat(head.slice(1).map(() => ({ v: '', s: 'titleC' }))), head.map((h) => ({ v: h, s: 'totalLabel', bg: EX_ORANGE }))].concat(body) };
+}
+// part: 'budget'(학년 예산·학년회비·추가한 예산 페이지) | 'supply'(학습준비물 1·2학기),  how: 'orig' | 'submit' | 'receive'
+window.__budgetExportAll = async function (part, how) {
+  const modes = part === 'supply' ? ['supply1', 'supply2'] : ['budget', 'fee'].concat(shownSheets().map((x) => 'sheet:' + x.id));
+  const out = [], used = new Set(), keep = mode;
+  try {
+    for (const m of modes) {
+      mode = m; filters = {}; const kind = kindOf(m); const rows = allRows(kind).slice().sort(byOrder); if (!rows.length) continue;
+      const name = exSheetName(kind, used);
+      if (how === 'submit') out.push(exSubmit(kind, rows, name));
+      else if (how === 'receive') out.push(exReceive(kind, rows, name));
+      else { const ex = await buildExport(); const sh = ex.sheets[0]; sh.name = name; out.push(sh); }   // 화면 아래 표만 (카드·학급별 사용액 시트 제외)
+    }
+  } finally { mode = keep; }
+  return out;
+};
+
 // 기본 예산 페이지 '학급운영비'(학습준비물 다음): 처음 한 번 만들고, 학년도마다 학급별 카드(기본 10만원)를 한 번 넣어 둠.
 //  지우거나 고친 뒤에는 다시 만들지 않습니다(budget_sheets.seed 표시).
 const CF_COLORS = ['#CFE2F3', '#FCE5CD', '#D9EAD3', '#FFF2CC', '#E4D7F5', '#F4CCCC', '#D0E0E3', '#EAD1DC', '#FFE0B2', '#C8E6C9'];
