@@ -395,7 +395,7 @@
       subs: (await readList('list_sub')).map((i) => i.value), times: (await readList('list_time')).map((i) => i.value),
       gyms: (await readList('list_gym')).map((i) => i.value), rooms: (await readList('list_room')).map((i) => i.value), teachers: (await readList('list_t')).map((i) => i.value),
       budgets: rows.filter((r) => str(r.list_budget).trim() && budgetYearOK(r, curY))
-        .map((r, i) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount), color: str(r.list_budget_color).trim(), kind: str(r.list_budget_kind).trim(), classes: str(r.list_budget_classes).split(',').map((x) => x.trim()).filter(Boolean), common: (r.list_budget_common === undefined || r.list_budget_common === null) ? '' : r.list_budget_common, pages: str(r.list_budget_pages).trim() ? str(r.list_budget_pages).split(',').filter(Boolean).map((p) => (p === 'supply' ? 'supply1' : p)) : ['budget'], _o: (r.list_budget_order === undefined || r.list_budget_order === '' || r.list_budget_order === null) ? 1e6 + i : Number(r.list_budget_order) }))
+        .map((r, i) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount), color: str(r.list_budget_color).trim(), kind: str(r.list_budget_kind).trim(), classes: str(r.list_budget_classes).split(',').map((x) => x.trim()).filter(Boolean), common: (r.list_budget_common === undefined || r.list_budget_common === null) ? '' : r.list_budget_common, bar: str(r.list_budget_bar).trim() !== '0', pages: str(r.list_budget_pages).trim() ? str(r.list_budget_pages).split(',').filter(Boolean).map((p) => (p === 'supply' ? 'supply1' : p)) : ['budget'], _o: (r.list_budget_order === undefined || r.list_budget_order === '' || r.list_budget_order === null) ? 1e6 + i : Number(r.list_budget_order) }))
         .sort((a, b) => a._o - b._o).map(({ _o, ...b }) => { if (/학년회비|친목회비/.test(b.name) && b.pages.indexOf('budget') >= 0 && b.pages.indexOf('fee') < 0) b.pages = b.pages.map((x) => (x === 'budget' ? 'fee' : x)); return b; }),
       budgetHeaders: uniq('list_budget_header')
     };
@@ -490,7 +490,7 @@
         cards.push({ name, kind: 'classStats', assigned: total, used: spent, balance: total - spent, color: b.color, stats: { total, common, commonManual: hasCommon, alloc, classes: cls, use, spent, remain: total - spent } });
         done.add(h); return;
       }
-      cards.push({ name, assigned, used, balance: assigned - used, color: merged ? '' : b.color });
+      cards.push({ name, assigned, used, balance: assigned - used, color: merged ? '' : b.color, bar: merged ? heads[h].every((x) => x.bar !== false) : b.bar !== false });   // bar: 이름 옆 사용 비율 막대
       done.add(h);
     });
     return cards;

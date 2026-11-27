@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>예산</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127i">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127k">
   <script>window.__GP_PAGE__ = 'budget';</script>
-  <script src="../assets/js/fb-boot.js?v=20261127i"></script>
-  <script src="../assets/js/firebase-config.js?v=20261127i"></script>
-  <script src="../assets/js/gas-shim.js?v=20261127i"></script>
-  <script src="../assets/js/app-data.js?v=20261127i"></script>
-  <script src="../assets/js/dnd.js?v=20261127i"></script>
-  <script src="../assets/js/xlsx-lite.js?v=20261127i"></script>
-  <script src="../assets/js/gsheet-export.js?v=20261127i"></script>
+  <script src="../assets/js/fb-boot.js?v=20261127k"></script>
+  <script src="../assets/js/firebase-config.js?v=20261127k"></script>
+  <script src="../assets/js/gas-shim.js?v=20261127k"></script>
+  <script src="../assets/js/app-data.js?v=20261127k"></script>
+  <script src="../assets/js/dnd.js?v=20261127k"></script>
+  <script src="../assets/js/xlsx-lite.js?v=20261127k"></script>
+  <script src="../assets/js/gsheet-export.js?v=20261127k"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     /* ---- 구글 스프레드시트 느낌의 표 ---- */
@@ -86,11 +86,12 @@
     .ex-bar { flex:1 1 auto; min-width:40px; height:8px; border-radius:999px; background:rgba(255,255,255,.75); box-shadow:inset 0 0 0 1px rgba(0,0,0,.06); overflow:hidden; margin-left:auto; }
   .ex-bar > i { display:block; height:100%; border-radius:999px; transition:width .5s ease; }
   .ex-pct { flex-shrink:0; font-size:11px; font-weight:700; color:#475569; min-width:2.6em; text-align:right; }
+  .sup-cc .ex-bar { background:#f1f5f9; }
   @keyframes supShine { 0% { background-position:-150% 0; } 100% { background-position:250% 0; } }
   .sup-zero { background:linear-gradient(110deg,#fef08a 0%,#fde047 40%,#fffbeb 50%,#fde047 60%,#fef08a 100%) !important; background-size:250% 100% !important; animation:supShine 2.2s linear infinite; border-color:#facc15 !important; }
   @media (prefers-reduced-motion:reduce) { .sup-zero { animation:none; } }
 </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261127i">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261127k">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
   <div class="max-w-7xl mx-auto space-y-4">
@@ -318,6 +319,7 @@ window.__gpClassChanged = (sel) => { if (classFilter(sel && sel.name ? String(se
 function renderAll() { renderTabs(); renderCards(); renderSupplyBox(); renderFilters(); renderTools(); renderGrid(); }
 
 function execBar(c) {   // 예산 이름 오른쪽 집행 막대 (사용액 ÷ 배정액)
+  if (c.bar === false) return '';   // 관리자 › 예산 설정에서 막대를 끈 카드
   const a = num(c.assigned), u = num(c.used); if (!(a > 0)) return '';
   const r = u / a, w = Math.max(0, Math.min(1, r));
   return '<span class="ex-bar" title="집행률 ' + Math.round(r * 100) + '% (' + fmt(u) + ' / ' + fmt(a) + ')"><i style="width:' + (w * 100).toFixed(1) + '%;background:linear-gradient(90deg,' + rateBar(Math.max(0, w - 0.25)) + ',' + rateBar(w) + ')"></i></span><span class="ex-pct">' + Math.round(r * 100) + '%</span>';
@@ -793,12 +795,11 @@ $('pickOk').onclick = () => {
 $('pickModal').addEventListener('keydown', (e) => { if (e.key === 'Escape') closePick(); });
 
 // ======================= 학습준비물 상단: 총액·학년공통사용액·반별배부액·학급별 사용액 =======================
-// 집행률(0~1) → 색. 카드 배경용(연한 색): 분홍(0) → 파랑(0.5) → 연두(1)
+// 집행률(0~1) → 색
 const lerp = (a, b, t) => a + (b - a) * t;
 function rateHue(t, h0, h1, h2) { t = Math.max(0, Math.min(1, t)); return t < 0.5 ? lerp(h0, h1, t / 0.5) : lerp(h1, h2, (t - 0.5) / 0.5); }
-const rateBg = (t) => 'hsl(' + rateHue(t, 335, 215, 90).toFixed(0) + ',85%,90%)';
 // 예산 카드 집행 막대: 빨강(0) → 파랑(0.5) → 초록(1)
-const rateBar = (t) => 'hsl(' + rateHue(t, 360, 220, 140).toFixed(0) + ',75%,52%)';
+const rateBar = (t) => 'hsl(' + rateHue(t, 360, 220, 140).toFixed(0) + ',70%,74%)';   // 파스텔 톤
 function supplyStats(kind) {
   const rows = allRows(kind), cls = classNames(), use = {}; let common = 0; cls.forEach((c) => { use[c] = 0; });
   rows.forEach((r) => { const p = num(r.supply_price); parseSup(r).forEach((x) => { if (x.c === '학년공통') common += p * x.n; else if (x.c in use) use[x.c] += p * x.n; }); });
@@ -820,7 +821,7 @@ function renderSupplyBox() {
       '<div class="' + CARD + '"><div class="text-xs font-semibold text-slate-500">반별배부액<span class="font-normal text-slate-400 hidden sm:inline"> (총액 − 학년공통) ÷ 학급수</span></div><div id="supAlloc" class="mt-2 text-right font-bold text-sm sm:text-lg"></div></div>' +
       '<div class="' + CARD + '"><div class="text-xs font-semibold text-slate-500">잔액<span class="font-normal text-slate-400 hidden sm:inline"> (총액 − 표의 금액 합계)</span></div><div id="supRemain" class="mt-2 text-right font-bold text-sm sm:text-lg"></div></div></div>' +
       '<div id="supClasses" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2"></div>' +
-      '<p class="text-xs text-slate-400">학급별 사용액은 표의 수량 칸(학급별 수량)으로 계산합니다. 카드 색은 반별배부액 대비 집행률(적게 씀 분홍 → 보통 파랑 → 다 써 감 연두)이고, 잔액이 0원이면 노랑으로 반짝, 마이너스면 빨간 글씨입니다.</p>';
+      '<p class="text-xs text-slate-400">학급별 사용액은 표의 수량 칸(학급별 수량)으로 계산합니다. 반 이름 옆 막대는 반별배부액 대비 집행률이고, 잔액이 0원이면 노랑으로 반짝, 마이너스면 빨간 글씨입니다.</p>';
     box.querySelectorAll('[data-sem]').forEach((b) => b.onclick = () => setMode('supply' + b.dataset.sem));
     const t = $('supTotal');
     t.onfocus = () => { t.value = t.value.replace(/,/g, ''); setTimeout(() => { try { t.select(); } catch (e) { /* 무시 */ } }, 0); };
@@ -829,11 +830,10 @@ function renderSupplyBox() {
   }
   const st = supplyStats(kind), t = $('supTotal'); if (document.activeElement !== t) t.value = st.total ? fmt(st.total) : '';
   $('supCommon').textContent = fmt(st.common); $('supAlloc').textContent = fmt(st.alloc); const rm = $('supRemain'); rm.textContent = fmt(st.remain); rm.style.color = st.remain < 0 ? '#dc2626' : '';
-  // 반별 카드 색: 반별배부액 대비 집행률 0% 분홍 → 50% 파랑 → 100% 연두(사이는 부드럽게). 잔액 0원이면 노랑 반짝, 잔액이 마이너스면 빨간 글자
+  // 반별 카드: 반 이름 옆에 집행 막대(반별배부액 대비, 예산 카드와 같은 모양). 잔액 0원이면 노랑 반짝, 잔액이 마이너스면 빨간 글자
   $('supClasses').innerHTML = st.cls.map((c) => { const u = st.use[c], left = st.alloc - u, rate = st.alloc > 0 ? u / st.alloc : 0;
     const zero = st.alloc > 0 && left === 0, minus = st.alloc > 0 && left < 0;
-    const bg = zero ? '' : 'background:' + rateBg(Math.min(1, rate));
-    return '<div class="sup-cc border border-slate-200 rounded-lg px-3 py-2' + (zero ? ' sup-zero' : '') + '" style="' + bg + '" title="반별배부액 ' + fmt(st.alloc) + '원 중 ' + Math.round(rate * 100) + '% 사용 · 잔액 ' + fmt(left) + '원"><div class="flex justify-between text-xs font-semibold text-slate-600"><span>' + esc(c) + '</span><span class="font-normal">' + (st.alloc > 0 ? Math.round(rate * 100) + '%' : '') + '</span></div>' +
+    return '<div class="sup-cc border border-slate-200 rounded-lg px-3 py-2' + (zero ? ' sup-zero' : ' bg-white') + '" title="반별배부액 ' + fmt(st.alloc) + '원 중 ' + Math.round(rate * 100) + '% 사용 · 잔액 ' + fmt(left) + '원"><div class="flex items-center gap-2 text-xs font-semibold text-slate-600"><span class="shrink-0">' + esc(c) + '</span>' + execBar({ assigned: st.alloc, used: u }) + '</div>' +
       '<div class="text-right font-bold' + (minus ? ' text-red-600' : '') + '">' + fmt(u) + '</div><div class="text-right text-xs' + (minus ? ' text-red-600 font-bold' : ' text-slate-500') + '">잔액 ' + fmt(left) + '</div></div>'; }).join('');
 }
 
