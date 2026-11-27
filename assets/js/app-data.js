@@ -204,7 +204,13 @@
   const fmtDate = (d) => d.getFullYear() + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + String(d.getDate()).padStart(2, '0') + ' (' + DAYK[d.getDay()] + ')';
   const dday = (target, now) => { const t = now || new Date(); const today = new Date(t.getFullYear(), t.getMonth(), t.getDate()); const d = Math.round((target - today) / 86400000); return d === 0 ? 'D-Day' : d > 0 ? 'D-' + d : 'D+' + (-d); };
   const clockText = () => { const t = new Date(); const h = t.getHours(); return (h % 12 || 12) + ':' + String(t.getMinutes()).padStart(2, '0') + ' (' + (h < 12 ? '오전' : '오후') + ')'; };
-  async function renderDayCards(box, year) {
+  // 접기 상태(기기마다 기억): key → true 면 접힘
+  const foldGet = (k, def) => { try { const v = localStorage.getItem('gp_fold_' + k); return v === null ? def : v === '1'; } catch (e) { return def; } };
+  const foldSet = (k, on) => { try { localStorage.setItem('gp_fold_' + k, on ? '1' : '0'); } catch (e) { /* 무시 */ } };
+  const CHEV = '<svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.2 7.2a.75.75 0 0 1 1.06 0L10 10.94l3.74-3.74a.75.75 0 1 1 1.06 1.06l-4.27 4.27a.75.75 0 0 1-1.06 0L5.2 8.26a.75.75 0 0 1 0-1.06z" clip-rule="evenodd"/></svg>';
+  const FOLD_CSS = '<style>.gp-fold{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:999px;border:1px solid #e2e8f0;background:#fff;color:#64748b;cursor:pointer;flex-shrink:0}.gp-fold:hover{background:#f1f5f9}.gp-fold svg{transition:transform .2s}.is-folded .gp-fold svg{transform:rotate(-90deg)}' +
+    '.dc-bar{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:8px 10px 8px 14px;cursor:pointer;box-shadow:0 2px 10px rgba(15,23,42,.04)}.dc-bar b{font-size:14px;color:#0f172a;white-space:nowrap}.dc-sum{flex:1;min-width:0;font-size:12.5px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dc-body{margin-top:10px}.is-folded .dc-body{display:none}</style>';
+  async function renderDayCards(box, year, opt) {
     const v = await getVacations(year); const today = new Date();
     const card = (cls, title, main, sub, subId) => '<div class="gpcard ' + cls + '"><div class="gpt">' + title + '</div><div class="gpd">' + main + '</div>' + sub + '</div>';
     const vac = (title, cls, d) => card(cls, title, d ? fmtDate(d) : '-', d ? '<span class="gpp">' + dday(d) + '</span>' : '<span class="gpp">일정 없음</span>');
@@ -221,6 +227,14 @@
       '.gpc3{background:linear-gradient(135deg,#eff6ff,#e0e7ff);color:#312e81}.gpc3 .gpt{color:#5b5fa8}</style>' +
       '<div class="gpgrid">' + card('gpc1', '오늘 날짜', fmtDate(today), '<div class="gptime" id="gp-clock">' + clockText() + '</div>') +
       vac('여름방학식', 'gpc2', v.summer) + vac('겨울방학식', 'gpc3', v.winter) + '</div>';
+    if (opt && opt.fold) {   // 홈: 한 줄 막대로 접어 두고 누르면 펼침 (기본 접힘)
+      const sum = [fmtDate(today)].concat(v.summer ? ['여름방학식 ' + dday(v.summer)] : [], v.winter ? ['겨울방학식 ' + dday(v.winter)] : []).join(' · ');
+      const inner = box.innerHTML; const key = opt.fold;
+      box.innerHTML = FOLD_CSS + '<div class="dc-wrap' + (foldGet(key, true) ? ' is-folded' : '') + '"><div class="dc-bar" role="button" tabindex="0" aria-label="날짜 카드 접기/펼치기"><b>📅 날짜</b><span class="dc-sum">' + sum + '</span><span class="gp-fold">' + CHEV + '</span></div><div class="dc-body">' + inner + '</div></div>';
+      const w = box.querySelector('.dc-wrap'), bar = box.querySelector('.dc-bar');
+      const tg = () => { const on = !w.classList.contains('is-folded'); w.classList.toggle('is-folded', on); foldSet(key, on); bar.setAttribute('aria-expanded', String(!on)); };
+      bar.setAttribute('aria-expanded', String(!w.classList.contains('is-folded'))); bar.onclick = tg; bar.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tg(); } };
+    }
     clearInterval(box._t); box._t = setInterval(() => { const c = box.querySelector('#gp-clock'); if (c) c.textContent = clockText(); }, 15000);
   }
 
@@ -316,7 +330,7 @@
       '<rect x="12" y="17" width="16" height="19" rx="5" fill="#3b82f6"/><rect x="14" y="25" width="12" height="2" rx="1" fill="#fff" opacity=".9"/>' +
       '<g class="tp-arm tp-a2"><rect x="25" y="19" width="5" height="13" rx="2.5" fill="#2563eb"/></g>' +
       '<circle cx="20" cy="9" r="7.5" fill="#fcd9b6"/><path d="M12.5 9.5a7.5 7.5 0 0 1 14.6-3.2c-3.6-.9-7.2.2-9.3 2.9-.6 1.6-1.3 3.4-2.6 4.3-1.3-.9-2.4-2.3-2.7-4z" fill="#1e293b"/><circle cx="24" cy="9.5" r="1" fill="#1e293b"/><path d="M23 13c1 .6 2 .6 3 0" stroke="#c2410c" stroke-width=".9" fill="none" stroke-linecap="round"/></g></svg>';   // 오른쪽을 보고 걷는 사람
-    box.innerHTML = TP_CSS + '<div class="tp-card"><div class="tp-head"><div class="tp-title">' + year + '학년도 진행 현황</div><button type="button" class="tp-gear" title="걷는 사람 그림 바꾸기" aria-label="진행 현황 설정"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 2.5h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7v-.2a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>' +
+    box.innerHTML = TP_CSS + FOLD_CSS + '<div class="tp-card' + (foldGet('tp', false) ? ' is-folded' : '') + '"><div class="tp-head"><div class="tp-title">' + year + '학년도 진행 현황</div><span class="tp-mini">' + pct + '% · ' + state + '</span><button type="button" class="tp-gear" title="걷는 사람 그림 바꾸기" aria-label="진행 현황 설정"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 2.5h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7v-.2a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/></svg></button><button type="button" class="gp-fold tp-fold" title="접기/펼치기" aria-label="진행 현황 접기/펼치기">' + CHEV + '</button></div><div class="tp-body">' +
       '<div class="tp-top"><div class="tp-pct"><b>' + pct + '</b><span>%</span><em class="tp-chip">' + state + '</em></div>' +
       '<div class="tp-stats"><div class="tp-stat"><i>지난 수업일</i><b>' + past + '<small>/' + total + '일</small></b></div><div class="tp-stat"><i>남은 수업일</i><b>' + left + '<small>일</small></b></div><div class="tp-stat"><i>' + dLabel + '</i><b>' + dd + '</b></div></div></div>' +
       '<div class="tp-track-wrap"><div class="tp-walker" style="left:' + pos.toFixed(2) + '%">' + walker + '</div>' +
@@ -326,14 +340,16 @@
       '<div class="tp-labels"><span class="tp-lb" style="left:0"><small>1학기 시작</small>' + md(s1.start) + '</span>' +
       '<span class="tp-lb tp-r" style="right:' + (100 - w1).toFixed(2) + '%"><small>1학기 종료</small>' + md(s1.end) + '</span>' +
       '<span class="tp-lb" style="left:' + (w1 + GAP).toFixed(2) + '%"><small>2학기 시작</small>' + md(s2.start) + '</span>' +
-      '<span class="tp-lb tp-r" style="right:0"><small>2학기 종료</small>' + md(s2.end) + '</span></div></div>';
+      '<span class="tp-lb tp-r" style="right:0"><small>2학기 종료</small>' + md(s2.end) + '</span></div></div></div>';
+    const card = box.querySelector('.tp-card'), fb = box.querySelector('.tp-fold');
+    if (fb) { fb.setAttribute('aria-expanded', String(!card.classList.contains('is-folded'))); fb.onclick = () => { const on = !card.classList.contains('is-folded'); card.classList.toggle('is-folded', on); foldSet('tp', on); fb.setAttribute('aria-expanded', String(!on)); }; }
     const gear = box.querySelector('.tp-gear'); if (gear) gear.onclick = () => walkerDialog(wsrc, () => renderTermProgress(box, year));
   }
   const TP_CSS = '<style>' +
     '.tp-card{background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:18px 20px 14px;box-shadow:0 2px 10px rgba(15,23,42,.05)}' +
-    '.tp-head{display:flex;align-items:center;gap:6px}.tp-gear{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:999px;border:1px solid #e0e7ff;background:#eef2ff;color:#4f46e5;cursor:pointer}.tp-gear:hover{background:#e0e7ff}' +
+    '.tp-head{display:flex;align-items:center;gap:6px}.tp-fold{margin-left:auto}.tp-mini{display:none;min-width:0;font-size:12.5px;font-weight:700;color:#4f46e5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tp-gear{flex-shrink:0}.is-folded .tp-mini{display:inline}.is-folded .tp-body{display:none}.tp-card.is-folded{padding-bottom:18px}.tp-gear{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:999px;border:1px solid #e0e7ff;background:#eef2ff;color:#4f46e5;cursor:pointer}.tp-gear:hover{background:#e0e7ff}' +
     '.tp-img{display:block;height:48px;width:auto;max-width:90px;object-fit:contain}' +
-    '.tp-title{font-size:16px;font-weight:800;color:#0f172a}.tp-empty{font-size:13px;color:#94a3b8;text-align:center;padding:8px}' +
+    '.tp-title{font-size:16px;font-weight:800;color:#0f172a;white-space:nowrap}.tp-empty{font-size:13px;color:#94a3b8;text-align:center;padding:8px}' +
     '.tp-top{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;margin-top:10px}' +
     '.tp-pct{display:flex;align-items:baseline;gap:4px}.tp-pct b{font-size:44px;font-weight:900;line-height:1;color:#0f172a;letter-spacing:-1px}.tp-pct span{font-size:16px;font-weight:700;color:#475569}' +
     '.tp-chip{font-style:normal;margin-left:10px;align-self:center;padding:3px 10px;border-radius:999px;background:#f1f5f9;border:1px solid #e2e8f0;font-size:12px;font-weight:700;color:#334155;white-space:nowrap}' +
