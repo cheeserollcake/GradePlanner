@@ -224,6 +224,137 @@
     clearInterval(box._t); box._t = setInterval(() => { const c = box.querySelector('#gp-clock'); if (c) c.textContent = clockText(); }, 15000);
   }
 
+  // ------------------------------------------------------------ 학년도 진행 현황 (홈: 날짜 카드 아래)
+  //  막대: [1학기 시작 ~ 1학기 종료] [여름방학] [2학기 시작 ~ 2학기 종료]. 학기 부분은 날짜 수에 비례, 여름방학은 글씨가 들어가도록 일정한 폭.
+  //  수업일 = 학기 기간 안의 평일 중 휴일이 아닌 날. 걸어가는 사람이 오늘 위치에 있습니다.
+  // 걷는 사람 그림: 바꾼 그림은 app_assets/walker 문서에, 바뀐 번호만 설정(walker_icon)에 둠. 기기에 사본을 두고 번호가 바뀔 때만 다시 받음
+  const WALK_KEY = () => 'gp_walker_' + (G.gradePrefix || '');
+  async function walkerSrc() {
+    const meta = await getCfg('walker_icon', null); if (!meta || !meta.v) return '';
+    try { const c = JSON.parse(localStorage.getItem(WALK_KEY()) || 'null'); if (c && c.v === meta.v && c.src) return c.src; } catch (e) { /* 사본 없음 */ }
+    try { const d = await G.db.collection('app_assets').doc('walker').get(); const src = d.exists ? d.data().dataUrl || '' : '';
+      try { localStorage.setItem(WALK_KEY(), JSON.stringify({ v: meta.v, src })); } catch (e) { /* 공간 부족 */ } return src; } catch (e) { return ''; }
+  }
+  const WALK_MAX = 700 * 1024;   // 저장 한도(문서 1MB) 안에 들어가도록
+  const fileToDataUrl = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error('파일을 읽을 수 없습니다.')); r.readAsDataURL(f); });
+  async function shrinkStill(dataUrl) {   // 움직이지 않는 그림은 높이 120px 로 줄여 저장
+    const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('그림을 열 수 없습니다.')); i.src = dataUrl; });
+    const k = Math.min(1, 120 / im.height), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(im.width * k)); c.height = Math.max(1, Math.round(im.height * k));
+    c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); return c.toDataURL('image/png');
+  }
+  function walkerDialog(cur, onDone) {
+    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const old = document.getElementById('tpDlg'); if (old) old.remove();
+    const m = document.createElement('div'); m.id = 'tpDlg'; m.className = 'fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50'; m.style.zIndex = '250';
+    const prev = (src) => src ? '<img src="' + esc(src) + '" alt="" style="height:64px;width:auto;max-width:140px;object-fit:contain">' : '<span class="text-sm text-slate-400">기본 그림(파란 옷을 입은 사람)</span>';
+    m.innerHTML = '<div class="bg-white rounded-2xl p-5 w-full max-w-md space-y-3 shadow-xl" role="dialog" aria-modal="true">' +
+      '<h3 class="font-bold text-lg">걷는 사람 그림 바꾸기</h3>' +
+      '<p class="text-sm text-slate-600">진행 막대 위에서 걷는 그림을 바꿉니다. <b>움직이는 GIF</b>를 올리면 막대 위에서도 그대로 움직입니다. PNG·JPG도 됩니다.</p>' +
+      '<div class="border rounded-lg p-3 flex items-center justify-center" style="min-height:90px;background:repeating-conic-gradient(#f1f5f9 0 25%,#fff 0 50%) 0 0/16px 16px" id="tpPrev">' + prev(cur) + '</div>' +
+      '<p class="text-xs text-slate-400">배경이 투명한 그림이 자연스럽습니다. 파일은 700KB 이하로 올려 주세요. 모든 기기의 홈 화면에 함께 바뀝니다.</p>' +
+      '<p id="tpErr" class="text-sm text-red-600" style="display:none"></p>' +
+      '<div class="flex flex-wrap gap-2"><button id="tpPick" type="button" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">🖼 그림 고르기</button>' +
+      (cur ? '<button id="tpReset" type="button" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-red-600 hover:bg-slate-200">기본 그림으로</button>' : '') + '</div>' +
+      '<div class="flex justify-end gap-2"><button id="tpNo" type="button" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">취소</button>' +
+      '<button id="tpOk" type="button" disabled class="px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40">저장</button></div></div>';
+    document.body.appendChild(m);
+    const q = (id) => m.querySelector('#' + id); let picked = null, reset = false, busy = false;
+    const err = (t) => { q('tpErr').textContent = t; q('tpErr').style.display = t ? '' : 'none'; };
+    const close = () => { if (busy) return; document.removeEventListener('keydown', key); m.remove(); };
+    const key = (e) => { if (e.key === 'Escape') close(); }; document.addEventListener('keydown', key);
+    m.addEventListener('mousedown', (e) => { if (e.target === m) close(); }); q('tpNo').onclick = close;
+    q('tpPick').onclick = () => { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none';
+      inp.onchange = async () => { const f = inp.files && inp.files[0]; inp.remove(); if (!f) return; err('');
+        try {
+          const moving = /gif|webp|apng/i.test(f.type) || /\.(gif|webp|apng)$/i.test(f.name);
+          if (moving && f.size > WALK_MAX) return err('파일이 너무 큽니다(' + Math.round(f.size / 1024) + 'KB). 700KB 이하의 GIF로 올려 주세요.');
+          let src = await fileToDataUrl(f); if (!moving) src = await shrinkStill(src);
+          if (src.length > WALK_MAX * 1.37) return err('파일이 너무 큽니다. 더 작은 그림으로 올려 주세요.');
+          picked = { src, name: f.name }; reset = false; q('tpPrev').innerHTML = prev(src); q('tpOk').disabled = false;
+        } catch (e) { err(e.message || String(e)); } };
+      document.body.appendChild(inp); inp.click(); };
+    const rs = q('tpReset'); if (rs) rs.onclick = () => { picked = null; reset = true; q('tpPrev').innerHTML = prev(''); q('tpOk').disabled = false; };
+    q('tpOk').onclick = async () => {
+      if (busy || (!picked && !reset)) return; busy = true; q('tpOk').disabled = true; q('tpOk').textContent = '저장하는 중...'; err('');
+      try {
+        if (reset) { await G.db.collection('app_assets').doc('walker').delete().catch(() => {}); await setCfg('walker_icon', { v: '' }); }
+        else { const v = String(Date.now()); await G.db.collection('app_assets').doc('walker').set({ dataUrl: picked.src, name: picked.name, updatedAt: new Date().toISOString() }); await setCfg('walker_icon', { v, name: picked.name });
+          try { localStorage.setItem(WALK_KEY(), JSON.stringify({ v, src: picked.src })); } catch (e) { /* 공간 부족 */ } }
+        busy = false; close(); onDone();
+      } catch (e) { busy = false; q('tpOk').disabled = false; q('tpOk').textContent = '저장'; err('저장하지 못했습니다: ' + (e.message || e)); }
+    };
+  }
+  async function renderTermProgress(box, year) {
+    if (!box) return;
+    const [sem, hol, wsrc] = await Promise.all([getSemesterRows(year), holidayMap(), walkerSrc().catch(() => '')]);
+    const s1 = sem['1학기'], s2 = sem['2학기'];
+    if (!s1 || !s2 || !s1.start || !s1.end || !s2.start || !s2.end) { box.innerHTML = '<div class="tp-card"><p class="tp-empty">관리자 › 학년도 설정에서 1학기·2학기 기간을 입력하면 학년도 진행 현황이 보입니다.</p></div>' + TP_CSS; return; }
+    const now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const isSchool = (d) => d.getDay() !== 0 && d.getDay() !== 6 && !hol.has(ymd(d));
+    const count = (a, b) => { let n = 0; if (b < a) return 0; for (const d of eachDay(a, b)) if (isSchool(d)) n++; return n; };
+    const tot1 = count(s1.start, s1.end), tot2 = count(s2.start, s2.end), total = tot1 + tot2;
+    const past = count(s1.start, today < s1.end ? today : s1.end) + (today >= s2.start ? count(s2.start, today < s2.end ? today : s2.end) : 0);
+    const left = Math.max(0, total - past), pct = total ? Math.round(past / total * 100) : 0;
+    const days = (a, b) => Math.round((b - a) / 86400000);
+    // 지금 어디쯤인지
+    let state, dLabel, dTarget;
+    if (today < s1.start) { state = '개학 전'; dLabel = '1학기 개학까지'; dTarget = s1.start; }
+    else if (today <= s1.end) { state = '1학기 진행 중'; dLabel = '1학기 종료까지'; dTarget = s1.end; }
+    else if (today < s2.start) { state = '여름방학 중'; dLabel = '2학기 개학까지'; dTarget = s2.start; }
+    else if (today <= s2.end) { state = '2학기 진행 중'; dLabel = '2학기 종료까지'; dTarget = s2.end; }
+    else { state = '2학기 종료'; dLabel = '2학기 종료'; dTarget = s2.end; }
+    // 막대 위의 위치(%)
+    const GAP = 14, len1 = days(s1.start, s1.end) + 1, len2 = days(s2.start, s2.end) + 1, w1 = (100 - GAP) * len1 / (len1 + len2), w2 = 100 - GAP - w1;
+    const clamp = (x) => Math.max(0, Math.min(1, x));
+    const pos = today < s1.start ? 0 : today <= s1.end ? w1 * clamp((days(s1.start, today) + 0.5) / len1) : today < s2.start ? w1 + GAP * clamp((days(s1.end, today)) / Math.max(1, days(s1.end, s2.start))) : today <= s2.end ? w1 + GAP + w2 * clamp((days(s2.start, today) + 0.5) / len2) : 100;
+    const md = (d) => (d.getMonth() + 1) + '월 ' + d.getDate() + '일';
+    const dd = today > s2.end ? '종료' : dday(dTarget, now);
+    const walker = wsrc ? '<img class="tp-img" src="' + wsrc.replace(/"/g, '&quot;') + '" alt="">' : '<svg viewBox="0 0 40 56" width="34" height="48" aria-hidden="true"><g class="tp-bob">' +
+      '<g class="tp-leg tp-l1"><rect x="16" y="33" width="6" height="16" rx="3" fill="#1d4ed8"/><rect x="15" y="47" width="10" height="5" rx="2.5" fill="#1e3a8a"/></g>' +
+      '<g class="tp-leg tp-l2"><rect x="18" y="33" width="6" height="16" rx="3" fill="#2563eb"/><rect x="17" y="47" width="10" height="5" rx="2.5" fill="#1e40af"/></g>' +
+      '<g class="tp-arm tp-a1"><rect x="10" y="19" width="5" height="13" rx="2.5" fill="#1d4ed8"/></g>' +
+      '<rect x="12" y="17" width="16" height="19" rx="5" fill="#3b82f6"/><rect x="14" y="25" width="12" height="2" rx="1" fill="#fff" opacity=".9"/>' +
+      '<g class="tp-arm tp-a2"><rect x="25" y="19" width="5" height="13" rx="2.5" fill="#2563eb"/></g>' +
+      '<circle cx="20" cy="9" r="7.5" fill="#fcd9b6"/><path d="M12.5 9.5a7.5 7.5 0 0 1 14.6-3.2c-3.6-.9-7.2.2-9.3 2.9-.6 1.6-1.3 3.4-2.6 4.3-1.3-.9-2.4-2.3-2.7-4z" fill="#1e293b"/><circle cx="24" cy="9.5" r="1" fill="#1e293b"/><path d="M23 13c1 .6 2 .6 3 0" stroke="#c2410c" stroke-width=".9" fill="none" stroke-linecap="round"/></g></svg>';   // 오른쪽을 보고 걷는 사람
+    box.innerHTML = TP_CSS + '<div class="tp-card"><div class="tp-head"><div class="tp-title">' + year + '학년도 진행 현황</div><button type="button" class="tp-gear" title="걷는 사람 그림 바꾸기" aria-label="진행 현황 설정"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 2.5h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7v-.2a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>' +
+      '<div class="tp-top"><div class="tp-pct"><b>' + pct + '</b><span>%</span><em class="tp-chip">' + state + '</em></div>' +
+      '<div class="tp-stats"><div class="tp-stat"><i>지난 수업일</i><b>' + past + '<small>/' + total + '일</small></b></div><div class="tp-stat"><i>남은 수업일</i><b>' + left + '<small>일</small></b></div><div class="tp-stat"><i>' + dLabel + '</i><b>' + dd + '</b></div></div></div>' +
+      '<div class="tp-track-wrap"><div class="tp-walker" style="left:' + pos.toFixed(2) + '%">' + walker + '</div>' +
+      '<div class="tp-track"><div class="tp-seg tp-s1" style="width:' + w1.toFixed(2) + '%"><i style="width:' + (clamp(pos / w1) * 100).toFixed(2) + '%"></i></div>' +
+      '<div class="tp-seg tp-gap" style="width:' + GAP + '%"><i style="width:' + (clamp((pos - w1) / GAP) * 100).toFixed(2) + '%"></i><span>여름방학</span></div>' +
+      '<div class="tp-seg tp-s2" style="width:' + w2.toFixed(2) + '%"><i style="width:' + (clamp((pos - w1 - GAP) / w2) * 100).toFixed(2) + '%"></i></div></div></div>' +
+      '<div class="tp-labels"><span class="tp-lb" style="left:0"><small>1학기 시작</small>' + md(s1.start) + '</span>' +
+      '<span class="tp-lb tp-r" style="right:' + (100 - w1).toFixed(2) + '%"><small>1학기 종료</small>' + md(s1.end) + '</span>' +
+      '<span class="tp-lb" style="left:' + (w1 + GAP).toFixed(2) + '%"><small>2학기 시작</small>' + md(s2.start) + '</span>' +
+      '<span class="tp-lb tp-r" style="right:0"><small>2학기 종료</small>' + md(s2.end) + '</span></div></div>';
+    const gear = box.querySelector('.tp-gear'); if (gear) gear.onclick = () => walkerDialog(wsrc, () => renderTermProgress(box, year));
+  }
+  const TP_CSS = '<style>' +
+    '.tp-card{background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:18px 20px 14px;box-shadow:0 2px 10px rgba(15,23,42,.05)}' +
+    '.tp-head{display:flex;align-items:center;gap:6px}.tp-gear{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:999px;border:1px solid #e0e7ff;background:#eef2ff;color:#4f46e5;cursor:pointer}.tp-gear:hover{background:#e0e7ff}' +
+    '.tp-img{display:block;height:48px;width:auto;max-width:90px;object-fit:contain}' +
+    '.tp-title{font-size:16px;font-weight:800;color:#0f172a}.tp-empty{font-size:13px;color:#94a3b8;text-align:center;padding:8px}' +
+    '.tp-top{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;margin-top:10px}' +
+    '.tp-pct{display:flex;align-items:baseline;gap:4px}.tp-pct b{font-size:44px;font-weight:900;line-height:1;color:#0f172a;letter-spacing:-1px}.tp-pct span{font-size:16px;font-weight:700;color:#475569}' +
+    '.tp-chip{font-style:normal;margin-left:10px;align-self:center;padding:3px 10px;border-radius:999px;background:#f1f5f9;border:1px solid #e2e8f0;font-size:12px;font-weight:700;color:#334155;white-space:nowrap}' +
+    '.tp-stats{display:flex;gap:8px;flex-wrap:wrap}.tp-stat{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;padding:8px 14px;min-width:96px}' +
+    '.tp-stat i{display:block;font-style:normal;font-size:11.5px;color:#64748b;font-weight:600}.tp-stat b{font-size:20px;font-weight:800;color:#0f172a}.tp-stat small{font-size:12px;font-weight:600;color:#64748b;margin-left:1px}' +
+    '.tp-track-wrap{position:relative;margin-top:14px;padding-top:50px}' +
+    '.tp-track{display:flex;height:22px;border-radius:999px;overflow:hidden;background:#e5e7eb}' +
+    '.tp-seg{position:relative;height:100%;background:#e5e7eb}.tp-seg>i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#3b82f6,#2563eb)}' +
+    '.tp-gap{background:repeating-linear-gradient(135deg,#fef3c7 0 6px,#fde68a 6px 12px);border-left:2px solid #fff;border-right:2px solid #fff}' +
+    '.tp-gap>i{background:repeating-linear-gradient(135deg,#fbbf24 0 6px,#f59e0b 6px 12px);opacity:.75}' +
+    '.tp-gap span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#92400e;white-space:nowrap;overflow:hidden}' +
+    '.tp-walker{position:absolute;top:2px;transform:translateX(-50%);transition:left .6s ease}' +
+    '.tp-labels{position:relative;height:34px;margin-top:6px;font-size:12px;color:#475569;font-weight:600}' +
+    '.tp-lb{position:absolute;top:0;white-space:nowrap;line-height:1.25}.tp-lb small{display:block;font-size:10.5px;color:#94a3b8;font-weight:600}.tp-r{text-align:right}' +
+    // 걷는 모습: 다리·팔을 번갈아 흔들고 몸을 살짝 위아래로
+    '@keyframes tpLeg{0%,100%{transform:rotate(22deg)}50%{transform:rotate(-22deg)}}@keyframes tpBob{0%,50%,100%{transform:translateY(0)}25%,75%{transform:translateY(-1.5px)}}' +
+    '.tp-leg,.tp-arm{transform-box:fill-box;transform-origin:50% 0}.tp-l1,.tp-a2{animation:tpLeg .8s ease-in-out infinite}.tp-l2,.tp-a1{animation:tpLeg .8s ease-in-out -.4s infinite}.tp-bob{animation:tpBob .8s ease-in-out infinite}' +
+    '@media (prefers-reduced-motion:reduce){.tp-leg,.tp-arm,.tp-bob{animation:none}}' +
+    '@media (max-width:640px){.tp-card{padding:14px 12px 10px}.tp-pct b{font-size:36px}.tp-stats{width:100%}.tp-stat{flex:1 1 0;min-width:0;padding:6px 8px}.tp-stat b{font-size:17px}.tp-stat i{font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tp-labels{font-size:11px}.tp-lb small{font-size:9.5px}}' +
+    '</style>';
+
   // ------------------------------------------------------------ 학기(1학기, 여름방학, 2학기, 겨울방학)
   const SEM_NAMES = ['1학기', '여름방학', '2학기', '겨울방학'];
   async function getSemesterRows(year) {
@@ -511,5 +642,5 @@
   }
 
   window.APP = { baseDate, dday, fmtDate, setYear, getVacations, renderDayCards, yearRange, yearOf, inRange, getGeneral, saveGeneral, holidayMap, buildSchedule, getDayState, saveDay, SEM_NAMES, getSemesterRows, saveSemesters,
-    listBaseItems, addBaseItems, updateBaseItem, deleteBaseItem, clearSemester, entryApplies, homeroomFor, syncTeachers, teacherNames, setTeacherNames, ensureTeachers, detectYears, deleteYear, exportYear, previewDelete, migrateYearTags };
+    listBaseItems, addBaseItems, updateBaseItem, deleteBaseItem, clearSemester, entryApplies, homeroomFor, syncTeachers, teacherNames, setTeacherNames, ensureTeachers, detectYears, deleteYear, exportYear, renderTermProgress, previewDelete, migrateYearTags };
 })();

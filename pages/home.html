@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>홈</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127e">
-  <script src="../assets/js/fb-boot.js?v=20261127e"></script>
-  <script src="../assets/js/firebase-config.js?v=20261127e"></script>
-  <script src="../assets/js/gas-shim.js?v=20261127e"></script>
-  <script src="../assets/js/app-data.js?v=20261127e"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127g">
+  <script src="../assets/js/fb-boot.js?v=20261127g"></script>
+  <script src="../assets/js/firebase-config.js?v=20261127g"></script>
+  <script src="../assets/js/gas-shim.js?v=20261127g"></script>
+  <script src="../assets/js/app-data.js?v=20261127g"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     .cell { white-space: pre-wrap; word-break: keep-all; }
@@ -18,11 +18,12 @@
     .row-today td:first-child { box-shadow: inset 3px 0 0 #2563eb, inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
     .row-today td:last-child { box-shadow: inset -3px 0 0 #2563eb, inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
   </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261127e">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261127g">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
 <div class="max-w-6xl mx-auto space-y-4">
   <div id="dayCards"></div>
+  <div id="termProgress"></div>
   <div class="flex items-end justify-between">
     <div><h1 class="text-2xl font-bold">주요 일정</h1><p id="range" class="text-sm text-slate-500 mt-1"></p></div>
     <button id="reload" class="text-sm px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50">새로고침</button>
@@ -50,6 +51,7 @@ async function load(fresh) {
     const end = GP.addDays(today, 6);
     document.getElementById('range').textContent = GP.appDate(today) + ' ~ ' + GP.appDate(end);
     APP.renderDayCards(document.getElementById('dayCards'), g0.year);
+    APP.renderTermProgress(document.getElementById('termProgress'), g0.year).catch((e) => console.warn('진행 현황', e));
     const rows = await APP.buildSchedule(today, end);
     body.innerHTML = rows.map((r) => {
       const cls = (r.isHoliday || r.dow === 0) ? 'row-sun' : r.dow === 6 ? 'row-sat' : '';
