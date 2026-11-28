@@ -2,12 +2,12 @@
 <html lang="ko">
 <head>
   <script>window.__GP_PAGE__ = 'p09';</script>
-  <script src="../assets/js/fb-boot.js?v=20261127l"></script>
+  <script src="../assets/js/fb-boot.js?v=20261128a"></script>
   
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127l">
-  <script src="../assets/js/gp-icons.js?v=20261127l"></script>
-  <script src="../assets/js/firebase-config.js?v=20261127l"></script>
-  <script src="../assets/js/gas-shim.js?v=20261127l"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261128a">
+  <script src="../assets/js/gp-icons.js?v=20261128a"></script>
+  <script src="../assets/js/firebase-config.js?v=20261128a"></script>
+  <script src="../assets/js/gas-shim.js?v=20261128a"></script>
 
     <meta charset="UTF-8">
     <title>강좌별 시간표 조회</title>
@@ -60,7 +60,7 @@
 
         .loading-overlay { 
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(255,255,255,0.9); backdrop-filter: blur(2px);
+            background: rgba(15,23,42,.28);
             display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; 
         }
 
@@ -83,14 +83,12 @@
         .custom-select:focus { outline: none; border-color: #3b82f6; }
         .custom-select option { font-size: 1rem; }
     </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261127l">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261128a">
 </head>
 <body class="text-gray-800 pb-10">
 
     <div id="loading" class="loading-overlay">
-        <div class="animate-spin rounded-full h-10 w-10 border-b-4 border-blue-600 mb-3"></div>
-        <div class="text-lg font-bold text-gray-800 mb-2">데이터 로딩 중...</div>
-        <div class="text-sm text-gray-500" id="loading-text">잠시만 기다려주세요</div>
+        <div class="gp-busy-box" style="position:static;transform:none"><div class="gp-spin"></div><div>불러오는 중...</div></div>
     </div>
 
     <!-- 헤더 -->
@@ -459,8 +457,8 @@
         }
     </script>
 <div id="group-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex justify-center items-center p-4"><div class="bg-white rounded-xl shadow-xl w-full max-w-md p-4 max-h-[90vh] overflow-y-auto"><div class="flex justify-between items-center mb-3"><h3 class="font-bold">강좌 범주 관리</h3><button onclick="closeGroupModal()" class="text-gray-400 text-lg">✕</button></div><div id="group-modal-body"></div></div></div>
-<script src="../assets/js/xlsx-lite.js?v=20261127l"></script>
-<script src="../assets/js/gsheet-export.js?v=20261127l"></script>
+<script src="../assets/js/xlsx-lite.js?v=20261128a"></script>
+<script src="../assets/js/gsheet-export.js?v=20261128a"></script>
 <script>
 // ======================= 다운로드 (엑셀 / 구글 스프레드시트) =======================
 //  시트1 달력: 화면처럼 월별 달력 + 교시 칸 (반, 강좌)

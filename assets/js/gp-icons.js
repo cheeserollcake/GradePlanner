@@ -2,7 +2,7 @@
  *  GPI.svg(이름, 크기)  → <svg> 문자열
  *  GPI.btn(이름, 기능이름, 속성문자열) → 아이콘만 있는 버튼 문자열 (마우스를 올리면 기능 이름이 뜸)
  *  HTML 에 <button data-gpi="download" data-tip="내보내기"></button> 처럼 두면 아이콘을 자동으로 채움
- *  이름: gear · chevron · wide · download · upload · template · trash · clipboard · grid · sheets · excel · refresh
+ *  이름: gear · calendar · chevron · wide · download · upload · template · trash · clipboard · grid · sheets · excel · refresh
  */
 (function () {
   if (window.GPI) return;
@@ -18,6 +18,7 @@
     clipboard: S('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m8.5 14 2.5 2.5 5-5"/>', 2),
     edit: S('<path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/><path d="M18.4 2.6a2 2 0 0 1 2.9 2.9L12 14.8l-3.6.9.9-3.6z"/>'),
     grid: S('<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>'),
+    calendar: S('<rect x="3.5" y="4.5" width="17" height="16" rx="2.2"/><path d="M8 2.5v4M16 2.5v4M3.5 10h17"/>'),
     refresh: S('<path d="M21 12a9 9 0 1 1-9-9c2.5 0 4.9 1 6.7 2.7L21 8"/><path d="M21 3v5h-5"/>'),
     // 색이 있는 아이콘
     sheets: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 1.5h8.5L20 7v13.5A2 2 0 0 1 18 22.5H6a2 2 0 0 1-2-2v-17a2 2 0 0 1 2-2z" fill="#23A566"/><path d="M14.5 1.5V7H20z" fill="#8ED1B1"/><rect x="7.5" y="10.5" width="9" height="8" rx=".8" fill="#fff"/><path d="M7.5 13.2h9M7.5 15.8h9M11 10.5v8" stroke="#23A566" stroke-width="1.1"/></svg>',
@@ -31,6 +32,10 @@
     // 마우스를 올리면 기능 이름 (아래쪽에 작은 말풍선)
     '[data-tip]{position:relative}[data-tip]:hover::after,[data-tip]:focus-visible::after{content:attr(data-tip);position:absolute;left:50%;top:calc(100% + 6px);transform:translateX(-50%);white-space:nowrap;background:#1e293b;color:#fff;font-size:12px;font-weight:600;line-height:1;padding:6px 8px;border-radius:6px;z-index:9999;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.18)}' +
     '[data-tip-pos="left"]:hover::after{left:auto;right:0;transform:none}[data-tip-pos="up"]:hover::after{top:auto;bottom:calc(100% + 6px)}' +
+    // 불러오는 중 화면 (모든 페이지 같은 모양: 흐린 배경 + 흰 카드 + 파란 원 + 글씨)
+    '.gp-busy-ov{position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.28)}.gp-busy-box{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#fff;border-radius:20px;padding:26px 34px;box-shadow:0 10px 30px rgba(0,0,0,.18);display:flex;flex-direction:column;align-items:center;gap:14px;min-width:220px;font-size:17px;font-weight:700;color:#1e293b;text-align:center}.gp-spin{width:46px;height:46px;border:4px solid #dfe8fd;border-top-color:#4f78f2;border-radius:50%;animation:gpspin .8s linear infinite}@keyframes gpspin{to{transform:rotate(360deg)}}' +
+    // 페이지 윗부분 메뉴줄: 본문과 같은 배경, 경계선·그림자 없음
+    '.gp-top{background:#f8fafc!important;border-bottom-width:0!important;border-top-width:0!important;box-shadow:none!important}html[data-gp-theme="neu"] .gp-top{background:var(--neu)!important}html[data-gp-theme="glass"] .gp-top{background:rgba(255,255,255,.3)!important;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}' +
     // 화면 너비 버튼 (↔ 기본)
     '.gp-wide{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border:0;border-radius:8px;background:#eef2f7;color:#475569;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0}.gp-wide:hover{background:#e2e8f0}.gp-wide svg{width:15px;height:15px}';
   function addCss() { if (document.getElementById('gpi-css')) return; const st = document.createElement('style'); st.id = 'gpi-css'; st.textContent = CSS; (document.head || document.documentElement).appendChild(st); }
@@ -75,5 +80,9 @@
     if (o.onExcel) xl.onclick = run(o.onExcel); else xl.style.display = 'none';
     return m;
   }
-  window.GPI = { svg, btn, hydrate, ICONS, wide, WIDE_BTN, exportDialog };
+  // React 페이지용: GPI.busyEl(React, '불러오는 중...') → 불러오는 중 화면 요소
+  const busyEl = (R, msg) => R.createElement('div', { className: 'gp-busy-ov', role: 'status' }, R.createElement('div', { className: 'gp-busy-box' }, R.createElement('div', { className: 'gp-spin' }), msg || '불러오는 중...'));
+  // 일반 페이지용: GPI.busy(true/false, 글씨)
+  function busy(on, msg) { let el = document.getElementById('gp-busy2'); if (!el) { el = document.createElement('div'); el.id = 'gp-busy2'; el.className = 'gp-busy-ov'; el.innerHTML = '<div class="gp-busy-box"><div class="gp-spin"></div><span></span></div>'; document.body.appendChild(el); } el.querySelector('span').textContent = msg || '불러오는 중...'; el.style.display = on ? 'block' : 'none'; }
+  window.GPI = { svg, btn, hydrate, ICONS, wide, WIDE_BTN, exportDialog, busyEl, busy };
 })();

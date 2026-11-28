@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127l">
-  <script src="../assets/js/gp-icons.js?v=20261127l"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261128a">
+  <script src="../assets/js/gp-icons.js?v=20261128a"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>학년 개요</title>
-  <script src="../assets/js/fb-boot.js?v=20261127l"></script>
-  <script src="../assets/js/firebase-config.js?v=20261127l"></script>
-  <script src="../assets/js/gas-shim.js?v=20261127l"></script>
-  <script src="../assets/js/app-data.js?v=20261127l"></script>
+  <script src="../assets/js/fb-boot.js?v=20261128a"></script>
+  <script src="../assets/js/firebase-config.js?v=20261128a"></script>
+  <script src="../assets/js/gas-shim.js?v=20261128a"></script>
+  <script src="../assets/js/app-data.js?v=20261128a"></script>
   <style>
     body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background:#f8fafc; }
     .cell { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
@@ -25,27 +25,33 @@
     #info col.ovs { width: var(--ps); }
     #info input.memo { min-width: 0; }
     button.edit { min-width: 36px; min-height: 36px; font-size: 16px; touch-action: manipulation; }
+    .ov-fold svg { transition: transform .2s; }
+    .ov-fold.is-folded svg { transform: rotate(-90deg); }
+    .ov-h { cursor: pointer; user-select: none; }
+    .ex-bar { flex:1 1 auto; min-width:40px; height:8px; border-radius:999px; background:rgba(255,255,255,.75); box-shadow:inset 0 0 0 1px rgba(0,0,0,.06); overflow:hidden; margin-left:auto; }
+    .ex-bar > i { display:block; height:100%; border-radius:999px; }
+    .ex-pct { flex-shrink:0; font-size:11px; font-weight:700; color:#475569; min-width:2.6em; text-align:right; }
     .row-sat { background:#e0f2fe; color:#2563eb; }
     .row-sun { background:#fce7f3; color:#dc2626; }
     .row-today td { box-shadow: inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
     .row-today td:first-child { box-shadow: inset 3px 0 0 #2563eb, inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
     .row-today td:last-child { box-shadow: inset -3px 0 0 #2563eb, inset 0 3px 0 #2563eb, inset 0 -3px 0 #2563eb; }
   </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261127l">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261128a">
 </head>
 <body class="p-4 md:p-6 text-slate-800">
 <div class="max-w-7xl mx-auto space-y-6">
   <h1 class="text-2xl font-bold"><span id="gradeLabel">6</span>학년 개요 <span id="yearLabel" class="text-base font-medium text-slate-400"></span></h1>
 
   <section class="space-y-2">
-    <div class="flex items-center gap-2"><h2 class="font-bold text-lg">학년 개요</h2><button type="button" class="ov-fold inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200" data-fold="ovInfo" aria-expanded="false"><span class="ov-ic">▸</span><span class="ov-lb">펼치기</span></button></div>
+    <div class="flex items-center gap-1 ov-h" data-fold-h="ovInfo"><h2 class="font-bold text-lg">학년 개요</h2><button type="button" class="ov-fold gpi-btn gpi-sm is-folded" data-fold="ovInfo" aria-expanded="false" aria-label="펼치기" data-tip="펼치기"><span data-gpi="chevron" style="display:inline-flex"></span></button></div>
     <div id="ovInfo" style="display:none" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto"><table class="w-full text-sm text-center" id="info"></table></div>
   </section>
 
   <section id="dayCards"></section>
 
   <section class="space-y-2">
-    <div class="flex items-center gap-2"><h2 class="font-bold text-lg">학년 예산</h2><button type="button" class="ov-fold inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200" data-fold="ovCards" aria-expanded="false"><span class="ov-ic">▸</span><span class="ov-lb">펼치기</span></button></div>
+    <div class="flex items-center gap-1 ov-h" data-fold-h="ovCards"><h2 class="font-bold text-lg">학년 예산</h2><button type="button" class="ov-fold gpi-btn gpi-sm is-folded" data-fold="ovCards" aria-expanded="false" aria-label="펼치기" data-tip="펼치기"><span data-gpi="chevron" style="display:inline-flex"></span></button></div>
     <div id="ovCards" style="display:none"><div id="cards" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"></div></div>
   </section>
 
@@ -134,10 +140,20 @@ async function renderInfo() {
   });
 }
 async function renderCards() {
-  const cards = (await GP.buildBudgetCards()).filter((c) => !String(c.name).includes('친목회비'));
-  document.getElementById('cards').innerHTML = cards.map((c, i) => '<div class="border border-slate-200 rounded-xl p-3 shadow-sm" style="background:' + (c.color || ['#CFE2F3', '#FCE5CD', '#D9EAD3', '#FFFEB5', '#E4D7F5'][i % 5]) + '"><div class="font-bold text-sm border-b pb-1 mb-1">' + esc(c.name) + '</div>' +
+  // 관리자 › 예산 설정에서 '학년 개요'에 표시하기로 한 카드만(그 순서대로). 하나도 고르지 않았으면 예전처럼 친목회비를 뺀 모든 카드
+  let cards = await GP.buildBudgetCards('overview');
+  if (!cards.length) cards = (await GP.buildBudgetCards()).filter((c) => !String(c.name).includes('친목회비'));
+  const PAL = ['#CFE2F3', '#FCE5CD', '#D9EAD3', '#FFFEB5', '#E4D7F5'];
+  const hue = (t) => { t = Math.max(0, Math.min(1, t)); const l = (a, b, x) => a + (b - a) * x; return t < 0.5 ? l(360, 220, t / 0.5) : l(220, 140, (t - 0.5) / 0.5); };
+  const col = (t) => 'hsl(' + hue(t).toFixed(0) + ',70%,74%)';
+  const bar = (c) => {   // 예산 페이지와 같은 사용 비율 막대 (사용액 ÷ 배정액)
+    if (c.bar === false) return ''; const a = Number(c.assigned) || 0, u = Number(c.used) || 0; if (!(a > 0)) return '';
+    const r = u / a, w = Math.max(0, Math.min(1, r));
+    return '<span class="ex-bar" title="집행률 ' + Math.round(r * 100) + '%"><i style="width:' + (w * 100).toFixed(1) + '%;background:linear-gradient(90deg,' + col(Math.max(0, w - 0.25)) + ',' + col(w) + ')"></i></span><span class="ex-pct">' + Math.round(r * 100) + '%</span>';
+  };
+  document.getElementById('cards').innerHTML = cards.map((c, i) => '<div class="border border-slate-200 rounded-xl p-3 shadow-sm" style="background:' + (c.color || PAL[i % 5]) + '"><div class="flex items-center gap-2 font-bold text-sm border-b border-black/10 pb-1 mb-1"><span class="min-w-0 truncate">' + esc(c.name) + '</span>' + bar(c) + '</div>' +
     '<div class="flex justify-between text-xs"><span>배정액</span><b>' + fmt(c.assigned) + '</b></div><div class="flex justify-between text-xs"><span>사용액</span><b>' + fmt(c.used) + '</b></div>' +
-    '<div class="flex justify-between text-sm mt-1 pt-1 border-t"><span>잔액</span><b class="' + (c.balance < 0 ? 'text-red-600' : 'text-blue-700') + '">' + fmt(c.balance) + '</b></div></div>').join('');
+    '<div class="flex justify-between text-sm mt-1 pt-1 border-t border-black/10"><span>잔액</span><b class="' + (c.balance < 0 ? 'text-red-600' : 'text-blue-700') + '">' + fmt(c.balance) + '</b></div></div>').join('');
 }
 function renderRows() {
   const t = GP.ymd(todayDate());
@@ -215,14 +231,13 @@ load(false, false).catch((e) => { console.error(e); alert('데이터를 불러�
 </script>
 <script>
   // 학년 개요·학년 예산 접기/펼치기 (처음에는 접힘)
-  document.querySelectorAll('.ov-fold').forEach(function (b) {
-    b.onclick = function () {
-      var box = document.getElementById(b.dataset.fold), open = box.style.display === 'none';
-      box.style.display = open ? '' : 'none'; b.setAttribute('aria-expanded', open ? 'true' : 'false');
-      b.querySelector('.ov-ic').textContent = open ? '▾' : '▸'; b.querySelector('.ov-lb').textContent = open ? '접기' : '펼치기';
-      if (open && window.__fitInfo) try { window.__fitInfo(); } catch (e) {}
-    };
-  });
+  function ovToggle(id) {
+    var b = document.querySelector('.ov-fold[data-fold="' + id + '"]'), box = document.getElementById(id), open = box.style.display === 'none';
+    box.style.display = open ? '' : 'none'; b.setAttribute('aria-expanded', open ? 'true' : 'false');
+    b.classList.toggle('is-folded', !open); b.setAttribute('data-tip', open ? '접기' : '펼치기'); b.setAttribute('aria-label', open ? '접기' : '펼치기');
+    if (open && window.__fitInfo) try { window.__fitInfo(); } catch (e) {}
+  }
+  document.querySelectorAll('[data-fold-h]').forEach(function (h) { h.onclick = function () { ovToggle(h.dataset.foldH); }; });
 </script>
 </body>
 </html>

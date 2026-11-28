@@ -4,21 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>반배정하기</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261127l">
-  <script src="../assets/js/gp-icons.js?v=20261127l"></script>
-  <script src="../assets/js/fb-boot.js?v=20261127l"></script>
-  <script src="../assets/js/firebase-config.js?v=20261127l"></script>
-  <script src="../assets/js/gas-shim.js?v=20261127l"></script>
-  <link rel="stylesheet" href="../assets/css/lock.css?v=20261127l">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261128a">
+  <script src="../assets/js/gp-icons.js?v=20261128a"></script>
+  <script src="../assets/js/fb-boot.js?v=20261128a"></script>
+  <script src="../assets/js/firebase-config.js?v=20261128a"></script>
+  <script src="../assets/js/gas-shim.js?v=20261128a"></script>
+  <link rel="stylesheet" href="../assets/css/lock.css?v=20261128a">
   <style>
     body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;background:#f8fafc;color:#1e293b;margin:0}
-    .wrap{max-width:1500px;margin:0 auto;padding:16px}
+    .wrap{max-width:1500px;margin:0 auto;padding:8px 16px 16px}
     h1{font-size:24px;font-weight:800;margin:0}
     .btn{display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;font-size:14px;font-weight:600;color:#334155;cursor:pointer;white-space:nowrap}
     .btn:hover{background:#f1f5f9}.btn.p{background:#4f78f2;border-color:#4f78f2;color:#fff}.btn.p:hover{background:#3a62dc}.btn.on{background:#eef3fe;border-color:#5f88f3;color:#3a62dc}
     .btn.g{background:#059669;border-color:#059669;color:#fff}
-    .tabs{display:flex;gap:4px;border-bottom:1px solid #e2e8f0;margin:0 0 14px;justify-content:center}
-    .tabs button{padding:9px 16px;font-size:14px;font-weight:700;border:0;background:none;color:#64748b;border-bottom:3px solid transparent;cursor:pointer}
+    .tabs{display:flex;gap:4px;margin:0 0 10px;justify-content:center}
+    .tabs button{padding:6px 16px;font-size:14px;font-weight:700;border:0;background:none;color:#64748b;border-bottom:3px solid transparent;cursor:pointer}
     .tabs button.on{color:#3a62dc;border-color:#4f78f2}
     .card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
     .cls-btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;justify-content:center}
@@ -70,16 +70,16 @@
 </div>
 <div id="busy" class="busy"><div><div class="spin"></div><div id="busyMsg">처리 중...</div></div></div>
 <div id="toast" class="toast"></div>
-<script src="../assets/js/gsheet-export.js?v=20261127l"></script>
-<script src="../assets/js/xlsx-lite.js?v=20261127l"></script>
-<script src="../assets/js/dnd.js?v=20261127l"></script>
-<script src="../assets/js/banjung.js?v=20261127l"></script>
+<script src="../assets/js/gsheet-export.js?v=20261128a"></script>
+<script src="../assets/js/xlsx-lite.js?v=20261128a"></script>
+<script src="../assets/js/dnd.js?v=20261128a"></script>
+<script src="../assets/js/banjung.js?v=20261128a"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (m) => { const t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => { t.style.display = 'none'; }, 2200); };
-  const busy = (on, m) => { $('busyMsg').textContent = m || '처리 중...'; $('busy').style.display = on ? 'flex' : 'none'; };
+  const busy = (on, m) => { if (window.GPI && GPI.busy) return GPI.busy(on, m || '처리 중...'); $('busyMsg').textContent = m || '처리 중...'; $('busy').style.display = on ? 'flex' : 'none'; };
   const savedMark = () => { $('saved').textContent = '✓ 저장됨 ' + new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }); };
   let cfg, S = [], res, tab = 'setup', curCls = 1, manual = false, dropMode = 'move';
   let fold = {}; try { fold = JSON.parse(localStorage.getItem('gp_bj_fold') || '{}') || {}; } catch (e) { fold = {}; }   // 통계표 접기(1: 반별 현황, 2: 출신 반)

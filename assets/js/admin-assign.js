@@ -95,7 +95,7 @@
         '<label class="font-semibold">강좌명<input id="aName" class="' + INP + ' w-full mt-1" value="' + esc(S.name) + '" placeholder="예: 심폐소생술"></label>' +
         '<div class="grid grid-cols-2 gap-3"><label class="font-semibold">시수<input id="aHours" type="number" min="0" class="' + INP + ' w-full mt-1 text-right" value="' + esc(S.hours) + '"></label>' +
         '<label class="font-semibold">날짜<span class="flex gap-1 mt-1 relative"><input id="aDate" type="text" inputmode="numeric" autocomplete="off" placeholder="20270302" title="숫자 8자리(예: 20270302) 또는 2027-03-02 형식으로 입력하고 Enter" class="' + INP + ' w-full min-w-0" value="' + esc(S.date) + '">' +
-          '<button id="aDateBtn" type="button" class="' + BTN_G + ' !px-2 shrink-0" title="달력에서 고르기">📅</button><input id="aDatePick" type="date" tabindex="-1" aria-hidden="true" style="position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none" value="' + esc(S.date) + '"></span></label></div>' +
+          '<button id="aDateBtn" type="button" class="gpi-btn shrink-0" data-tip="달력에서 고르기" aria-label="달력에서 고르기">' + (window.GPI ? GPI.svg('calendar') : '📅') + '</button><input id="aDatePick" type="date" tabindex="-1" aria-hidden="true" style="position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none" value="' + esc(S.date) + '"></span></label></div>' +
         '</div>' +
         // 조건: 요일 · 교시 · 체육 고려 · 연차시
         '<div class="asg-cond border rounded-lg bg-slate-50 p-3 space-y-2 text-sm mt-3"><div class="font-bold">조건</div>' +

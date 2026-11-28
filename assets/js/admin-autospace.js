@@ -135,7 +135,7 @@
       const chk = (x) => '<label class="inline-flex items-center gap-1 mr-3 mb-1"><input type="checkbox" data-asp="' + esc(x.name) + '" ' + (S.spaces.indexOf(x.name) >= 0 ? 'checked' : '') + ' style="width:15px;height:15px;accent-color:#4f78f2">' + esc(x.name) + '</label>';
       const group = (label, list) => list.length ? '<div class="flex flex-wrap items-center"><span class="font-semibold w-20 shrink-0 text-slate-600">' + label + '</span>' + list.map(chk).join('') + '</div>' : '';
       const dateBox = (id, v) => '<span class="flex gap-1 mt-1 relative"><input id="' + id + '" type="text" inputmode="numeric" autocomplete="off" placeholder="20270302" class="' + INP + ' w-full min-w-0" value="' + esc(v) + '">' +
-        '<button data-pick="' + id + '" type="button" class="' + BTN_G + ' !px-2 shrink-0" title="달력에서 고르기">📅</button><input data-pk="' + id + '" type="date" tabindex="-1" aria-hidden="true" style="position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none"></span>';
+        '<button data-pick="' + id + '" type="button" class="gpi-btn shrink-0" data-tip="달력에서 고르기" aria-label="달력에서 고르기">' + (window.GPI ? GPI.svg('calendar') : '📅') + '</button><input data-pk="' + id + '" type="date" tabindex="-1" aria-hidden="true" style="position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none"></span>';
       const R = S.result;
       el.innerHTML = '<div class="' + CARD + '"><h2 class="font-bold text-lg">공간 자동 배정' + (hasSub ? '' : ' <span class="text-sm font-bold text-red-600">전담 시간표가 입력되어 있지 않습니다.</span>') +
         ' <span class="block text-xs font-normal text-slate-400 mt-0.5">위의 개방 설정에 맞춰, 전담 일정을 피해서 모든 반이 고루 쓰도록 배정합니다. [반영하기]를 눌러야 특별실 사용 시간표에 저장됩니다.</span></h2>' +

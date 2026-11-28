@@ -240,6 +240,7 @@
   // part: 'year' = 학년도 설정 탭(학년도·학기, 교시, 주간시수, 학교 기초 일정), 'basic' = 학년 기초 설정 탭(학급 및 교사)
   // 오래 걸리는 작업 중: 화면 가운데 빙글빙글 + 다른 곳을 누르지 못하게 막음
   function busy(on, msg) {
+    if (window.GPI && GPI.busy) return GPI.busy(on, msg || '처리 중...');   // 모든 페이지 같은 모양
     let el = document.getElementById('gp-busy');
     if (!el) {
       el = document.createElement('div'); el.id = 'gp-busy';
@@ -649,7 +650,7 @@
       const all = gym.map((x) => x.value).concat(room.map((x) => x.value)).filter(Boolean);
       return '<div class="' + CARD + '"><h3 class="font-bold">' + title + '</h3><div class="flex flex-wrap gap-2 sticky top-0 bg-white">' +
         '<input type="date" data-exd="' + key + '" value="' + lastDate + '" class="' + INP + '"><select data-exp="' + key + '" class="' + INP + '">' + times.map((t) => '<option>' + esc(t) + '</option>').join('') + '</select>' +
-        '<select data-exs="' + key + '" class="' + INP + '">' + all.map((s) => '<option>' + esc(s) + '</option>').join('') + '</select><button data-exadd="' + key + '" class="' + BTN + ' text-white ' + c.btn + '">추가</button></div>' +
+        '<select data-exs="' + key + '" class="' + INP + '">' + all.map((s) => '<option>' + esc(s) + '</option>').join('') + '</select><button data-exadd="' + key + '" class="' + BTN + ' text-white ' + c.btn + '">' + (blue ? '열기' : '닫기') + '</button></div>' +
         '<div class="space-y-1 max-h-64 overflow-auto">' + (cfg[key] || []).map((e, i) => '<div class="flex items-center justify-between rounded-lg px-3 py-1.5 text-sm ' + c.item + '"><span>' + esc(e.date) + ' · ' + esc(e.period) + ' · ' + esc(e.space) + '</span><button data-exdel="' + key + '" data-i="' + i + '" class="text-slate-500 hover:text-red-700 px-2 py-1 -my-1 -mr-2 text-base leading-none" aria-label="삭제">✕</button></div>').join('') + '</div></div>';
     };
 
@@ -754,7 +755,7 @@
     const rowsB = await GP.getCol('data_budget'); const lines = await GP.budgetLines();
     const sheetCfg = await GP.getCfg('budget_sheets', { sheets: [] });
     const curY = Number((await APP.getGeneral()).year);
-    const PAGES = [['budget', '학년 예산'], ['fee', '학년회비']].concat((Array.isArray(sheetCfg.sheets) ? sheetCfg.sheets : []).filter((x) => x.id === 'classfee' || !Number(x.year) || Number(x.year) === curY).map((x) => ['sheet:' + x.id, x.name]));   // 추가한 예산 페이지는 만든 학년도에만
+    const PAGES = [['budget', '학년 예산'], ['fee', '학년회비'], ['overview', '학년 개요']].concat((Array.isArray(sheetCfg.sheets) ? sheetCfg.sheets : []).filter((x) => x.id === 'classfee' || !Number(x.year) || Number(x.year) === curY).map((x) => ['sheet:' + x.id, x.name]));   // 추가한 예산 페이지는 만든 학년도에만
     if (bdSel !== 'all' && !PAGES.some((x) => x[0] === bdSel)) bdSel = 'all';
     const pageName = (id) => (PAGES.find((x) => x[0] === id) || [id, id])[1];
     let layout = await GP.getCfg('budget_layout', {}); if (!layout || typeof layout !== 'object') layout = {};
@@ -827,8 +828,10 @@
             '<div class="flex justify-between text-sm mt-1 pt-1 border-t border-black/10"><span>잔액</span><b class="' + (bal < 0 ? 'text-red-600' : 'text-blue-700') + '">' + fmt(bal) + '</b></div>' +
             '<div class="text-[11px] text-slate-500 mt-1 pt-1 border-t border-black/10 leading-tight">' + (it.kind === 'classStats' ? '<b class="text-indigo-600">반별 사용액 통계</b> · ' : '') + '표시: ' + esc(where) + (it.kind !== 'classStats' && it.bar === false ? ' · 막대 숨김' : '') + '</div></div>';
         }).join('') + '<button id="bdAdd" class="border-2 border-dashed border-slate-300 rounded-xl text-3xl font-bold text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 min-h-[110px]" title="예산 추가">+</button><button id="bdAddStats" class="border-2 border-dashed border-indigo-200 rounded-xl text-sm font-bold text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 min-h-[110px] px-2" title="반별 사용액 통계 추가">+ 반별 사용액<br>통계</button></div>' +
+        (bdSel === 'overview' ? '<div class="border-t border-slate-200 pt-3"><div class="text-sm font-bold mb-2">학년 개요에 불러올 예산 <span class="text-xs font-normal text-slate-400">체크한 예산 카드가 학년 개요 페이지의 학년 예산에 사용 비율 막대와 함께 보입니다. 하나도 고르지 않으면 학년친목회비를 뺀 모든 카드가 보입니다.</span></div><div class="flex flex-wrap gap-x-4 gap-y-2">' + items.map((it, k) => '<label class="flex items-center gap-1.5 text-sm"><input type="checkbox" class="w-4 h-4" data-ov="' + k + '"' + (it.pages.indexOf('overview') >= 0 ? ' checked' : '') + '>' + esc(it.name) + '</label>').join('') + '</div></div>' : '') +
         (list.length ? '' : '<p class="text-sm text-slate-400">이 페이지에 표시되는 예산 카드가 없습니다. + 로 추가하거나, 전체 보기에서 카드의 ✏️ 로 표시할 페이지를 고르세요.</p>') + '</div>';
       view.querySelectorAll('[data-bp]').forEach((b) => b.onclick = () => { bdSel = b.dataset.bp; draw(); });
+      view.querySelectorAll('input[data-ov]').forEach((c) => c.onchange = async () => { const it = items[+c.dataset.ov]; it.pages = it.pages.filter((x) => x !== 'overview'); if (c.checked) it.pages.push('overview'); await save(); draw(); });
       const box = $('bdCards');
       box.querySelectorAll('[data-edit]').forEach((b) => b.onclick = async () => {
         const it = list[+b.dataset.edit], r = await editDialog(it); if (!r) return;
@@ -883,8 +886,8 @@
       '<label class="text-sm font-semibold">새 관리자 비밀번호<span class="block text-xs font-normal text-slate-400">이 관리자 페이지 접근용</span><input id="pwAdmin" type="password" autocomplete="new-password" class="' + INP + ' w-full mt-1"></label></div>' +
       '<div class="text-right"><button id="savePw" class="' + BTN_P + '">비밀번호 변경</button></div></div>' +
       '<div id="iconCard"></div>' +
-      '<div class="' + CARD + ' border-red-200"><h2 class="font-bold text-lg">데이터 삭제 및 다운로드</h2><p class="text-sm text-slate-500">선택한 학년도(2월 1일~다음 해 2월 말일)의 데이터 중 항목을 팝업에서 골라 <b>내려받거나</b>(엑셀, 이미지·파일이 있으면 zip) <b>지웁니다</b>. 지우기 전에 먼저 내려받아 보관해 두면 안전합니다.<br>학년도를 바꾸면 명렬표·기초시간표·예산·강좌·이미지·교실배치도·내선번호는 새 학년도에서 빈 화면으로 보이고, 이전 데이터는 여기서 삭제하기 전까지 남아 있습니다.<br><b>삭제되지 않음:</b> 쇼핑몰 ID, 바로가기, 비밀번호, 학급·과목·교시·공간 목록</p>' +
-      '<div class="flex gap-2 items-center"><select id="delYear" class="' + INP + '">' + years.map((y) => '<option value="' + y + '">' + y + '학년도</option>').join('') + '</select><button id="delBtn" class="' + BTN_P + '">삭제·다운로드할 항목 고르기</button></div></div>' +
+      '<div class="' + CARD + '" style="border-color:#fecaca;border-left:4px solid #ef4444"><h2 class="font-bold text-lg flex items-center gap-2" style="color:#dc2626"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>데이터 삭제 및 다운로드</h2><p class="text-sm text-slate-500">선택한 학년도(2월 1일~다음 해 2월 말일)의 데이터 중 항목을 팝업에서 골라 <b>내려받거나</b>(엑셀, 이미지·파일이 있으면 zip) <b style="color:#dc2626">지웁니다</b>. <span style="color:#dc2626">지운 데이터는 되돌릴 수 없으니, 지우기 전에 먼저 내려받아 보관해 두세요.</span><br>학년도를 바꾸면 명렬표·기초시간표·예산·강좌·이미지·교실배치도·내선번호는 새 학년도에서 빈 화면으로 보이고, 이전 데이터는 여기서 삭제하기 전까지 남아 있습니다.<br><b>삭제되지 않음:</b> 쇼핑몰 ID, 바로가기, 비밀번호, 학급·과목·교시·공간 목록</p>' +
+      '<div class="flex gap-2 items-center"><select id="delYear" class="' + INP + '">' + years.map((y) => '<option value="' + y + '">' + y + '학년도</option>').join('') + '</select><button id="delBtn" class="' + BTN + ' text-white" style="background:#dc2626">삭제·다운로드할 항목 고르기</button></div></div>' +
       '<div class="' + CARD + '"><h2 class="font-bold text-lg">임시 저장 데이터 새로고침</h2><p class="text-sm text-slate-500">속도와 사용량을 줄이려고 기기에 저장해 둔 데이터는 앱에서 저장할 때마다 자동으로 갱신됩니다. 파이어베이스 콘솔에서 데이터를 직접 고쳤다면 이 버튼으로 모든 기기가 새로 받게 하세요.</p><button id="resetCache" class="' + BTN_G + '">모든 기기 데이터 새로고침</button></div></div>' +
       '<style>@keyframes gpSpin{to{transform:rotate(360deg)}}.gp-spin{width:44px;height:44px;border-radius:50%;border:4px solid #fee2e2;border-top-color:#dc2626;animation:gpSpin .8s linear infinite}.gp-bar{height:8px;border-radius:999px;background:#fee2e2;overflow:hidden}.gp-bar>i{display:block;height:100%;width:0;background:#dc2626;border-radius:999px;transition:width .3s}</style>' +
       '<div id="dm" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50"><div class="bg-white rounded-2xl p-5 w-full max-w-md space-y-3 max-h-[92vh] overflow-y-auto" style="position:relative">' +
