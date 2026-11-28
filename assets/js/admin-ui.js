@@ -102,7 +102,8 @@
     const sum = () => subs.reduce((a, s) => a + num(s.hours), 0);
     const draw = guardDraw(() => {
       const numIn = (i, k, v, ph) => '<input data-i="' + i + '" data-k="' + k + '" type="number" min="0" value="' + esc(v) + '" placeholder="' + ph + '" class="' + INP + ' w-full text-center">';
-      view.innerHTML = '<div class="' + CARD + '"><h2 class="font-bold text-lg">과목 / 시수 / 전담 설정 <span class="text-xs font-normal text-slate-400">입력하면 바로 저장됩니다</span></h2>' +
+      // 넓은 화면: 왼쪽 과목/시수/전담 설정, 오른쪽 시간표 일괄 업로드 (좁은 화면은 위아래)
+      view.innerHTML = '<style>.gp-time2{display:grid;gap:1.5rem;grid-template-columns:minmax(0,1fr);align-items:start}.gp-time2>.gp-bulkcard{margin-top:0}@media (min-width:1024px){.gp-time2{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}.gp-time2 .gp-bulk3{grid-template-columns:minmax(0,1fr) !important;gap:.75rem}}</style><div class="gp-time2"><div class="' + CARD + '"><h2 class="font-bold text-lg">과목 / 시수 / 전담 설정 <span class="text-xs font-normal text-slate-400">입력하면 바로 저장됩니다</span></h2>' +
         '<div class="overflow-x-auto"><table class="w-full text-sm" style="min-width:540px"><thead><tr class="text-slate-500"><th class="w-6"></th><th class="text-left p-1">과목</th><th class="p-1 w-24">주당 시수</th><th class="p-1 w-28">1학기 총시수</th><th class="p-1 w-28">2학기 총시수</th><th class="p-1 w-14">전담</th><th class="w-8"></th></tr></thead><tbody id="subBody">' +
         subs.map((s, i) => '<tr class="subrow" data-si="' + i + '"><td class="p-1 text-center"><span class="sgrip dnd-handle text-slate-400 text-lg leading-none" title="끌어서 순서 바꾸기">⠿</span></td><td class="p-1"><input data-i="' + i + '" data-k="name" value="' + esc(s.name) + '" class="' + INP + ' w-full" style="min-width:104px"></td>' +
           '<td class="p-1">' + numIn(i, 'hours', s.hours, '') + '</td><td class="p-1">' + numIn(i, 'h1', s.h1, '') + '</td><td class="p-1">' + numIn(i, 'h2', s.h2, '') + '</td>' +
@@ -110,7 +111,7 @@
           '<td class="p-1"><button data-del="' + i + '" class="text-slate-400 hover:text-red-600">✕</button></td></tr>').join('') +
         '</tbody></table></div><div class="flex items-center justify-between"><button id="addSub" class="' + BTN_G + '">+ 과목 추가</button>' +
         '<span class="text-sm text-slate-500">주당 시수 합계 <b id="hsum">' + sum() + '</b></span></div></div>' +
-        bulkHtml();
+        bulkHtml() + '</div>';
       view.querySelectorAll('[data-k]').forEach((el) => el.onchange = () => {
         const s = subs[+el.dataset.i], k = el.dataset.k; s[k] = el.type === 'checkbox' ? el.checked : el.value; if (k === 'hours') $('hsum').textContent = sum(); saveSubs();
       });
@@ -128,7 +129,7 @@
 
 
   // ---------------- 시간표 일괄 업로드: 전담 시간표 · 체육 공간(admin-bulktt.js) · 강좌 일정(admin-bulktt.js) ----------------
-  const bulkHtml = () => '<div class="' + CARD + ' mt-5"><h2 class="font-bold text-lg">시간표 일괄 업로드 <span class="text-xs font-normal text-slate-400">양식을 내려받아 고친 뒤 올리면 한꺼번에 등록됩니다</span></h2>' +
+  const bulkHtml = () => '<div class="' + CARD + ' gp-bulkcard"><h2 class="font-bold text-lg">시간표 일괄 업로드 <span class="text-xs font-normal text-slate-400">양식을 내려받아 고친 뒤 올리면 한꺼번에 등록됩니다</span></h2>' +
     '<style>.gp-bulk3{display:grid;gap:1.25rem;grid-template-columns:minmax(0,1fr)}.gp-bulk3>div{display:flex;flex-direction:column}.gp-bulk3>div>.flex-wrap{margin-top:auto;padding-top:.25rem}@media (min-width:1024px){.gp-bulk3{grid-template-columns:repeat(3,minmax(0,1fr))}}@media (min-width:640px) and (max-width:1023px){.gp-bulk3{grid-template-columns:repeat(2,minmax(0,1fr))}}</style><div class="gp-bulk3">' +
     '<div class="space-y-2 border rounded-xl p-4"><h3 class="font-semibold">전담 시간표</h3>' +
     '<p class="text-sm text-slate-500">전담 시간표 페이지와 같은 모양의 엑셀(.xlsx)입니다. 전담(과목·담당학급)·학기마다 시트가 하나씩 있고, 양식은 비어 있습니다. 칸에 학급 번호(예: 3 · 3반 · 과(6-3))를 적으면 등록되고, 비워 둔 칸은 지금 등록된 내용을 그대로 둡니다. 시트 이름과 표 모양은 바꾸지 마세요.</p>' +
