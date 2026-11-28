@@ -57,30 +57,32 @@
     run(); try { new MutationObserver(paint).observe(document.documentElement, { childList: true, subtree: true }); } catch (e) { /* 무시 */ }
     window.addEventListener('load', run); window.__gpWideChanged = run;
   }
-  // 화면 너비 버튼(#wideBtn) 공통: 누를 때마다 기본 → 넓게 → 전체 (브라우저에 단계 기억: gp_wide_<key>)
-  //  o = { key: 문자열 또는 () => 문자열(보기마다 따로 기억), sel: 본문 상자 선택자, def: 처음 단계(0~2) 또는 (key) => 단계,
-  //        caps: [기본 px, 넓게 px] (없으면 비율만), pct: [기본 %, 넓게 %], zoomSel: 휴대폰에서 축소할 상자(기본 sel) }
+  // 화면 너비 버튼(#wideBtn) 공통: 누를 때마다 좁게 → 기본 → 넓게 → 전체 (브라우저에 단계 기억: gp_wide4_<key>)
+  //  o = { key: 문자열 또는 () => 문자열(보기마다 따로 기억), sel: 본문 상자 선택자, def: 처음 단계(0 좁게 ~ 3 전체, 기본 1) 또는 (key) => 단계,
+  //        caps: [좁게 px, 기본 px, 넓게 px] (없으면 비율만), pct: [좁게 %, 기본 %, 넓게 %], zoomSel: 휴대폰에서 배율을 바꿀 상자(기본 sel) }
   //  · 넓은 화면: 본문 폭 = min(caps, pct) → 노트북처럼 화면이 좁아도 단계마다 폭이 달라짐
-  //  · 휴대폰(가로 700px 미만): 폭 대신 화면 배율 100% → 85% → 70% (더 넓은 범위가 한눈에 보임)
+  //  · 휴대폰(가로 700px 미만): 폭 대신 화면 배율 (처음 단계 = 100%, 한 단계 넓을 때마다 85%배, 좁게는 크게)
+  const WL4 = ['좁게', '기본', '넓게', '전체'];
   function widePage(o) {
     const keyOf = () => (typeof o.key === 'function' ? o.key() : o.key);
-    const defOf = (k) => (typeof o.def === 'function' ? o.def(k) : (o.def || 0));
-    const get = (k) => { let v = null; try { v = localStorage.getItem('gp_wide_' + k); } catch (e) { v = null; } const n = v === null ? defOf(k) : parseInt(v, 10) || 0; return Math.max(0, Math.min(2, n)); };
-    const pct = o.pct || [85, 93], caps = o.caps || null, ZOOM = [1, 0.85, 0.7];
+    const defOf = (k) => (typeof o.def === 'function' ? o.def(k) : (o.def === undefined ? 1 : o.def));
+    const get = (k) => { let v = null; try { v = localStorage.getItem('gp_wide4_' + k); } catch (e) { v = null; } const n = v === null ? defOf(k) : parseInt(v, 10) || 0; return Math.max(0, Math.min(3, n)); };
+    const pct = o.pct || [75, 85, 93], caps = o.caps === null ? null : (o.caps || [1000, 1230, 1600]);
     let lastCss = '', lastKey = '';
     const apply = () => {
       const k = keyOf(), n = get(k); lastKey = k + ':' + n;
-      const w = n === 2 ? 'none' : (caps ? 'min(' + caps[n] + 'px,' + pct[n] + '%)' : pct[n] + '%');
-      const css = '@media (min-width:700px){html body ' + o.sel + '{max-width:' + w + ' !important;' + (n === 2 ? '' : 'width:100%;') + 'margin-left:auto !important;margin-right:auto !important}}' +
-        '@media (max-width:699.98px){html body ' + (o.zoomSel || o.sel) + '{zoom:' + ZOOM[(n - defOf(k) + 3) % 3] + '}}';   // 휴대폰: 처음 단계에서는 원래 크기
+      const w = n === 3 ? 'none' : (caps ? 'min(' + caps[n] + 'px,' + pct[n] + '%)' : pct[n] + '%');
+      const z = Math.max(0.72, Math.min(1.18, Math.pow(0.85, n - defOf(k)))).toFixed(3);   // 휴대폰 배율은 72% ~ 118% 사이
+      const css = '@media (min-width:700px){html body ' + o.sel + '{max-width:' + w + ' !important;' + (n === 3 ? '' : 'width:100%;') + 'margin-left:auto !important;margin-right:auto !important}}' +
+        '@media (max-width:699.98px){html body ' + (o.zoomSel || o.sel) + '{zoom:' + z + '}}';
       let st = document.getElementById('gp-wide-page'); if (!st) { st = document.createElement('style'); st.id = 'gp-wide-page'; document.head.appendChild(st); }
       if (css !== lastCss) { st.textContent = css; lastCss = css; }
-      document.querySelectorAll('#wideBtn').forEach((b) => { if (!b.querySelector('#wideLbl')) { b.innerHTML = WIDE_BTN; if (!b.classList.contains('gp-wide')) b.classList.add('gp-wide'); } const l = b.querySelector('#wideLbl'); if (l && l.textContent !== WL[n]) l.textContent = WL[n]; const t = '화면 너비 — 지금: ' + WL[n] + ' (누를 때마다 기본 → 넓게 → 전체)'; if (b.title !== t) b.title = t; });
+      document.querySelectorAll('#wideBtn').forEach((b) => { if (!b.querySelector('#wideLbl')) { b.innerHTML = WIDE_BTN; if (!b.classList.contains('gp-wide')) b.classList.add('gp-wide'); } const l = b.querySelector('#wideLbl'); if (l && l.textContent !== WL4[n]) l.textContent = WL4[n]; const t = '화면 너비 — 지금: ' + WL4[n] + ' (누를 때마다 좁게 → 기본 → 넓게 → 전체)'; if (b.title !== t) b.title = t; });
       if (o.onChange) try { o.onChange(n); } catch (e) { /* 무시 */ }
     };
-    document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('#wideBtn'); if (!b) return; e.preventDefault(); e.stopImmediatePropagation(); const k = keyOf(), n = (get(k) + 1) % 3; try { localStorage.setItem('gp_wide_' + k, n); } catch (x) { /* 무시 */ } apply(); }, true);
+    document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('#wideBtn'); if (!b) return; e.preventDefault(); e.stopImmediatePropagation(); const k = keyOf(), n = (get(k) + 1) % 4; try { localStorage.setItem('gp_wide4_' + k, n); } catch (x) { /* 무시 */ } apply(); }, true);
     let qd = false; const check = () => { if (qd) return; qd = true; requestAnimationFrame(() => { qd = false; check2(); }); };
-    const check2 = () => { const k = keyOf(); const l = document.querySelector('#wideBtn #wideLbl'); if (lastKey !== k + ':' + get(k) || (l && l.textContent !== WL[get(k)])) apply(); };
+    const check2 = () => { const k = keyOf(); const l = document.querySelector('#wideBtn #wideLbl'); if (lastKey !== k + ':' + get(k) || (l && l.textContent !== WL4[get(k)])) apply(); };
     apply(); try { new MutationObserver(check).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] }); } catch (e) { /* 무시 */ }
     window.addEventListener('load', apply); window.__gpWideChanged = () => apply();
     return { apply };

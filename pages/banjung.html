@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>반배정하기</title>
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261128b">
-  <script src="../assets/js/gp-icons.js?v=20261128b"></script>
-  <script src="../assets/js/fb-boot.js?v=20261128b"></script>
-  <script src="../assets/js/firebase-config.js?v=20261128b"></script>
-  <script src="../assets/js/gas-shim.js?v=20261128b"></script>
-  <link rel="stylesheet" href="../assets/css/lock.css?v=20261128b">
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261128d">
+  <script src="../assets/js/gp-icons.js?v=20261128d"></script>
+  <script src="../assets/js/fb-boot.js?v=20261128d"></script>
+  <script src="../assets/js/firebase-config.js?v=20261128d"></script>
+  <script src="../assets/js/gas-shim.js?v=20261128d"></script>
+  <link rel="stylesheet" href="../assets/css/lock.css?v=20261128d">
   <style>
     body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;background:#f8fafc;color:#1e293b;margin:0}
     .wrap{max-width:1500px;margin:0 auto;padding:8px 16px 16px}
@@ -38,6 +38,8 @@
     .sepbtn:hover{border-color:#5f88f3}
     .bj-sp{background:#fed7aa !important}.bj-slow{background:#fef9c3 !important}.bj-multi{background:#dbeafe !important}.bj-move{background:#e5e7eb !important}
     .stat td,.stat th{text-align:center}
+    .bj-stats{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;margin-bottom:10px}.bj-stats>.card{flex:1 1 0;min-width:min(100%,380px)}
+    table.t.stat th,table.t.stat td{white-space:nowrap;padding:4px 7px;font-size:13px}
     .stat tr.o td{font-size:12px;color:#475569;text-align:left;background:#fafafa}
     .board{display:flex;gap:14px;align-items:flex-start}
     .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;flex:1;min-width:0}
@@ -70,10 +72,10 @@
 </div>
 <div id="busy" class="busy"><div><div class="spin"></div><div id="busyMsg">처리 중...</div></div></div>
 <div id="toast" class="toast"></div>
-<script src="../assets/js/gsheet-export.js?v=20261128b"></script>
-<script src="../assets/js/xlsx-lite.js?v=20261128b"></script>
-<script src="../assets/js/dnd.js?v=20261128b"></script>
-<script src="../assets/js/banjung.js?v=20261128b"></script>
+<script src="../assets/js/gsheet-export.js?v=20261128d"></script>
+<script src="../assets/js/xlsx-lite.js?v=20261128d"></script>
+<script src="../assets/js/dnd.js?v=20261128d"></script>
+<script src="../assets/js/banjung.js?v=20261128d"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -200,15 +202,17 @@
       // 위 두 구역(배정반별 · 원적반별 배정 현황): 구역 제목줄을 누르면 접고 펼침. 표는 가운데 정렬
       const CH = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
       const secHead = (n, title) => '<div class="bj-sec-h" data-fold="' + n + '" role="button" tabindex="0" aria-expanded="' + !fold[n] + '"><b>' + title + '</b><span class="bj-chev' + (fold[n] ? ' f' : '') + '">' + CH + '</span></div>';
-      const tblStyle = (cols) => 'table-layout:fixed;width:100%;max-width:' + (cols * 120) + 'px;margin:10px auto 0';   // 넓은 화면에서도 칸이 너무 넓어지지 않게, 칸 너비는 똑같이
+      const tblStyle = () => 'table-layout:auto;width:auto;margin:10px auto 0';   // 칸 너비는 글자에 맞춰(한 줄), 표는 가운데
       const c1 = ['배정반', '총인원', '성별인원'].concat(sc ? ['평균점수'] : [], ['특수', '학습부진', '다문화', '전출예정']);
-      h += '<div class="card" style="margin-bottom:10px">' + secHead(1, '배정반별 배정 현황') + (fold[1] ? '' : '<div style="overflow-x:auto"><table class="t stat" style="' + tblStyle(c1.length) + '"><thead><tr>' + c1.map((x) => '<th>' + x + '</th>').join('') + '</tr></thead><tbody>' +
+      h += '<div class="bj-stats">';   // 두 구역을 한 줄에 나란히 (좁은 화면에서는 위아래)
+      h += '<div class="card">' + secHead(1, '배정반별 배정 현황') + (fold[1] ? '' : '<div style="overflow-x:auto"><table class="t stat" style="' + tblStyle(c1.length) + '"><thead><tr>' + c1.map((x) => '<th>' + x + '</th>').join('') + '</tr></thead><tbody>' +
         st.map((q, k) => { const m = mv[k], mt = m.M + m.F + m.U;
           return '<tr><td><b>' + esc(BJ.tempName(cfg, k)) + '</b></td><td>' + (q.n - mt) + par(mt) + '명</td><td>남 ' + (q.M - m.M) + par(m.M) + ', 여 ' + (q.F - m.F) + par(m.F) + (q.U ? ', ? ' + (q.U - m.U) + par(m.U) : '') + '</td>' + (sc ? '<td>' + (q.scn ? (q.sc / q.scn).toFixed(1) : '-') + '</td>' : '') +
             '<td>' + q.sp + '명</td><td>' + q.slow + '명</td><td>' + q.multi + '명</td><td>' + q.move + '명</td></tr>'; }).join('') + '</tbody></table></div>') + '</div>';
       const c2 = ['배정반'].concat(origs.map((o) => clsName(o)));
-      h += '<div class="card" style="margin-bottom:10px">' + secHead(2, '원적반별 배정 현황') + (fold[2] ? '' : '<div style="overflow-x:auto"><table class="t stat" style="' + tblStyle(c2.length) + '"><thead><tr>' + c2.map((x) => '<th>' + esc(x) + '</th>').join('') + '</tr></thead><tbody>' +
+      h += '<div class="card">' + secHead(2, '원적반별 배정 현황') + (fold[2] ? '' : '<div style="overflow-x:auto"><table class="t stat" style="' + tblStyle(c2.length) + '"><thead><tr>' + c2.map((x) => '<th>' + esc(x) + '</th>').join('') + '</tr></thead><tbody>' +
         st.map((q, k) => '<tr><td><b>' + esc(BJ.tempName(cfg, k)) + '</b></td>' + origs.map((o) => '<td>' + (q.o[o] || 0) + '명</td>').join('') + '</tr>').join('') + '</tbody></table></div>') + '</div>';
+      h += '</div>';
     }
     const M = byId();
     const isMoved = (id) => (res.orig ? (res.orig[id] !== undefined && a[id] !== res.orig[id]) : !!res.moved[id]);   // 처음 배정된 반으로 돌아오면 표시 없음

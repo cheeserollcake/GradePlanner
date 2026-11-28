@@ -4,15 +4,15 @@
   <script>
 window.__escA = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 window.__GP_PAGE__ = 'p08';</script>
-  <script src="../assets/js/fb-boot.js?v=20261128b"></script>
+  <script src="../assets/js/fb-boot.js?v=20261128d"></script>
   
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261128b">
-  <script src="../assets/js/gp-icons.js?v=20261128b"></script>
-  <script src="../assets/js/firebase-config.js?v=20261128b"></script>
-  <script src="../assets/js/gas-shim.js?v=20261128b"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261128d">
+  <script src="../assets/js/gp-icons.js?v=20261128d"></script>
+  <script src="../assets/js/firebase-config.js?v=20261128d"></script>
+  <script src="../assets/js/gas-shim.js?v=20261128d"></script>
 
     <meta charset="UTF-8">
-    <title>반별 일정 조회</title>
+    <title>반별 일정</title>
     <style>
         /* 고객님의 기존 디자인 CSS 완벽 유지 */
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
@@ -50,7 +50,7 @@ window.__GP_PAGE__ = 'p08';</script>
             display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; 
         }
     </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261128b">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261128d">
 </head>
 <body class="text-gray-800 pb-10">
 
@@ -233,7 +233,7 @@ window.__GP_PAGE__ = 'p08';</script>
             classList.forEach(num => {
                 const btn = document.createElement('button');
                 btn.id = `nav-class-${num}`;
-                btn.className = `px-4 py-1.5 text-sm rounded-full font-medium transition-all ${num === currentClass ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`;
+                btn.className = `px-4 py-1.5 text-sm rounded-full font-medium transition-all ${num === currentClass ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`;
                 btn.textContent = window.__cn(num);
                 btn.onclick = () => { currentClass = num; generateAndRenderTable(); };
                 classMenu.appendChild(btn);
@@ -332,7 +332,7 @@ window.__GP_PAGE__ = 'p08';</script>
 
         function generateAndRenderTable() {
             classList.forEach(num => {
-                document.getElementById(`nav-class-${num}`).className = `px-4 py-1.5 text-sm rounded-full font-medium transition-all ${num === currentClass ? 'bg-gray-800 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`;
+                document.getElementById(`nav-class-${num}`).className = `px-4 py-1.5 text-sm rounded-full font-medium transition-all ${num === currentClass ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`;
             });
             document.getElementById('display-class-name').textContent = window.__cn(currentClass);
 
@@ -605,8 +605,8 @@ window.__GP_PAGE__ = 'p08';</script>
 
         function showLoading(show) { document.getElementById('loading').style.display = show ? 'flex' : 'none'; }
     </script>
-<script src="../assets/js/xlsx-lite.js?v=20261128b"></script>
-<script src="../assets/js/gsheet-export.js?v=20261128b"></script>
+<script src="../assets/js/xlsx-lite.js?v=20261128d"></script>
+<script src="../assets/js/gsheet-export.js?v=20261128d"></script>
 <script>
 // ======================= 내보내기 (엑셀 / 구글 스프레드시트) — 강좌별 시간표 조회와 같은 3시트 =======================
 //  시트1 달력(화면 모양) · 시트2 목록(날짜/반/교시/강좌이름) · 시트3 주간 시간표(주·기간 × 요일·교시, 칸에는 일정 이름)
@@ -694,7 +694,7 @@ window.__GP_PAGE__ = 'p08';</script>
   (function () {
     function setHH() { var h = document.querySelector('header'), m = document.querySelector('main'); if (!h || !m) return; var z = parseFloat(getComputedStyle(m).zoom) || 1; document.documentElement.style.setProperty('--hh', (h.offsetHeight / z) + 'px'); }
     window.addEventListener('resize', setHH); setHH(); setInterval(setHH, 1000);
-    GPI.widePage({ key: 'lookup-class', sel: 'main.max-w-7xl', caps: [1230, 1600], onChange: function () { setTimeout(setHH, 0); } });
+    GPI.widePage({ key: 'lookup-class', sel: 'main.max-w-7xl', onChange: function () { setTimeout(setHH, 0); } });
   })();
 </script>
 </body>

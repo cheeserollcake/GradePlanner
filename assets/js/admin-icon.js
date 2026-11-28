@@ -69,7 +69,7 @@
       '<div><div class="text-sm font-semibold mb-2">지금 아이콘</div><div class="flex items-end gap-3">' + prev(curSrc, '22%', 64, cur ? '바꾼 아이콘' : '기본 아이콘') + '</div></div>' +
       '<div id="icNew" class="min-w-0"' + (S.out ? '' : ' style="display:none"') + '><div class="text-sm font-semibold mb-2">새 아이콘 미리보기</div><div id="icPrev" class="flex flex-wrap items-end gap-4"></div></div></div>' +
       '<div class="flex flex-wrap items-center text-sm" style="gap:.5rem .75rem">' +
-      '<button id="icPick" type="button" class="' + BTN_G + '">🖼 그림 고르기</button><span id="icName" class="text-xs text-slate-500">' + esc(S.name || 'PNG·JPG 등, 정사각형에 가까운 그림이 좋습니다') + '</span></div>' +
+      '<button id="icPick" type="button" class="' + BTN_G + '">그림 고르기</button><span id="icName" class="text-xs text-slate-500">' + esc(S.name || 'PNG·JPG 등, 정사각형에 가까운 그림이 좋습니다') + '</span></div>' +
       '<div id="icOpt" class="flex flex-wrap items-center text-sm" style="gap:.5rem 1.5rem;' + (S.img ? '' : 'display:none') + '"' + '>' +
       '<label class="inline-flex items-center gap-1"><input type="radio" name="icMode" value="cover" style="margin-right:.3rem" ' + (S.mode === 'cover' ? 'checked' : '') + '> 꽉 채우기(가장자리 잘림)</label>' +
       '<label class="inline-flex items-center gap-1"><input type="radio" name="icMode" value="contain" style="margin-right:.3rem" ' + (S.mode === 'contain' ? 'checked' : '') + '> 전체 보이기(여백)</label>' +

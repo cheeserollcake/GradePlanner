@@ -10,6 +10,7 @@
   const BTN_G = BTN + ' bg-slate-100 text-slate-700 hover:bg-slate-200';
   const INP = 'border rounded-lg px-3 py-1.5 text-sm bg-white';
   const CARD = 'bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-3';
+  const SUBBOX = 'rounded-xl border border-slate-200 p-3 space-y-3';   // 흰 상자 안의 작은 구역
   const DAYS5 = [['Mon', '월'], ['Tue', '화'], ['Wed', '수'], ['Thu', '목'], ['Fri', '금']];
   const PALETTE = ['#CFE2F3', '#FCE5CD', '#D9EAD3', '#FFFEB5', '#E4D7F5'];
   const view = $('view');
@@ -641,14 +642,14 @@
         const k = dk + '|' + t + '|' + s, on = !!cfg[semKey][k];
         return '<td class="border text-center p-0" style="' + (on ? 'background:' + colorOf(i, s) + ';' : '') + (i === 0 ? sepL : '') + '"><input type="checkbox" style="width:14px;height:14px" data-sem="' + semKey + '" data-k="' + esc(k) + '" data-sp="' + esc(s) + '" ' + (on ? 'checked' : '') + '></td>';
       }).join('')).join('') + '</tr>').join('');
-      return '<div class="' + CARD + ' !p-3"><div class="flex items-center justify-between"><h3 class="font-bold">' + semName + '</h3><button data-fold="' + semKey + '" class="' + BTN_G + ' !py-1">' + (open[semKey] ? '접기' : '펼치기') + '</button></div>' +
+      return '<div class="' + SUBBOX + '"><div class="flex items-center justify-between"><h3 class="font-bold">' + semName + '</h3><button data-fold="' + semKey + '" class="' + BTN_G + ' !py-1">' + (open[semKey] ? '접기' : '펼치기') + '</button></div>' +
         (open[semKey] ? (n ? '<div class="overflow-x-auto"><table class="text-center border-collapse text-xs" style="table-layout:fixed;width:100%;min-width:' + (56 + n * 5 * 26) + 'px"><colgroup><col style="width:3.6rem"></colgroup><thead><tr><th rowspan="2" class="border bg-slate-100 text-xs" style="white-space:nowrap">교시</th>' + hdr + '</tr><tr>' + sub2 + '</tr></thead><tbody>' + body + '</tbody></table></div>' : '<p class="text-sm text-slate-400">공간을 먼저 추가하세요.</p>') : '') + '</div>';
     };
 
     const exPanel = (key, title, blue) => {
       const c = blue ? { btn: 'bg-blue-600 hover:bg-blue-700', item: 'bg-sky-100' } : { btn: 'bg-red-600 hover:bg-red-700', item: 'bg-pink-100' };
       const all = gym.map((x) => x.value).concat(room.map((x) => x.value)).filter(Boolean);
-      return '<div class="' + CARD + '"><h3 class="font-bold">' + title + '</h3><div class="flex flex-wrap gap-2 sticky top-0 bg-white">' +
+      return '<div class="' + SUBBOX + '"><h3 class="font-bold">' + title + '</h3><div class="flex flex-wrap gap-2 sticky top-0 bg-white">' +
         '<input type="date" data-exd="' + key + '" value="' + lastDate + '" class="' + INP + '"><select data-exp="' + key + '" class="' + INP + '">' + times.map((t) => '<option>' + esc(t) + '</option>').join('') + '</select>' +
         '<select data-exs="' + key + '" class="' + INP + '">' + all.map((s) => '<option>' + esc(s) + '</option>').join('') + '</select><button data-exadd="' + key + '" class="' + BTN + ' text-white ' + c.btn + '">' + (blue ? '열기' : '닫기') + '</button></div>' +
         '<div class="space-y-1 max-h-64 overflow-auto">' + (cfg[key] || []).map((e, i) => '<div class="flex items-center justify-between rounded-lg px-3 py-1.5 text-sm ' + c.item + '"><span>' + esc(e.date) + ' · ' + esc(e.period) + ' · ' + esc(e.space) + '</span><button data-exdel="' + key + '" data-i="' + i + '" class="text-slate-500 hover:text-red-700 px-2 py-1 -my-1 -mr-2 text-base leading-none" aria-label="삭제">✕</button></div>').join('') + '</div></div>';
@@ -702,9 +703,9 @@
 
     const drawTables = () => {
       const spaces = (sub === 'gym' ? gym : room).map((x) => x.value).filter(Boolean);
-      $('tables').innerHTML = '<div class="flex gap-2"><button data-sub="gym" class="' + BTN + ' ' + (sub === 'gym' ? 'bg-indigo-600 text-white' : 'bg-white border') + '">체육 공간 개방 설정</button><button data-sub="room" class="' + BTN + ' ' + (sub === 'room' ? 'bg-indigo-600 text-white' : 'bg-white border') + '">특별실 개방 설정</button></div>' +
+      $('tables').innerHTML = '<div class="' + CARD + '"><div class="flex gap-2"><button data-sub="gym" class="' + BTN + ' ' + (sub === 'gym' ? 'bg-indigo-600 text-white' : 'bg-white border') + '">체육 공간 개방 설정</button><button data-sub="room" class="' + BTN + ' ' + (sub === 'room' ? 'bg-indigo-600 text-white' : 'bg-white border') + '">특별실 개방 설정</button></div>' +
         table('sem1', '1학기', spaces) + table('sem2', '2학기', spaces) +
-        '<h2 class="font-bold text-lg pt-2">예외 설정</h2><div class="grid md:grid-cols-2 gap-5">' + exPanel('exceptions', '닫힌 곳 열기', true) + exPanel('closeExceptions', '열린 곳 닫기', false) + '</div>';
+        '<h3 class="font-bold pt-1">예외 설정</h3><div class="grid md:grid-cols-2 gap-3">' + exPanel('exceptions', '닫힌 곳 열기', true) + exPanel('closeExceptions', '열린 곳 닫기', false) + '</div></div>';   // 체육/특별실 개방 설정·1학기·2학기·예외 설정을 하나의 흰 상자 안에
       bindTables(spaces);
     };
     const bindTables = () => {
