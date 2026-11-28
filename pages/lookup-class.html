@@ -4,12 +4,12 @@
   <script>
 window.__escA = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 window.__GP_PAGE__ = 'p08';</script>
-  <script src="../assets/js/fb-boot.js?v=20261128a"></script>
+  <script src="../assets/js/fb-boot.js?v=20261128b"></script>
   
-  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261128a">
-  <script src="../assets/js/gp-icons.js?v=20261128a"></script>
-  <script src="../assets/js/firebase-config.js?v=20261128a"></script>
-  <script src="../assets/js/gas-shim.js?v=20261128a"></script>
+  <link rel="stylesheet" href="../assets/css/tw-base.css?v=20261128b">
+  <script src="../assets/js/gp-icons.js?v=20261128b"></script>
+  <script src="../assets/js/firebase-config.js?v=20261128b"></script>
+  <script src="../assets/js/gas-shim.js?v=20261128b"></script>
 
     <meta charset="UTF-8">
     <title>반별 일정 조회</title>
@@ -22,9 +22,9 @@ window.__GP_PAGE__ = 'p08';</script>
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 
+        /* 표는 화면(페이지) 기준으로 스크롤 — 머리줄은 위쪽 메뉴 바로 아래에 붙음 */
         .table-container { 
-            max-height: 70vh; overflow: auto; 
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-radius: 0.5rem; background: white;
+                        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-radius: 0.5rem; background: white;
         }
         table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 800px; table-layout: fixed; }
         th, td { border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; padding: 0.4rem; text-align: center; word-break: keep-all; }
@@ -33,7 +33,7 @@ window.__GP_PAGE__ = 'p08';</script>
         tbody td:hover { filter: brightness(0.95); } 
         
         th { background-color: #ffffff; }
-        thead th { position: sticky; top: 0; z-index: 20; border-top: 1px solid #e2e8f0; font-size: 11pt; }
+        thead th { position: sticky; top: var(--hh, 0px); z-index: 20; border-top: 1px solid #e2e8f0; font-size: 11pt; }
         tbody th { position: sticky; left: 0; z-index: 10; font-weight: 500; cursor: default; }
         thead th:first-child { position: sticky; left: 0; z-index: 30; background-color: #f8fafc; }
         
@@ -46,11 +46,11 @@ window.__GP_PAGE__ = 'p08';</script>
 
         .loading-overlay { 
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(15,23,42,.28);
+            background: rgba(15,23,42,.28); animation: gpbusyin .2s ease .6s both;
             display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; 
         }
     </style>
-  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261128a">
+  <link rel="stylesheet" href="../assets/css/tw-util.css?v=20261128b">
 </head>
 <body class="text-gray-800 pb-10">
 
@@ -64,17 +64,15 @@ window.__GP_PAGE__ = 'p08';</script>
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto px-4 mt-6 space-y-6">
+    <main class="max-w-7xl mx-auto px-4 mt-1 space-y-3">
         
-        <section class="flex flex-col items-center justify-center">
-            <div class="flex items-center gap-2">
-                <span id="display-class-name" class="text-lg font-bold text-gray-500"></span>
-                <div class="flex items-center gap-2">
-                    <select id="month-select" class="bg-white border border-slate-200 text-center text-lg font-bold text-gray-800 rounded-lg pl-2 pr-1 py-0.5 focus:outline-none focus:border-blue-400 cursor-pointer" style="font-size:1.125rem;line-height:1.5" onchange="changeMonth()">
-                    </select>
-                    <button id="dlBtn" type="button" class="gpi-btn" data-gpi="download" data-tip="내보내기" onclick="openDownload()"></button>
-                </div>
-            </div>
+        <section class="flex flex-wrap items-center justify-center gap-1">
+            <span id="display-class-name" class="hidden"></span>
+            <div id="month-menu" class="flex flex-wrap justify-center gap-1"></div>
+            <span class="inline-flex items-center gap-1" style="margin-left:10px">
+                <button id="dlBtn" type="button" class="gpi-btn" data-gpi="download" data-tip="내보내기" onclick="openDownload()"></button>
+                <button id="wideBtn" type="button" class="gp-wide" aria-label="화면 너비 조절"></button>
+            </span>
         </section>
 
         <section class="table-container" id="schedule-container">
@@ -241,21 +239,15 @@ window.__GP_PAGE__ = 'p08';</script>
                 classMenu.appendChild(btn);
             });
 
-            const monthSelect = document.getElementById('month-select');
-            monthSelect.innerHTML = '';
-            // 월 목록 순서 변경: 3월 ~ 12월, 1월 (2월 삭제)
-            const months = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2];
-            months.forEach(m => {
-                const option = document.createElement('option');
-                option.value = m;
-                option.textContent = `${m}월`;
-                option.style.fontSize = "1.125rem";
-                option.style.color = "black";
-                if(m === currentMonth) option.selected = true;
-                monthSelect.appendChild(option);
-            });
+            renderMonthMenu();
         }
 
+        // 월 고르기: 특별실 시간표처럼 3월 ~ 2월 둥근 버튼
+        function renderMonthMenu() {
+            const box = document.getElementById('month-menu'); if (!box) return;
+            box.innerHTML = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2].map((m) => '<button type="button" data-mo="' + m + '" class="px-4 py-2 rounded-full font-bold whitespace-nowrap transition-colors text-sm ' + (m === currentMonth ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200') + '">' + m + '월</button>').join('');
+            box.querySelectorAll('[data-mo]').forEach((b) => { b.onclick = () => { currentMonth = parseInt(b.dataset.mo, 10); renderMonthMenu(); generateAndRenderTable(); }; });
+        }
         function renderModalCheckboxes() {
             const classContainer = document.getElementById('modal-form-classes');
             classContainer.innerHTML = '';
@@ -270,10 +262,7 @@ window.__GP_PAGE__ = 'p08';</script>
             });
         }
 
-        function changeMonth() {
-            currentMonth = parseInt(document.getElementById('month-select').value);
-            generateAndRenderTable();
-        }
+        function changeMonth() { renderMonthMenu(); generateAndRenderTable(); }
 
         function applyServerMeta(res) {
             if (res.year) { window.__YEAR__ = res.year; localStorage.setItem('gp_year', res.year); }
@@ -616,8 +605,8 @@ window.__GP_PAGE__ = 'p08';</script>
 
         function showLoading(show) { document.getElementById('loading').style.display = show ? 'flex' : 'none'; }
     </script>
-<script src="../assets/js/xlsx-lite.js?v=20261128a"></script>
-<script src="../assets/js/gsheet-export.js?v=20261128a"></script>
+<script src="../assets/js/xlsx-lite.js?v=20261128b"></script>
+<script src="../assets/js/gsheet-export.js?v=20261128b"></script>
 <script>
 // ======================= 내보내기 (엑셀 / 구글 스프레드시트) — 강좌별 시간표 조회와 같은 3시트 =======================
 //  시트1 달력(화면 모양) · 시트2 목록(날짜/반/교시/강좌이름) · 시트3 주간 시간표(주·기간 × 요일·교시, 칸에는 일정 이름)
@@ -699,6 +688,14 @@ window.__GP_PAGE__ = 'p08';</script>
     q('dlGs').onclick = async () => { q('dlGs').disabled = true; try { const r = await GSheet.create(file().replace(/_/g, ' '), build(cls, picked()), (t) => msg(esc(t))); msg('스프레드시트를 만들었습니다. <a class="underline font-semibold text-blue-600" target="_blank" rel="noopener" href="' + esc(r.url) + '">열기</a> (내 구글 드라이브)'); } catch (e) { console.error(e); msg('스프레드시트로 보내지 못했습니다: ' + esc(e.message || e), true); } sync(); };
   };
 })();
+</script>
+<script>
+  // 위쪽 메뉴(header) 높이만큼 표 머리줄을 내려 붙임 (휴대폰 화면 배율을 줄였을 때도 맞춤)
+  (function () {
+    function setHH() { var h = document.querySelector('header'), m = document.querySelector('main'); if (!h || !m) return; var z = parseFloat(getComputedStyle(m).zoom) || 1; document.documentElement.style.setProperty('--hh', (h.offsetHeight / z) + 'px'); }
+    window.addEventListener('resize', setHH); setHH(); setInterval(setHH, 1000);
+    GPI.widePage({ key: 'lookup-class', sel: 'main.max-w-7xl', caps: [1230, 1600], onChange: function () { setTimeout(setHH, 0); } });
+  })();
 </script>
 </body>
 </html>

@@ -32,10 +32,12 @@
     // 마우스를 올리면 기능 이름 (아래쪽에 작은 말풍선)
     '[data-tip]{position:relative}[data-tip]:hover::after,[data-tip]:focus-visible::after{content:attr(data-tip);position:absolute;left:50%;top:calc(100% + 6px);transform:translateX(-50%);white-space:nowrap;background:#1e293b;color:#fff;font-size:12px;font-weight:600;line-height:1;padding:6px 8px;border-radius:6px;z-index:9999;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.18)}' +
     '[data-tip-pos="left"]:hover::after{left:auto;right:0;transform:none}[data-tip-pos="up"]:hover::after{top:auto;bottom:calc(100% + 6px)}' +
-    // 불러오는 중 화면 (모든 페이지 같은 모양: 흐린 배경 + 흰 카드 + 파란 원 + 글씨)
-    '.gp-busy-ov{position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.28)}.gp-busy-box{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#fff;border-radius:20px;padding:26px 34px;box-shadow:0 10px 30px rgba(0,0,0,.18);display:flex;flex-direction:column;align-items:center;gap:14px;min-width:220px;font-size:17px;font-weight:700;color:#1e293b;text-align:center}.gp-spin{width:46px;height:46px;border:4px solid #dfe8fd;border-top-color:#4f78f2;border-radius:50%;animation:gpspin .8s linear infinite}@keyframes gpspin{to{transform:rotate(360deg)}}' +
+    // 불러오는 중 화면 (모든 페이지 같은 모양: 흐린 배경 + 흰 카드 + 파란 원 + 글씨). 0.6초 안에 끝나면 아예 보이지 않음
+    '.gp-busy-ov{position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.28);animation:gpbusyin .2s ease .6s both}@keyframes gpbusyin{from{opacity:0;visibility:hidden}to{opacity:1;visibility:visible}}.gp-busy-box{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#fff;border-radius:20px;padding:26px 34px;box-shadow:0 10px 30px rgba(0,0,0,.18);display:flex;flex-direction:column;align-items:center;gap:14px;min-width:220px;font-size:17px;font-weight:700;color:#1e293b;text-align:center}.gp-spin{width:46px;height:46px;border:4px solid #dfe8fd;border-top-color:#4f78f2;border-radius:50%;animation:gpspin .8s linear infinite}@keyframes gpspin{to{transform:rotate(360deg)}}' +
     // 페이지 윗부분 메뉴줄: 본문과 같은 배경, 경계선·그림자 없음
     '.gp-top{background:#f8fafc!important;border-bottom-width:0!important;border-top-width:0!important;box-shadow:none!important}html[data-gp-theme="neu"] .gp-top{background:var(--neu)!important}html[data-gp-theme="glass"] .gp-top{background:rgba(255,255,255,.3)!important;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}' +
+    // 켬/끔 토글 스위치: <input type="checkbox" class="gp-sw">
+    'input.gp-sw{-webkit-appearance:none;appearance:none;position:relative;width:34px;height:20px;border-radius:999px;background:#cbd5e1;cursor:pointer;flex-shrink:0;margin:0;transition:background .15s;border:0}input.gp-sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s}input.gp-sw:checked{background:#4f78f2}input.gp-sw:checked::after{left:16px}' +
     // 화면 너비 버튼 (↔ 기본)
     '.gp-wide{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border:0;border-radius:8px;background:#eef2f7;color:#475569;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0}.gp-wide:hover{background:#e2e8f0}.gp-wide svg{width:15px;height:15px}';
   function addCss() { if (document.getElementById('gpi-css')) return; const st = document.createElement('style'); st.id = 'gpi-css'; st.textContent = CSS; (document.head || document.documentElement).appendChild(st); }
@@ -54,6 +56,34 @@
     document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('#wideBtn'); if (!b || b.dataset.gpWideOwn) return; const n = (get() + 1) % 3; try { localStorage.setItem(K, n); } catch (x) { /* 무시 */ } run(); });
     run(); try { new MutationObserver(paint).observe(document.documentElement, { childList: true, subtree: true }); } catch (e) { /* 무시 */ }
     window.addEventListener('load', run); window.__gpWideChanged = run;
+  }
+  // 화면 너비 버튼(#wideBtn) 공통: 누를 때마다 기본 → 넓게 → 전체 (브라우저에 단계 기억: gp_wide_<key>)
+  //  o = { key: 문자열 또는 () => 문자열(보기마다 따로 기억), sel: 본문 상자 선택자, def: 처음 단계(0~2) 또는 (key) => 단계,
+  //        caps: [기본 px, 넓게 px] (없으면 비율만), pct: [기본 %, 넓게 %], zoomSel: 휴대폰에서 축소할 상자(기본 sel) }
+  //  · 넓은 화면: 본문 폭 = min(caps, pct) → 노트북처럼 화면이 좁아도 단계마다 폭이 달라짐
+  //  · 휴대폰(가로 700px 미만): 폭 대신 화면 배율 100% → 85% → 70% (더 넓은 범위가 한눈에 보임)
+  function widePage(o) {
+    const keyOf = () => (typeof o.key === 'function' ? o.key() : o.key);
+    const defOf = (k) => (typeof o.def === 'function' ? o.def(k) : (o.def || 0));
+    const get = (k) => { let v = null; try { v = localStorage.getItem('gp_wide_' + k); } catch (e) { v = null; } const n = v === null ? defOf(k) : parseInt(v, 10) || 0; return Math.max(0, Math.min(2, n)); };
+    const pct = o.pct || [85, 93], caps = o.caps || null, ZOOM = [1, 0.85, 0.7];
+    let lastCss = '', lastKey = '';
+    const apply = () => {
+      const k = keyOf(), n = get(k); lastKey = k + ':' + n;
+      const w = n === 2 ? 'none' : (caps ? 'min(' + caps[n] + 'px,' + pct[n] + '%)' : pct[n] + '%');
+      const css = '@media (min-width:700px){html body ' + o.sel + '{max-width:' + w + ' !important;' + (n === 2 ? '' : 'width:100%;') + 'margin-left:auto !important;margin-right:auto !important}}' +
+        '@media (max-width:699.98px){html body ' + (o.zoomSel || o.sel) + '{zoom:' + ZOOM[(n - defOf(k) + 3) % 3] + '}}';   // 휴대폰: 처음 단계에서는 원래 크기
+      let st = document.getElementById('gp-wide-page'); if (!st) { st = document.createElement('style'); st.id = 'gp-wide-page'; document.head.appendChild(st); }
+      if (css !== lastCss) { st.textContent = css; lastCss = css; }
+      document.querySelectorAll('#wideBtn').forEach((b) => { if (!b.querySelector('#wideLbl')) { b.innerHTML = WIDE_BTN; if (!b.classList.contains('gp-wide')) b.classList.add('gp-wide'); } const l = b.querySelector('#wideLbl'); if (l && l.textContent !== WL[n]) l.textContent = WL[n]; const t = '화면 너비 — 지금: ' + WL[n] + ' (누를 때마다 기본 → 넓게 → 전체)'; if (b.title !== t) b.title = t; });
+      if (o.onChange) try { o.onChange(n); } catch (e) { /* 무시 */ }
+    };
+    document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('#wideBtn'); if (!b) return; e.preventDefault(); e.stopImmediatePropagation(); const k = keyOf(), n = (get(k) + 1) % 3; try { localStorage.setItem('gp_wide_' + k, n); } catch (x) { /* 무시 */ } apply(); }, true);
+    let qd = false; const check = () => { if (qd) return; qd = true; requestAnimationFrame(() => { qd = false; check2(); }); };
+    const check2 = () => { const k = keyOf(); const l = document.querySelector('#wideBtn #wideLbl'); if (lastKey !== k + ':' + get(k) || (l && l.textContent !== WL[get(k)])) apply(); };
+    apply(); try { new MutationObserver(check).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] }); } catch (e) { /* 무시 */ }
+    window.addEventListener('load', apply); window.__gpWideChanged = () => apply();
+    return { apply };
   }
   const WIDE_BTN = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 8 22 12 18 16"></polyline><polyline points="6 8 2 12 6 16"></polyline><line x1="2" y1="12" x2="22" y2="12"></line></svg><span id="wideLbl">기본</span>';
   // 내보내기 창: 엑셀 / 구글 스프레드시트 아이콘 중 고름. o = { title, extra(창 안에 넣을 HTML), onExcel(box), onSheets(box) }
@@ -84,5 +114,5 @@
   const busyEl = (R, msg) => R.createElement('div', { className: 'gp-busy-ov', role: 'status' }, R.createElement('div', { className: 'gp-busy-box' }, R.createElement('div', { className: 'gp-spin' }), msg || '불러오는 중...'));
   // 일반 페이지용: GPI.busy(true/false, 글씨)
   function busy(on, msg) { let el = document.getElementById('gp-busy2'); if (!el) { el = document.createElement('div'); el.id = 'gp-busy2'; el.className = 'gp-busy-ov'; el.innerHTML = '<div class="gp-busy-box"><div class="gp-spin"></div><span></span></div>'; document.body.appendChild(el); } el.querySelector('span').textContent = msg || '불러오는 중...'; el.style.display = on ? 'block' : 'none'; }
-  window.GPI = { svg, btn, hydrate, ICONS, wide, WIDE_BTN, exportDialog, busyEl, busy };
+  window.GPI = { svg, btn, hydrate, ICONS, wide, widePage, WIDE_BTN, exportDialog, busyEl, busy };
 })();

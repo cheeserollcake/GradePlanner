@@ -755,20 +755,22 @@
     const rowsB = await GP.getCol('data_budget'); const lines = await GP.budgetLines();
     const sheetCfg = await GP.getCfg('budget_sheets', { sheets: [] });
     const curY = Number((await APP.getGeneral()).year);
-    const PAGES = [['budget', '학년 예산'], ['fee', '학년회비'], ['overview', '학년 개요']].concat((Array.isArray(sheetCfg.sheets) ? sheetCfg.sheets : []).filter((x) => x.id === 'classfee' || !Number(x.year) || Number(x.year) === curY).map((x) => ['sheet:' + x.id, x.name]));   // 추가한 예산 페이지는 만든 학년도에만
+    const PAGES = [['budget', '학년 예산'], ['fee', '학년회비']].concat((Array.isArray(sheetCfg.sheets) ? sheetCfg.sheets : []).filter((x) => x.id === 'classfee' || !Number(x.year) || Number(x.year) === curY).map((x) => ['sheet:' + x.id, x.name]));   // 추가한 예산 페이지는 만든 학년도에만
     if (bdSel !== 'all' && !PAGES.some((x) => x[0] === bdSel)) bdSel = 'all';
     const pageName = (id) => (PAGES.find((x) => x[0] === id) || [id, id])[1];
     let layout = await GP.getCfg('budget_layout', {}); if (!layout || typeof layout !== 'object') layout = {};
     if (layout.supply && !layout.supply1) { layout.supply1 = layout.supply; delete layout.supply; }
     let items = (await GP.readList('list_budget')).map((i) => ({ name: i.value, amount: num(i.row.list_budget_amount), color: str(i.row.list_budget_color).trim(), pages: str(i.row.list_budget_pages).trim() ? str(i.row.list_budget_pages).split(',').filter(Boolean).map((p) => (p === 'supply' ? 'supply1' : p)) : ['budget'],
-      kind: str(i.row.list_budget_kind).trim(), classes: str(i.row.list_budget_classes).split(',').map((x) => x.trim()).filter(Boolean), common: (i.row.list_budget_common === undefined || i.row.list_budget_common === null) ? '' : i.row.list_budget_common, bar: str(i.row.list_budget_bar).trim() !== '0' }));
+      kind: str(i.row.list_budget_kind).trim(), classes: str(i.row.list_budget_classes).split(',').map((x) => x.trim()).filter(Boolean), common: (i.row.list_budget_common === undefined || i.row.list_budget_common === null) ? '' : i.row.list_budget_common, bar: str(i.row.list_budget_bar).trim() !== '0', ov: str(i.row.list_budget_ov).trim() }));
     const allClasses = (await APP.getGeneral()).classNames.slice();   // 반별사용액 통계의 기본 학급 = 관리자 > 학년 기초 설정의 학급
     items.forEach((it) => { if (/학년회비|친목회비/.test(it.name) && it.pages.indexOf('budget') >= 0 && it.pages.indexOf('fee') < 0) it.pages = it.pages.map((x) => (x === 'budget' ? 'fee' : x)); });   // 학년회비류는 '학년회비' 페이지로
+    // 학년 개요 표시(켬/끔): 따로 정하지 않은 카드는 학년 예산 페이지에 있으면 켬, 다른 예산 페이지만이면 끔
+    items.forEach((it) => { it.ov = it.ov === '1' ? true : it.ov === '0' ? false : (it.pages.indexOf('overview') >= 0 || it.pages.indexOf('budget') >= 0); it.pages = it.pages.filter((x) => x !== 'overview'); });
     const used = (name) => lines.filter((r) => r.name === name && !r.fee).reduce((a, r) => a + r.amount, 0);
     const added = (name) => lines.filter((r) => r.name === name && r.fee).reduce((a, r) => a + r.amount, 0);   // 학년회비 등 학급을 체크한 줄 = 배정액에 추가
     const colorOf = (it) => it.color || PALETTE[items.indexOf(it) % PALETTE.length];   // 색을 정하지 않은 카드는 전체 순서 기준의 기본 색
     const fmt = (n) => Number(n).toLocaleString();
-    const save = () => autosave(() => GP.writeList('list_budget', items.map((i) => ({ value: i.name, extra: { list_budget_amount: i.amount, list_budget_color: i.color || '', list_budget_pages: i.pages.join(','), list_budget_kind: i.kind || '', list_budget_classes: (i.classes || []).join(','), list_budget_common: i.common === undefined ? '' : i.common, list_budget_bar: i.bar === false ? '0' : '' } }))));
+    const save = () => autosave(() => GP.writeList('list_budget', items.map((i) => ({ value: i.name, extra: { list_budget_amount: i.amount, list_budget_color: i.color || '', list_budget_pages: i.pages.join(','), list_budget_kind: i.kind || '', list_budget_classes: (i.classes || []).join(','), list_budget_common: i.common === undefined ? '' : i.common, list_budget_bar: i.bar === false ? '0' : '', list_budget_ov: i.ov ? '1' : '0' } }))));
     const saveLayout = () => autosave(() => GP.setCfg('budget_layout', layout));
     const shown = () => {   // 지금 화면에 보이는 카드(그 페이지에서 정한 순서)
       if (bdSel === 'all') return items.slice();
@@ -826,12 +828,11 @@
             '<span class="flex shrink-0 gap-1"><label class="cursor-pointer relative" title="배경색">🎨<input type="color" data-color="' + i + '" value="' + colorOf(it) + '" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"></label><button data-edit="' + i + '" title="수정">✏️</button></span></div>' +
             '<div class="flex justify-between text-xs"><span>배정액</span><b>' + fmt(asg) + '</b></div><div class="flex justify-between text-xs"><span>사용액</span><b>' + fmt(u) + '</b></div>' +
             '<div class="flex justify-between text-sm mt-1 pt-1 border-t border-black/10"><span>잔액</span><b class="' + (bal < 0 ? 'text-red-600' : 'text-blue-700') + '">' + fmt(bal) + '</b></div>' +
+            '<label class="bd-ov flex items-center justify-between gap-2 text-[11px] font-semibold text-slate-600 mt-1 pt-1 border-t border-black/10 cursor-pointer" title="학년 개요 페이지의 학년 예산에 이 카드를 보일지 정합니다">학년 개요에 표시<input type="checkbox" class="gp-sw" data-ovt="' + i + '"' + (it.ov ? ' checked' : '') + '></label>' +
             '<div class="text-[11px] text-slate-500 mt-1 pt-1 border-t border-black/10 leading-tight">' + (it.kind === 'classStats' ? '<b class="text-indigo-600">반별 사용액 통계</b> · ' : '') + '표시: ' + esc(where) + (it.kind !== 'classStats' && it.bar === false ? ' · 막대 숨김' : '') + '</div></div>';
         }).join('') + '<button id="bdAdd" class="border-2 border-dashed border-slate-300 rounded-xl text-3xl font-bold text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 min-h-[110px]" title="예산 추가">+</button><button id="bdAddStats" class="border-2 border-dashed border-indigo-200 rounded-xl text-sm font-bold text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 min-h-[110px] px-2" title="반별 사용액 통계 추가">+ 반별 사용액<br>통계</button></div>' +
-        (bdSel === 'overview' ? '<div class="border-t border-slate-200 pt-3"><div class="text-sm font-bold mb-2">학년 개요에 불러올 예산 <span class="text-xs font-normal text-slate-400">체크한 예산 카드가 학년 개요 페이지의 학년 예산에 사용 비율 막대와 함께 보입니다. 하나도 고르지 않으면 학년친목회비를 뺀 모든 카드가 보입니다.</span></div><div class="flex flex-wrap gap-x-4 gap-y-2">' + items.map((it, k) => '<label class="flex items-center gap-1.5 text-sm"><input type="checkbox" class="w-4 h-4" data-ov="' + k + '"' + (it.pages.indexOf('overview') >= 0 ? ' checked' : '') + '>' + esc(it.name) + '</label>').join('') + '</div></div>' : '') +
         (list.length ? '' : '<p class="text-sm text-slate-400">이 페이지에 표시되는 예산 카드가 없습니다. + 로 추가하거나, 전체 보기에서 카드의 ✏️ 로 표시할 페이지를 고르세요.</p>') + '</div>';
       view.querySelectorAll('[data-bp]').forEach((b) => b.onclick = () => { bdSel = b.dataset.bp; draw(); });
-      view.querySelectorAll('input[data-ov]').forEach((c) => c.onchange = async () => { const it = items[+c.dataset.ov]; it.pages = it.pages.filter((x) => x !== 'overview'); if (c.checked) it.pages.push('overview'); await save(); draw(); });
       const box = $('bdCards');
       box.querySelectorAll('[data-edit]').forEach((b) => b.onclick = async () => {
         const it = list[+b.dataset.edit], r = await editDialog(it); if (!r) return;
@@ -845,9 +846,10 @@
         }
         draw();
       });
+      box.querySelectorAll('input[data-ovt]').forEach((c) => { c.onchange = () => { list[+c.dataset.ovt].ov = c.checked; save(); }; });
       box.querySelectorAll('input[data-color]').forEach((inp) => { inp.onchange = () => { list[+inp.dataset.color].color = inp.value; save(); draw(); }; });
-      $('bdAdd').onclick = async () => { const r = await editDialog(null); if (!r || r.del) return; const it = { name: r.name, amount: r.amount, color: '', pages: r.pages, bar: r.bar }; items.push(it); await save(); draw(); };
-      $('bdAddStats').onclick = async () => { const r = await editDialog(null, true); if (!r || r.del) return; items.push({ name: r.name, amount: r.amount, color: '', pages: r.pages, kind: 'classStats', classes: r.classes, common: r.common }); await save(); draw(); };
+      $('bdAdd').onclick = async () => { const r = await editDialog(null); if (!r || r.del) return; const it = { name: r.name, amount: r.amount, color: '', pages: r.pages, bar: r.bar, ov: r.pages.indexOf('budget') >= 0 }; items.push(it); await save(); draw(); };
+      $('bdAddStats').onclick = async () => { const r = await editDialog(null, true); if (!r || r.del) return; items.push({ name: r.name, amount: r.amount, color: '', pages: r.pages, kind: 'classStats', classes: r.classes, common: r.common, ov: r.pages.indexOf('budget') >= 0 }); await save(); draw(); };
       // 끌어서 순서 바꾸기 (마우스·터치 모두: 카드 왼쪽 위 ⠿ 를 잡고 끕니다)
       if (!box._dnd) { box._dnd = true; DnD.bind(box, { handle: '.bdgrip', item: '.bdc', drop: '.bdc', axis: 'x', onDrop: (el, tgt, after) => {
         const from = +el.dataset.i, to = +tgt.dataset.i; let dest = to + (after ? 1 : 0); const cur = shown(); const order = cur.slice(); const [m] = order.splice(from, 1); if (from < dest) dest--; order.splice(dest, 0, m);
@@ -886,7 +888,7 @@
       '<label class="text-sm font-semibold">새 관리자 비밀번호<span class="block text-xs font-normal text-slate-400">이 관리자 페이지 접근용</span><input id="pwAdmin" type="password" autocomplete="new-password" class="' + INP + ' w-full mt-1"></label></div>' +
       '<div class="text-right"><button id="savePw" class="' + BTN_P + '">비밀번호 변경</button></div></div>' +
       '<div id="iconCard"></div>' +
-      '<div class="' + CARD + '" style="border-color:#fecaca;border-left:4px solid #ef4444"><h2 class="font-bold text-lg flex items-center gap-2" style="color:#dc2626"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>데이터 삭제 및 다운로드</h2><p class="text-sm text-slate-500">선택한 학년도(2월 1일~다음 해 2월 말일)의 데이터 중 항목을 팝업에서 골라 <b>내려받거나</b>(엑셀, 이미지·파일이 있으면 zip) <b style="color:#dc2626">지웁니다</b>. <span style="color:#dc2626">지운 데이터는 되돌릴 수 없으니, 지우기 전에 먼저 내려받아 보관해 두세요.</span><br>학년도를 바꾸면 명렬표·기초시간표·예산·강좌·이미지·교실배치도·내선번호는 새 학년도에서 빈 화면으로 보이고, 이전 데이터는 여기서 삭제하기 전까지 남아 있습니다.<br><b>삭제되지 않음:</b> 쇼핑몰 ID, 바로가기, 비밀번호, 학급·과목·교시·공간 목록</p>' +
+      '<div class="' + CARD + '" style="border-color:#fecaca;border-left:4px solid #ef4444"><h2 class="font-bold text-lg flex items-center gap-2" style="color:#dc2626"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>데이터 삭제 및 다운로드</h2><p class="text-sm text-slate-500">선택한 학년도(2월 1일~다음 해 2월 말일)의 데이터 중 항목을 팝업에서 골라 <b>내려받거나</b>(엑셀, 이미지·파일이 있으면 zip) <b style="color:#dc2626">지웁니다</b>. <span style="color:#dc2626">지운 데이터는 되돌릴 수 없으니, 지우기 전에 먼저 내려받아 보관해 두세요.</span><br>학년도를 바꾸면 명렬표·기초시간표·예산·강좌·이미지·교실배치도·내선번호는 새 학년도에서 빈 화면으로 보이고, 이전 데이터는 여기서 삭제하기 전까지 남아 있습니다.<br>쇼핑몰 ID, 바로가기, 특별실 비밀번호, 학급·과목·교시·공간 목록은 팝업 맨 위에 따로 있으며 <b>직접 체크했을 때만</b> 지워집니다. 페이지 접근·관리자 비밀번호는 지우지 않고 위의 [비밀번호 변경]으로 바꿉니다.</p>' +
       '<div class="flex gap-2 items-center"><select id="delYear" class="' + INP + '">' + years.map((y) => '<option value="' + y + '">' + y + '학년도</option>').join('') + '</select><button id="delBtn" class="' + BTN + ' text-white" style="background:#dc2626">삭제·다운로드할 항목 고르기</button></div></div>' +
       '<div class="' + CARD + '"><h2 class="font-bold text-lg">임시 저장 데이터 새로고침</h2><p class="text-sm text-slate-500">속도와 사용량을 줄이려고 기기에 저장해 둔 데이터는 앱에서 저장할 때마다 자동으로 갱신됩니다. 파이어베이스 콘솔에서 데이터를 직접 고쳤다면 이 버튼으로 모든 기기가 새로 받게 하세요.</p><button id="resetCache" class="' + BTN_G + '">모든 기기 데이터 새로고침</button></div></div>' +
       '<style>@keyframes gpSpin{to{transform:rotate(360deg)}}.gp-spin{width:44px;height:44px;border-radius:50%;border:4px solid #fee2e2;border-top-color:#dc2626;animation:gpSpin .8s linear infinite}.gp-bar{height:8px;border-radius:999px;background:#fee2e2;overflow:hidden}.gp-bar>i{display:block;height:100%;width:0;background:#dc2626;border-radius:999px;transition:width .3s}</style>' +
@@ -919,12 +921,15 @@
       try {
         const items = await APP.previewDelete(y); clearTimeout(slow);
         if ($('dmY').textContent !== y + '학년도') return;   // 그 사이 다른 학년도를 다시 연 경우
-        $('dmList').innerHTML = items.map((it) => { const unk = it.count < 0;
-          return '<label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 ' + (it.count > 0 ? '' : 'text-slate-400') + '"' + (unk ? ' title="시간 안에 개수를 확인하지 못해 이번에는 지울 수 없습니다. 잠시 뒤 다시 열어 보세요."' : '') + '><input type="checkbox" data-dk="' + it.key + '" ' + (it.count > 0 ? 'checked' : 'disabled') + ' class="w-4 h-4"><span class="flex-1">' + esc(it.label) + (it.key === 'cfg' || it.key === 'groups' ? ' <span class="text-xs text-slate-400">(삭제만, 다운로드 안 함)</span>' : '') + '</span><span class="text-xs">' + (unk ? '확인 못 함' : it.count + '건') + '</span></label>'; }).join('');
+        const row = (it) => { const unk = it.count < 0;
+          return '<label class="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 ' + (it.count > 0 ? '' : 'text-slate-400') + '"' + (unk ? ' title="시간 안에 개수를 확인하지 못해 이번에는 지울 수 없습니다. 잠시 뒤 다시 열어 보세요."' : '') + '><input type="checkbox" data-dk="' + it.key + '"' + (it.persist ? ' data-persist="1"' : '') + ' ' + (it.count > 0 ? (it.persist ? '' : 'checked') : 'disabled') + ' class="w-4 h-4"><span class="flex-1">' + esc(it.label) + (it.key === 'cfg' || it.key === 'groups' ? ' <span class="text-xs text-slate-400">(삭제만, 다운로드 안 함)</span>' : '') + '</span><span class="text-xs">' + (unk ? '확인 못 함' : it.count + '건') + '</span></label>'; };
+        const per = items.filter((it) => it.persist), yr = items.filter((it) => !it.persist);
+        $('dmList').innerHTML = (per.length ? '<div class="rounded-lg mb-2 p-1" style="background:#fef2f2;border:1px solid #fecaca"><div class="text-xs font-bold px-2 pt-1 pb-0.5" style="color:#b91c1c">학년도와 상관없이 계속 쓰는 자료 · 필요할 때만 체크</div>' + per.map(row).join('') + '</div>' : '') +
+          '<div class="text-xs font-bold text-slate-500 px-2 pt-1">' + esc(y + '학년도') + ' 데이터</div>' + yr.map(row).join('');
         modal.querySelectorAll('[data-dk]').forEach((c) => c.onchange = refresh); refresh();
       } catch (e) { clearTimeout(slow); console.error(e); $('dmList').innerHTML = '<p class="text-red-600 p-2">확인하지 못했습니다: ' + esc(String(e.message || e)) + '</p>'; }
     };
-    $('dmAll').onclick = () => { modal.querySelectorAll('[data-dk]:not(:disabled)').forEach((c) => { c.checked = true; }); refresh(); };
+    $('dmAll').onclick = () => { modal.querySelectorAll('[data-dk]:not(:disabled):not([data-persist])').forEach((c) => { c.checked = true; }); refresh(); };
     $('dmNone').onclick = () => { modal.querySelectorAll('[data-dk]').forEach((c) => { c.checked = false; }); refresh(); };
     $('dmNo').onclick = () => { if (!deleting) show(false); }; $('dmIn').oninput = refresh;
     const busy = (on, t, f, mode) => { const b = $('dmBusy'); if (!b) return; const pn = b.parentElement; if (on && pn.style.overflow !== 'hidden') { pn.scrollTop = 0; pn.style.overflow = 'hidden'; } else if (!on) pn.style.overflow = ''; b.style.display = on ? 'flex' : 'none'; const dl = mode === 'dl'; b.querySelector('.gp-spin').style.borderColor = dl ? '#dfe8fd' : ''; b.querySelector('.gp-spin').style.borderTopColor = dl ? '#4f78f2' : ''; $('dmBusyBar').style.background = dl ? '#4f78f2' : ''; b.querySelector('.gp-bar').style.background = dl ? '#dfe8fd' : ''; if (t) $('dmBusyT').textContent = t; if (f !== undefined) $('dmBusyBar').style.width = Math.round(f * 100) + '%'; };

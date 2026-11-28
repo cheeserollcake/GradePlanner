@@ -120,9 +120,16 @@
     return v;
   }
   const fetchCol = (name) => db.collection(name).get().then((snap) => snap.docs.map((d) => safeVal(Object.assign({ _id: d.id }, d.data()))).sort(idcmp));
-  const getVersions = () => versions || (versions = db.collection('app_meta').doc('version').get().then((s) => (s.exists ? s.data() : {})).catch((e) => { console.warn('version read failed', e); return null; }));
+  // 변경 번호는 바깥 틀(index.html)에 1분 동안 함께 두어, 페이지를 옮겨 다닐 때마다 서버에 다시 묻지 않습니다(페이지가 바로 열림).
+  const VER_SHARE = (() => { try { if (window.parent && window.parent !== window) return window.parent.__gpVerShare || (window.parent.__gpVerShare = {}); } catch (e) { /* 단독 실행 */ } return {}; })();
+  const VER_TTL = 60 * 1000;
+  const shareVer = (d) => { try { VER_SHARE[PREFIX] = { t: Date.now(), d: JSON.stringify(d) }; } catch (e) { /* 무시 */ } };
+  const getVersions = () => versions || (versions = (() => {
+    try { const sh = VER_SHARE[PREFIX]; if (sh && Date.now() - sh.t < VER_TTL) return Promise.resolve(JSON.parse(sh.d)); } catch (e) { /* 무시 */ }
+    return db.collection('app_meta').doc('version').get().then((s) => { const d = s.exists ? s.data() : {}; shareVer(d); return d; }).catch((e) => { console.warn('version read failed', e); return null; });
+  })());
   // 다른 사람이 바꿨는지 다시 확인하고 싶을 때(1건 읽기). 바뀐 컬렉션만 새로 받습니다.
-  function fresh() { versions = null; Object.keys(cache).forEach((k) => delete cache[k]); Object.keys(loadedVer).forEach((k) => delete loadedVer[k]); }
+  function fresh() { versions = null; try { delete VER_SHARE[PREFIX]; } catch (e) { /* 무시 */ } Object.keys(cache).forEach((k) => delete cache[k]); Object.keys(loadedVer).forEach((k) => delete loadedVer[k]); }
   const invalidate = () => { /* 저장할 때 사본을 함께 고치므로 따로 비울 필요가 없습니다. 최신 확인은 fresh() */ };
 
   // 학년도별로 나뉘는 컬렉션: 문서에 _year(학년도) 표시가 있으면 그 학년도에서만 보이고, 표시가 없으면 '지금 학년도' 것으로 봅니다.
@@ -197,7 +204,7 @@
     }
     let after = null;
     try { after = (await verRef.get()).data() || {}; } catch (e) { console.warn('version read failed', e); }
-    versions = after ? Promise.resolve(after) : null;
+    versions = after ? Promise.resolve(after) : null; if (after) shareVer(after); else { try { delete VER_SHARE[PREFIX]; } catch (e) { /* 무시 */ } }
     for (const c of cols) {
       // 우리가 알던 번호 바로 다음 번호면 그 사이 다른 사람의 저장이 없었던 것 → 사본을 직접 고침. 아니면 다음에 새로 받음.
       if (after && cache[c] && loadedVer[c] !== undefined && loadedVer[c] !== null && Number(after[c] || 0) === loadedVer[c] + 1) {
@@ -395,8 +402,8 @@
       subs: (await readList('list_sub')).map((i) => i.value), times: (await readList('list_time')).map((i) => i.value),
       gyms: (await readList('list_gym')).map((i) => i.value), rooms: (await readList('list_room')).map((i) => i.value), teachers: (await readList('list_t')).map((i) => i.value),
       budgets: rows.filter((r) => str(r.list_budget).trim() && budgetYearOK(r, curY))
-        .map((r, i) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount), color: str(r.list_budget_color).trim(), kind: str(r.list_budget_kind).trim(), classes: str(r.list_budget_classes).split(',').map((x) => x.trim()).filter(Boolean), common: (r.list_budget_common === undefined || r.list_budget_common === null) ? '' : r.list_budget_common, bar: str(r.list_budget_bar).trim() !== '0', pages: str(r.list_budget_pages).trim() ? str(r.list_budget_pages).split(',').filter(Boolean).map((p) => (p === 'supply' ? 'supply1' : p)) : ['budget'], _o: (r.list_budget_order === undefined || r.list_budget_order === '' || r.list_budget_order === null) ? 1e6 + i : Number(r.list_budget_order) }))
-        .sort((a, b) => a._o - b._o).map(({ _o, ...b }) => { if (/학년회비|친목회비/.test(b.name) && b.pages.indexOf('budget') >= 0 && b.pages.indexOf('fee') < 0) b.pages = b.pages.map((x) => (x === 'budget' ? 'fee' : x)); return b; }),
+        .map((r, i) => ({ name: str(r.list_budget).trim(), amount: num(r.list_budget_amount), color: str(r.list_budget_color).trim(), kind: str(r.list_budget_kind).trim(), classes: str(r.list_budget_classes).split(',').map((x) => x.trim()).filter(Boolean), common: (r.list_budget_common === undefined || r.list_budget_common === null) ? '' : r.list_budget_common, bar: str(r.list_budget_bar).trim() !== '0', ov: str(r.list_budget_ov).trim(), pages: str(r.list_budget_pages).trim() ? str(r.list_budget_pages).split(',').filter(Boolean).map((p) => (p === 'supply' ? 'supply1' : p)) : ['budget'], _o: (r.list_budget_order === undefined || r.list_budget_order === '' || r.list_budget_order === null) ? 1e6 + i : Number(r.list_budget_order) }))
+        .sort((a, b) => a._o - b._o).map(({ _o, ...b }) => {  if (/학년회비|친목회비/.test(b.name) && b.pages.indexOf('budget') >= 0 && b.pages.indexOf('fee') < 0) b.pages = b.pages.map((x) => (x === 'budget' ? 'fee' : x)); b.ov = b.ov === '1' ? true : b.ov === '0' ? false : (b.pages.indexOf('overview') >= 0 || b.pages.indexOf('budget') >= 0); b.pages = b.pages.filter((x) => x !== 'overview'); return b; }),   // ov: 학년 개요에 표시(학년 예산 카드는 처음에 켬, 다른 예산 페이지 카드는 끔)
       budgetHeaders: uniq('list_budget_header')
     };
   }
@@ -470,7 +477,7 @@
     let list = lists.budgets;
     if (pageId) {
       const layAll = (await getCfg('budget_layout', {})) || {}; const lay = layAll[pageId] || (pageId === 'supply1' ? layAll.supply : undefined); const pos = (n) => { const i = Array.isArray(lay) ? lay.indexOf(n) : -1; return i < 0 ? 1e6 : i; };
-      list = list.filter((b) => (b.pages || ['budget']).indexOf(pageId) >= 0).map((b, i) => ({ b, i })).sort((x, y) => pos(x.b.name) - pos(y.b.name) || x.i - y.i).map((x) => x.b);
+      list = list.filter((b) => (pageId === 'overview' ? b.ov : (b.pages || ['budget']).indexOf(pageId) >= 0)).map((b, i) => ({ b, i })).sort((x, y) => pos(x.b.name) - pos(y.b.name) || x.i - y.i).map((x) => x.b);
     }
     list.forEach((b) => {
       const h = b.name.split('/')[0];

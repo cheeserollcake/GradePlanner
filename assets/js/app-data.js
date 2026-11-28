@@ -482,6 +482,8 @@
 
   // ---- 학년도 데이터 정리 계획: 항목마다 {key,label,count,ops,after} 를 만들고, 고른 항목만 실제로 지웁니다.
   const YEAR_ITEMS = [
+    // 학년도와 상관없이 계속 쓰는 자료(삭제 창 맨 위에 따로, 처음에는 체크 꺼짐)
+    ['p_mall', '쇼핑몰 ID'], ['p_links', '바로가기'], ['p_pw', '비밀번호 (특별실 비밀번호 목록)'], ['p_lists', '학급·과목·교시·공간 목록 (이 학년도)'],
     ['school', '학교 행사'], ['memo', '학년 일정'], ['add', '추가된 일정 (강좌별 시간표 조회)'], ['sub', '전담 시간표'], ['gym', '체육 공간 시간표'], ['room', '특별실 시간표'],
     ['sem', '학기·방학·휴일 설정'], ['cfg', '담임·전담교사, 공간 개방 설정'], ['groups', '강좌별 시간표 범주'], ['student', '학년 전체 명렬표'], ['basictt', '기초시간표'], ['budget', '예산 내역 (학년 예산·학년회비·추가한 예산 페이지)'],
     ['supply', '학습준비물'], ['overview', '학년 개요 비고'], ['images', '특별실 시간표 이미지'], ['atts', '예산 첨부 이미지·파일'], ['ext', '내선번호 파일'], ['classroom', '교실 배치도 파일'], ['files', '그 밖에 이전 방식으로 올린 파일']
@@ -490,6 +492,32 @@
     const r = yearRange(year); const created = (d) => !!d && inRange(toDate(d), r); const cur = await G.curYear(); const plan = [];
     // ex: { rows: 엑셀로 내려받을 줄 목록, files: async () => [{ name, dataUrl | blob }] (내려받을 파일) }
     const add = (key, count, ops, after, ex) => plan.push(Object.assign({ key, label: YEAR_ITEMS.find((x) => x[0] === key)[1], count, ops: ops || [], after, rows: [], files: null }, ex || {}));
+    // ---- 계속 쓰는 자료 (persist: 삭제 창에서 위쪽에 따로, 기본 체크 꺼짐)
+    const mall = await G.getColAll('data_mall').catch(() => []);
+    add('p_mall', mall.length, mall.map((x) => ({ type: 'delete', col: 'data_mall', id: x._id })), null, { persist: true, rows: mall.map((x) => ({ 쇼핑몰: x.mall || x.mall_name || '', 아이디: x.id || x.mall_id || '', 비밀번호: x.pw || x.mall_pw || '', 주소: x.url || x.mall_url || '', 비고: x.note || x.mall_note || '' })) });
+    const links = await getCol('data_links').catch(() => []);
+    add('p_links', links.length, links.map((x) => ({ type: 'delete', col: 'data_links', id: x._id })), null, { persist: true, rows: links.map((x) => ({ 이름: x.name || x.title || '', 주소: x.url || '', 메모: x.memo || '' })) });
+    let roomPw = []; try { roomPw = (await G.privGet('room_passwords', [])) || []; } catch (e) { roomPw = []; }
+    const cfgAll = await getCol('app_config');
+    add('p_pw', Array.isArray(roomPw) ? roomPw.length : 0, [{ type: 'delete', col: 'gp_private', id: 'room_passwords' }].concat(cfgAll.some((x) => x._id === 'room_passwords') ? [{ type: 'delete', col: 'app_config', id: 'room_passwords' }] : []), null,
+      { persist: true, rows: (Array.isArray(roomPw) ? roomPw : []).map((x) => ({ 이름: x.name || '', 비밀번호: x.pwd || '', 비고: x.note || '' })) });
+    {   // 이 학년도의 교시·과목·전담교사·체육공간·특별실 목록과 학급 이름 → 지우면 그 학년도는 빈 목록(학급은 기본 'N반')
+      const LF = [['list_time', '교시'], ['list_sub', '과목'], ['list_gym', '체육 공간'], ['list_room', '특별실']];
+      const all = await getCol('data_basic'); const ly = Object.assign({}, (await getCfg('list_years', {})) || {});
+      const lops = [], lrows = []; let n = 0;
+      LF.forEach(([f, lb]) => {
+        const mine = all.filter((x) => str(x[f]).trim() && Number(x[f + '_yr']) === year);
+        mine.forEach((x) => lrows.push({ 구분: lb, 이름: str(x[f]).trim() })); n += mine.length;
+        lops.push(...basicStripOps(mine, Object.keys(mine[0] || {}).filter((k) => k === f || k.indexOf(f + '_') === 0)));
+        const wy = (ly[f] || []).map(Number); if (wy.indexOf(year) < 0) ly[f] = wy.concat([year]).sort();
+      });
+      const yd = cfgAll.find((x) => x._id === 'year_' + year); let ydj = null; try { ydj = yd ? JSON.parse(yd.json || '{}') : null; } catch (e) { ydj = null; }
+      const cn = ydj && Array.isArray(ydj.classNames) ? ydj.classNames : [];
+      cn.forEach((c) => lrows.push({ 구분: '학급', 이름: c })); n += cn.length;
+      if (ydj && cn.length) { const nj = Object.assign({}, ydj, { classNames: [] }); delete nj.classCount; lops.push({ type: 'set', col: 'app_config', id: 'year_' + year, data: { json: JSON.stringify(nj), updatedAt: new Date().toISOString() } }); }
+      if (n) lops.push({ type: 'set', col: 'app_config', id: 'list_years', data: { json: JSON.stringify(ly), updatedAt: new Date().toISOString() } });
+      add('p_lists', n, lops, null, { persist: true, rows: lrows });
+    }
     const dateCol = { school: ['data_task_school', 'task_school_date_start'], memo: ['data_task_memo', 'task_memo_date_start'], add: ['data_add_timetable', 'add_date'], sub: ['data_sub_timetable', 'sub_date'], gym: ['data_gym_timetable', 'gym_date'], room: ['data_room_timetable', 'room_date'] };
     for (const [k, [c, f]] of Object.entries(dateCol)) { const hit = (await getCol(c)).filter((x) => inRange(toDate(x[f]), r)); add(k, hit.length, hit.map((x) => ({ type: 'delete', col: c, id: x._id })), null, { rows: hit }); }
     const basic = await getCol('data_basic'); const semRows = basic.filter((x) => str(x.semester).trim() && inRange(toDate(x.semester_start_date), r)); const holRows = basic.filter((x) => str(x.holiday).trim() && inRange(toDate(x.holiday_start_date), r));
@@ -658,7 +686,7 @@
     const all = (sheets.length ? [{ name: base + '.xlsx', bytes: window.XlsxLite.toBytes(sheets) }] : []).concat(files);
     return { blob: window.XlsxLite.zipBlob(all), name: base + '.zip', missed };
   }
-  async function previewDelete(year) { return (await planYear(year)).map((x) => ({ key: x.key, label: x.label, count: x.count })); }
+  async function previewDelete(year) { return (await planYear(year)).map((x) => ({ key: x.key, label: x.label, count: x.count, persist: !!x.persist })); }
   async function deleteYear(year, keys, onStep) {   // keys: 지울 항목(없으면 전부), onStep(글, 진행 0~1): 진행 상황 알림
     const step = (t, f) => { try { if (onStep) onStep(t, f); } catch (e) { /* 무시 */ } };
     step('지울 데이터를 다시 확인하는 중...', 0.05);
